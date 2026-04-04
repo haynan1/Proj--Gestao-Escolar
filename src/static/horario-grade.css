@@ -1,0 +1,77 @@
+/* ─── Horários/Grade Specific Styles ────────────────────────────────────────── */
+
+.horarios-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.horarios-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.dia-header-cell {
+    text-align: left;
+    padding-left: 12px;
+}
+
+.legenda-empty-msg {
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.card-horarios-empty {
+    text-align: center;
+    padding: 3rem;
+}
+
+.card-horarios-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+/* Destaque de Conflito em Tempo Real */
+.grade-cell.conflict-busy {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    border: 2px dashed rgba(239, 68, 68, 0.5) !important;
+    position: relative;
+    overflow: visible;
+}
+
+.conflict-label {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ef4444;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.grade-cell.conflict-busy::after {
+    content: '⚠️';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.aula-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    cursor: grabbing;
+}

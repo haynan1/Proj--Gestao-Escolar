@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Horários Escolares{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+    {% block head %}{% endblock %}
+</head>
+
+<body {% block body_attrs %}{% endblock %}>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="{{ url_for('escola.home') }}" class="navbar-brand">
+            <div class="logo-icon">📅</div>
+            <span>EduSchedule</span>
+        </a>
+        <div class="navbar-links">
+            {% block nav_links %}{% endblock %}
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="container" style="padding-top:1rem; padding-bottom:0;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            {% if category == 'success' %}✓{% else %}⚠{% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    {% block content %}{% endblock %}
+
+    <script src="{{ url_for('static', filename='cores.js') }}"></script>
+    <script src="{{ url_for('static', filename='dragdrop.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

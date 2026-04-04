@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EduSchedule — Sistema de Horários Escolares</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* ─── Reset ──────────────────────────────────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0f172a;
+            --bg2: #1e293b;
+            --bg3: #273549;
+            --border: #334155;
+            --green: #22c55e;
+            --green2: #16a34a;
+            --green3: #4ade80;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --orange: #f97316;
+            --red: #ef4444;
+            --yellow: #eab308;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --radius: 14px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* ─── Navbar ─────────────────────────────────────────────────────────── */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .nav-logo {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .nav-links a {
+            color: var(--muted);
+            text-decoration: none;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+            background: var(--bg3);
+        }
+
+        /* ─── Hero ───────────────────────────────────────────────────────────── */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34, 197, 94, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 50%);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: var(--green3);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 7vw, 5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            background: linear-gradient(135deg, #fff 30%, var(--green3) 70%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1.25rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero p {
+            font-size: clamp(1rem, 2.5vw, 1.25rem);
+            color: var(--muted);
+            max-width: 600px;
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-btns {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: 10px;
+            border: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s;
+        }
+
+        .btn-green {
+            background: var(--green);
+            color: #0f172a;
+        }
+
+        .btn-green:hover {
+            background: var(--green3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg3);
+            border-color: var(--green);
+        }
+
+        /* ─── Grade Demo ─────────────────────────────────────────────────────── */
+        .grade-demo {
+            position: relative;
+            z-index: 1;
+            margin-top: 3rem;
+            width: 100%;
+            max-width: 800px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .grade-demo-bar {
+            background: var(--bg3);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red {
+            background: #ef4444;
+        }
+
+        .dot-yellow {
+            background: #eab308;
+        }
+
+        .dot-green {
+            background: #22c55e;
+        }
+
+        .grade-demo-title {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-left: 8px;
+        }
+
+        .grade-demo-content {
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        .demo-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4px;
+            font-size: 0.75rem;
+        }
+
+        .demo-table th {
+            background: var(--bg3);
+            padding: 8px 6px;
+            border-radius: 6px;
+            text-align: center;
+            color: var(--muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .demo-cell {
+            background: var(--bg3);
+            border-radius: 6px;
+            padding: 6px;
+            min-width: 90px;
+            height: 52px;
+            vertical-align: top;
+            transition: transform 0.15s;
+        }
+
+        .demo-aula {
+            border-radius: 5px;
+            padding: 5px 7px;
+            border-left: 3px solid transparent;
+            font-size: 0.72rem;
+            line-height: 1.3;
+        }
+
+        /* ─── Section ────────────────────────────────────────────────────────── */
+        section {
+            padding: 5rem 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            display: inline-block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--green);
+            margin-bottom: 0.75rem;
+        }
+
+        .section-title {
+            font-size: clamp(1.75rem, 4vw, 2.5rem);
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            color: var(--muted);
+            font-size: 1.05rem;
+            max-width: 560px;
+            line-height: 1.7;
+        }
+
+        /* ─── Features ───────────────────────────────────────────────────────── */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.25rem;
+            margin-top: 3rem;
+        }
+
+        .feature-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.75rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent, var(--green));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--accent, var(--green));
+            transform: translateY(-3px);
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: var(--muted);
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        /* ─── Scheduler Visualização ─────────────────────────────────────────── */
+        .scheduler-section {
+            background: var(--bg2);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .scheduler-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+            margin-top: 3rem;
+        }
+
+        @media (max-width: 768px) {
+            .scheduler-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .rules-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .rules-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.875rem;
+        }
+
+        .rule-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--green);
+        }
+
+        /* ─── Stats ──────────────────────────────────────────────────────────── */
+        .stats-section {
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+
+        .stat-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem 1.5rem;
+        }
+
+        .stat-num {
+            font-size: 3rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--green), var(--blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .stat-label {
+            color: var(--muted);
+            font-size: 0.875rem;
+            margin-top: 8px;
+        }
+
+        /* ─── Chart Section ──────────────────────────────────────────────────── */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 3rem;
+        }
+
+        .chart-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+        }
+
+        .chart-card h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--muted);
+        }
+
+        /* ─── Tech Stack ─────────────────────────────────────────────────────── */
+        .tech-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .tech-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tech-badge:hover {
+            border-color: var(--green);
+            transform: translateY(-2px);
+        }
+
+        .tech-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* ─── Estrutura de Arquivos ──────────────────────────────────────────── */
+        .file-tree {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.82rem;
+            line-height: 1.8;
+            overflow-x: auto;
+        }
+
+        .file-tree .folder {
+            color: var(--blue);
+            font-weight: 600;
+        }
+
+        .file-tree .file {
+            color: var(--muted);
+        }
+
+        .file-tree .file-py {
+            color: var(--green3);
+        }
+
+        .file-tree .file-html {
+            color: var(--orange);
+        }
+
+        .file-tree .file-css {
+            color: var(--purple);
+        }
+
+        .file-tree .file-js {
+            color: var(--yellow);
+        }
+
+        /* ─── Interactive Grade ──────────────────────────────────────────────── */
+        .interactive-section {
+            background: var(--bg2);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .grade-interactive {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-top: 2rem;
+        }
+
+        .grade-interactive-header {
+            background: var(--bg3);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .grade-interactive-header span {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .turma-selector {
+            display: flex;
+            gap: 6px;
+        }
+
+        .turma-btn {
+            padding: 5px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg2);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .turma-btn.active,
+        .turma-btn:hover {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .grade-scroll {
+            overflow-x: auto;
+            padding: 1rem;
+        }
+
+        .grade-tbl {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 5px;
+            font-size: 0.78rem;
+        }
+
+        .grade-tbl th {
+            background: var(--bg3);
+            padding: 9px 8px;
+            border-radius: 7px;
+            text-align: center;
+            color: var(--muted);
+            font-weight: 600;
+            min-width: 100px;
+        }
+
+        .grade-tbl .dia-th {
+            min-width: 80px;
+            color: var(--text);
+            font-size: 0.8rem;
+        }
+
+        .gcell {
+            background: var(--bg3);
+            border-radius: 7px;
+            padding: 6px;
+            height: 58px;
+            vertical-align: top;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .gcell:hover {
+            border-color: rgba(34, 197, 94, 0.4);
+        }
+
+        .gaula {
+            border-radius: 5px;
+            padding: 5px 7px;
+            border-left: 3px solid transparent;
+            height: 100%;
+        }
+
+        .gaula .disc {
+            font-weight: 700;
+            font-size: 0.75rem;
+        }
+
+        .gaula .prof {
+            font-size: 0.68rem;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        /* ─── Legenda interativa ─────────────────────────────────────────────── */
+        .legenda-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .leg-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 5px 12px;
+            font-size: 0.78rem;
+        }
+
+        .leg-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+        }
+
+        /* ─── CTA ────────────────────────────────────────────────────────────── */
+        .cta-section {
+            text-align: center;
+            padding: 6rem 2rem;
+        }
+
+        .cta-card {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(59, 130, 246, 0.08));
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            padding: 4rem 2rem;
+            max-width: 700px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at center, rgba(34, 197, 94, 0.05) 0%, transparent 60%);
+        }
+
+        .cta-card h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .cta-card p {
+            color: var(--muted);
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .code-block {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: var(--green3);
+            text-align: left;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .code-comment {
+            color: var(--muted);
+        }
+
+        /* ─── Footer ─────────────────────────────────────────────────────────── */
+        footer {
+            background: var(--bg2);
+            border-top: 1px solid var(--border);
+            padding: 2rem;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        footer span {
+            color: var(--green);
+        }
+
+        /* ─── Animations ─────────────────────────────────────────────────────── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse-green {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+            }
+        }
+
+        .animate-up {
+            animation: fadeUp 0.6s ease forwards;
+        }
+
+        .delay-1 {
+            animation-delay: 0.1s;
+            opacity: 0;
+        }
+
+        .delay-2 {
+            animation-delay: 0.2s;
+            opacity: 0;
+        }
+
+        .delay-3 {
+            animation-delay: 0.3s;
+            opacity: 0;
+        }
+
+        .pulse {
+            animation: pulse-green 2s infinite;
+        }
+
+        /* ─── Responsive ─────────────────────────────────────────────────────── */
+        @media (max-width: 640px) {
+            nav {
+                padding: 0 1rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            section {
+                padding: 3rem 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav>
+        <a href="#" class="nav-brand">
+            <div class="nav-logo">📅</div>
+            EduSchedule
+        </a>
+        <div class="nav-links">
+            <a href="#features">Funcionalidades</a>
+            <a href="#scheduler">Scheduler</a>
+            <a href="#demo">Demo</a>
+            <a href="#tecnologias">Tecnologias</a>
+            <a href="#instalacao">Instalação</a>
+        </div>
+    </nav>
+
+    <!-- ─── Hero ──────────────────────────────────────────────────────────────── -->
+    <section class="hero" id="home">
+        <div class="hero-bg"></div>
+
+        <div class="hero-badge animate-up">
+            <span class="pulse"
+                style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;"></span>
+            Sistema 100% funcional · Python + Flask + SQLite
+        </div>
+
+        <h1 class="animate-up delay-1">Gerador Automático<br />de Horários Escolares</h1>
+
+        <p class="animate-up delay-2">
+            Sistema web completo para criar, gerenciar e exportar grades de horários escolares
+            com geração automática inteligente, drag &amp; drop e design moderno.
+        </p>
+
+        <div class="hero-btns animate-up delay-3">
+            <a href="#instalacao" class="btn btn-green">⚡ Começar Agora</a>
+            <a href="#demo" class="btn btn-outline">🎯 Ver Demo</a>
+        </div>
+
+        <!-- Grade Demo Visual -->
+        <div class="grade-demo animate-up delay-3">
+            <div class="grade-demo-bar">
+                <div class="dot dot-red"></div>
+                <div class="dot dot-yellow"></div>
+                <div class="dot dot-green"></div>
+                <span class="grade-demo-title">EduSchedule — 6º Ano A · Horário Gerado Automaticamente</span>
+            </div>
+            <div class="grade-demo-content">
+                <table class="demo-table">
+                    <thead>
+                        <tr>
+                            <th>Dia</th>
+                            <th>1º Per.</th>
+                            <th>2º Per.</th>
+                            <th>3º Per.</th>
+                            <th>4º Per.</th>
+                            <th>5º Per.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="demo-grade-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Features ──────────────────────────────────────────────────────────── -->
+    <section id="features">
+        <div class="container">
+            <div class="section-label">Funcionalidades</div>
+            <h2 class="section-title">Tudo que sua escola precisa</h2>
+            <p class="section-subtitle">
+                Um sistema completo do cadastro à exportação, com interface intuitiva e geração automática de horários.
+            </p>
+
+            <div class="features-grid">
+                <div class="feature-card" style="--accent: var(--green);">
+                    <div class="feature-icon" style="background:rgba(34,197,94,0.15); color:var(--green);">🏫</div>
+                    <h3>Múltiplas Escolas</h3>
+                    <p>Gerencie diversas escolas em um único sistema. Cada escola tem seus próprios professores,
+                        disciplinas e turmas.</p>
+                </div>
+                <div class="feature-card" style="--accent: var(--blue);">
+                    <div class="feature-icon" style="background:rgba(59,130,246,0.15); color:var(--blue);">📚</div>
+                    <h3>Disciplinas Coloridas</h3>
+                    <p>Cada disciplina recebe uma cor personalizada que aparece na grade, tornando a visualização
+                        intuitiva e clara.</p>
+                </div>
+                <div class="feature-card" style="--accent: var(--purple);">
+                    <div class="feature-icon" style="background:rgba(168,85,247,0.15); color:var(--purple);">👨‍🏫</div>
+                    <h3>Gestão de Professores</h3>
+                    <p>Configure dias disponíveis, limite semanal de aulas e vínculo com disciplinas para cada
+                        professor.</p>
+                </div>
+                <div class="feature-card" style="--accent: var(--orange);">
+                    <div class="feature-icon" style="background:rgba(249,115,22,0.15); color:var(--orange);">⚡</div>
+                    <h3>Geração Automática</h3>
+                    <p>O scheduler inteligente distribui as aulas respeitando todas as restrições e evitando conflitos
+                        automaticamente.</p>
+                </div>
+                <div class="feature-card" style="--accent: var(--yellow);">
+                    <div class="feature-icon" style="background:rgba(234,179,8,0.15); color:var(--yellow);">🖱️</div>
+                    <h3>Drag &amp; Drop</h3>
+                    <p>Arraste e solte aulas na grade para fazer ajustes manuais de forma visual e intuitiva.</p>
+                </div>
+                <div class="feature-card" style="--accent: var(--red);">
+                    <div class="feature-icon" style="background:rgba(239,68,68,0.15); color:var(--red);">📤</div>
+                    <h3>Exportação Excel &amp; PDF</h3>
+                    <p>Exporte o horário completo em Excel (com formatação colorida) ou PDF para impressão e
+                        compartilhamento.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Scheduler ──────────────────────────────────────────────────────────── -->
+    <section id="scheduler" class="scheduler-section">
+        <div class="container">
+            <div class="section-label">Scheduler Inteligente</div>
+            <h2 class="section-title">Regras automáticas de conflito</h2>
+
+            <div class="scheduler-grid">
+                <div>
+                    <p class="section-subtitle" style="margin-bottom:2rem;">
+                        O algoritmo de geração respeita todas as restrições pedagógicas e de disponibilidade,
+                        garantindo uma grade equilibrada e sem conflitos.
+                    </p>
+                    <ul class="rules-list">
+                        <li>
+                            <div class="rule-icon">🚫</div>
+                            <div><strong>Sem conflito de professor</strong> — Um professor não pode dar duas aulas no
+                                mesmo horário em turmas diferentes.</div>
+                        </li>
+                        <li>
+                            <div class="rule-icon">🚫</div>
+                            <div><strong>Sem conflito de turma</strong> — Uma turma não pode ter duas aulas simultâneas.
+                            </div>
+                        </li>
+                        <li>
+                            <div class="rule-icon">📅</div>
+                            <div><strong>Dias disponíveis</strong> — O professor só é alocado nos dias que configurou
+                                como disponíveis.</div>
+                        </li>
+                        <li>
+                            <div class="rule-icon">🔢</div>
+                            <div><strong>Limite semanal</strong> — Respeita o máximo de aulas por semana configurado
+                                para cada professor.</div>
+                        </li>
+                        <li>
+                            <div class="rule-icon">⏱️</div>
+                            <div><strong>Máx. 2 aulas seguidas</strong> — Evita mais de 2 aulas consecutivas da mesma
+                                disciplina por turma.</div>
+                        </li>
+                        <li>
+                            <div class="rule-icon">⚖️</div>
+                            <div><strong>Distribuição equilibrada</strong> — As disciplinas são distribuídas ao longo de
+                                toda a semana.</div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Chart: Distribuição -->
+                <div>
+                    <div class="chart-card">
+                        <h3>📊 Distribuição de Aulas por Dia (Exemplo)</h3>
+                        <canvas id="chartDias" height="220"></canvas>
+                    </div>
+                    <div class="chart-card" style="margin-top:1rem;">
+                        <h3>🎨 Aulas por Disciplina (Exemplo)</h3>
+                        <canvas id="chartDisc" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Stats ──────────────────────────────────────────────────────────────── -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="section-label">Capacidade do Sistema</div>
+            <h2 class="section-title">Números do EduSchedule</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-num" id="cnt-escolas">0</div>
+                    <div class="stat-label">Escolas simultâneas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" id="cnt-turmas">0</div>
+                    <div class="stat-label">Turmas por escola</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" id="cnt-aulas">0</div>
+                    <div class="stat-label">Aulas geradas por escola</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" id="cnt-periodos">0</div>
+                    <div class="stat-label">Períodos por dia</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" id="cnt-dias">0</div>
+                    <div class="stat-label">Dias letivos na semana</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Demo Interativo ────────────────────────────────────────────────────── -->
+    <section id="demo" class="interactive-section">
+        <div class="container">
+            <div class="section-label">Demo Interativo</div>
+            <h2 class="section-title">Visualize a grade em ação</h2>
+            <p class="section-subtitle">
+                Clique nas turmas para alternar a visualização da grade de horários gerada automaticamente.
+            </p>
+
+            <div class="grade-interactive">
+                <div class="grade-interactive-header">
+                    <span>📅 Grade de Horários — Escola Demo</span>
+                    <div class="turma-selector" id="turma-selector"></div>
+                </div>
+                <div class="grade-scroll">
+                    <table class="grade-tbl" id="grade-interativa">
+                        <thead>
+                            <tr>
+                                <th class="dia-th">Dia</th>
+                                <th>1º Período</th>
+                                <th>2º Período</th>
+                                <th>3º Período</th>
+                                <th>4º Período</th>
+                                <th>5º Período</th>
+                            </tr>
+                        </thead>
+                        <tbody id="grade-body"></tbody>
+                    </table>
+                </div>
+                <div class="legenda-wrap" id="legenda-interativa"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Tecnologias ────────────────────────────────────────────────────────── -->
+    <section id="tecnologias">
+        <div class="container">
+            <div class="section-label">Stack Tecnológico</div>
+            <h2 class="section-title">Tecnologias utilizadas</h2>
+
+            <div class="tech-grid">
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#3b82f6;"></div>
+                    Python 3.11
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#22c55e;"></div>
+                    Flask 2.3+
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#a855f7;"></div>
+                    SQLite 3
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#f97316;"></div>
+                    openpyxl
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#ef4444;"></div>
+                    ReportLab
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#eab308;"></div>
+                    HTML5 / CSS3
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#06b6d4;"></div>
+                    JavaScript ES6+
+                </div>
+                <div class="tech-badge">
+                    <div class="tech-dot" style="background:#ec4899;"></div>
+                    Drag &amp; Drop API
+                </div>
+            </div>
+
+            <!-- Estrutura de arquivos -->
+            <div style="margin-top:3rem;">
+                <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem;">📁 Estrutura do Projeto</h3>
+                <div class="file-tree">
+                    <span class="folder">src/</span>
+                    ├── <span class="folder">database/</span>
+                    │ ├── <span class="file-py">connection.py</span> <span class="file">← Conexão SQLite</span>
+                    │ └── <span class="file-py">schema.py</span> <span class="file">← Criação das tabelas</span>
+                    ├── <span class="folder">exports/</span>
+                    │ ├── <span class="file-py">excel_export.py</span> <span class="file">← Exportação Excel
+                        colorida</span>
+                    │ └── <span class="file-py">pdf_export.py</span> <span class="file">← Exportação PDF</span>
+                    ├── <span class="folder">models/</span>
+                    │ ├── <span class="file-py">aula.py</span> <span class="file">← CRUD de aulas</span>
+                    │ ├── <span class="file-py">disciplina.py</span> <span class="file">← CRUD de disciplinas</span>
+                    │ ├── <span class="file-py">escola.py</span> <span class="file">← CRUD de escolas</span>
+                    │ ├── <span class="file-py">professor.py</span> <span class="file">← CRUD de professores</span>
+                    │ └── <span class="file-py">turma.py</span> <span class="file">← CRUD de turmas</span>
+                    ├── <span class="folder">routes/</span>
+                    │ ├── <span class="file-py">dashboard_routes.py</span> <span class="file">← Rotas do
+                        dashboard</span>
+                    │ └── <span class="file-py">escola_routes.py</span> <span class="file">← Rotas da home</span>
+                    ├── <span class="folder">static/</span>
+                    │ ├── <span class="file-css">style.css</span> <span class="file">← Design moderno</span>
+                    │ ├── <span class="file-js">cores.js</span> <span class="file">← Gerenciamento de cores</span>
+                    │ └── <span class="file-js">dragdrop.js</span> <span class="file">← Drag &amp; Drop + Modais</span>
+                    ├── <span class="folder">templates/</span>
+                    │ ├── <span class="file-html">base.html</span> <span class="file">← Template base</span>
+                    │ ├── <span class="file-html">home.html</span> <span class="file">← Página inicial</span>
+                    │ ├── <span class="file-html">dashboard.html</span> <span class="file">← Dashboard da escola</span>
+                    │ └── <span class="file-html">horarios.html</span> <span class="file">← Grade de horários</span>
+                    ├── <span class="folder">utils/</span>
+                    │ └── <span class="file-py">conflitos.py</span> <span class="file">← Verificação de conflitos</span>
+                    ├── <span class="file-py">scheduler.py</span> <span class="file">← Gerador automático</span>
+                    └── <span class="file-py">app.py</span> <span class="file">← Aplicação principal</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Instalação / CTA ───────────────────────────────────────────────────── -->
+    <section id="instalacao" class="cta-section">
+        <div class="container">
+            <div class="cta-card">
+                <h2>Pronto para usar em minutos</h2>
+                <p>Instale as dependências e execute o sistema com dois comandos simples.</p>
+
+                <div class="code-block">
+                    <span class="code-comment"># 1. Instalar dependências</span><br />
+                    pip install flask openpyxl reportlab pandas<br /><br />
+                    <span class="code-comment"># 2. Executar o sistema</span><br />
+                    python src/app.py<br /><br />
+                    <span class="code-comment"># Acesse: http://localhost:5000</span>
+                </div>
+
+                <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+                    <div
+                        style="background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-size:0.85rem;">
+                        ✅ Flask 2.3+
+                    </div>
+                    <div
+                        style="background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-size:0.85rem;">
+                        ✅ openpyxl 3.1+
+                    </div>
+                    <div
+                        style="background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-size:0.85rem;">
+                        ✅ reportlab 4.0+
+                    </div>
+                    <div
+                        style="background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-size:0.85rem;">
+                        ✅ pandas 2.0+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>EduSchedule — Sistema de Horários Escolares · Desenvolvido com <span>♥</span> em Python + Flask</p>
+    </footer>
+
+    <!-- ─── Scripts ────────────────────────────────────────────────────────────── -->
+    <script>
+        // ─── Dados de Demo ────────────────────────────────────────────────────────────
+        const DISCIPLINAS = [
+            { id: 1, nome: 'Matemática', cor: '#3b82f6' },
+            { id: 2, nome: 'Português', cor: '#ef4444' },
+            { id: 3, nome: 'História', cor: '#eab308' },
+            { id: 4, nome: 'Ciências', cor: '#22c55e' },
+            { id: 5, nome: 'Geografia', cor: '#a855f7' },
+            { id: 6, nome: 'Ed. Física', cor: '#f97316' },
+            { id: 7, nome: 'Inglês', cor: '#06b6d4' },
+        ];
+
+        const PROFESSORES = [
+            { id: 1, nome: 'Prof. Ana', disc: 1 },
+            { id: 2, nome: 'Prof. João', disc: 2 },
+            { id: 3, nome: 'Prof. Maria', disc: 3 },
+            { id: 4, nome: 'Prof. Carlos', disc: 4 },
+            { id: 5, nome: 'Prof. Luiza', disc: 5 },
+            { id: 6, nome: 'Prof. Pedro', disc: 6 },
+            { id: 7, nome: 'Prof. Sara', disc: 7 },
+        ];
+
+        const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+        const PERIODOS = [1, 2, 3, 4, 5];
+
+        const TURMAS_DEMO = ['6º Ano A', '7º Ano B', '8º Ano C', '9º Ano D'];
+
+        // Gera grade aleatória para uma turma
+        function gerarGradeDemo(seed) {
+            const grade = {};
+            const usadoProf = {}; // dia-periodo -> prof_id
+
+            DIAS.forEach(dia => {
+                grade[dia] = {};
+                PERIODOS.forEach(p => {
+                    // Escolhe disciplina baseada em seed
+                    const discIdx = (seed * 3 + DIAS.indexOf(dia) * 5 + p * 7) % DISCIPLINAS.length;
+                    const disc = DISCIPLINAS[discIdx];
+                    const prof = PROFESSORES.find(pr => pr.disc === disc.id);
+                    const key = `${dia}-${p}`;
+                    if (!usadoProf[key]) {
+                        usadoProf[key] = prof.id;
+                        grade[dia][p] = { disc, prof };
+                    } else {
+                        // Tenta outra disciplina
+                        const disc2 = DISCIPLINAS[(discIdx + 2) % DISCIPLINAS.length];
+                        const prof2 = PROFESSORES.find(pr => pr.disc === disc2.id);
+                        grade[dia][p] = { disc: disc2, prof: prof2 };
+                    }
+                });
+            });
+            return grade;
+        }
+
+        const GRADES_DEMO = TURMAS_DEMO.map((_, i) => gerarGradeDemo(i + 1));
+        let turmaAtual = 0;
+
+        function renderGrade(idx) {
+            turmaAtual = idx;
+            const grade = GRADES_DEMO[idx];
+            const tbody = document.getElementById('grade-body');
+            tbody.innerHTML = '';
+
+            DIAS.forEach(dia => {
+                const tr = document.createElement('tr');
+                const thDia = document.createElement('th');
+                thDia.className = 'dia-th';
+                thDia.textContent = dia;
+                tr.appendChild(thDia);
+
+                PERIODOS.forEach(p => {
+                    const td = document.createElement('td');
+                    const aula = grade[dia][p];
+                    td.className = 'gcell';
+                    if (aula) {
+                        const div = document.createElement('div');
+                        div.className = 'gaula';
+                        div.style.background = aula.disc.cor + '22';
+                        div.style.borderLeftColor = aula.disc.cor;
+                        div.style.color = aula.disc.cor;
+                        div.innerHTML = `<div class="disc">${aula.disc.nome}</div><div class="prof">${aula.prof.nome}</div>`;
+                        td.appendChild(div);
+                    }
+                    tr.appendChild(td);
+                });
+
+                tbody.appendChild(tr);
+            });
+
+            // Legenda
+            const legenda = document.getElementById('legenda-interativa');
+            legenda.innerHTML = '';
+            const seen = new Set();
+            DIAS.forEach(dia => {
+                PERIODOS.forEach(p => {
+                    const aula = grade[dia][p];
+                    if (aula && !seen.has(aula.disc.id)) {
+                        seen.add(aula.disc.id);
+                        const item = document.createElement('div');
+                        item.className = 'leg-item';
+                        item.innerHTML = `<span class="leg-dot" style="background:${aula.disc.cor};"></span>
+          <strong style="color:${aula.disc.cor};">${aula.disc.nome}</strong>
+          <span style="color:var(--muted);">— ${aula.prof.nome}</span>`;
+                        legenda.appendChild(item);
+                    }
+                });
+            });
+
+            // Atualiza botões
+            document.querySelectorAll('.turma-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === idx);
+            });
+        }
+
+        // Cria botões de turma
+        const selector = document.getElementById('turma-selector');
+        TURMAS_DEMO.forEach((t, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'turma-btn' + (i === 0 ? ' active' : '');
+            btn.textContent = t;
+            btn.onclick = () => renderGrade(i);
+            selector.appendChild(btn);
+        });
+        renderGrade(0);
+
+        // ─── Grade Demo Hero ──────────────────────────────────────────────────────────
+        const DEMO_DATA = {
+            'Segunda': [
+                { disc: 'Matemática', prof: 'Prof. Ana', cor: '#3b82f6' },
+                { disc: 'Português', prof: 'Prof. João', cor: '#ef4444' },
+                { disc: 'História', prof: 'Prof. Maria', cor: '#eab308' },
+                { disc: 'Ciências', prof: 'Prof. Carlos', cor: '#22c55e' },
+                { disc: 'Inglês', prof: 'Prof. Sara', cor: '#06b6d4' },
+            ],
+            'Terça': [
+                { disc: 'Português', prof: 'Prof. João', cor: '#ef4444' },
+                { disc: 'Ciências', prof: 'Prof. Carlos', cor: '#22c55e' },
+                { disc: 'Matemática', prof: 'Prof. Ana', cor: '#3b82f6' },
+                { disc: 'Ed. Física', prof: 'Prof. Pedro', cor: '#f97316' },
+                { disc: 'Geografia', prof: 'Prof. Luiza', cor: '#a855f7' },
+            ],
+            'Quarta': [
+                { disc: 'História', prof: 'Prof. Maria', cor: '#eab308' },
+                { disc: 'Matemática', prof: 'Prof. Ana', cor: '#3b82f6' },
+                { disc: 'Inglês', prof: 'Prof. Sara', cor: '#06b6d4' },
+                { disc: 'Português', prof: 'Prof. João', cor: '#ef4444' },
+                { disc: 'Ciências', prof: 'Prof. Carlos', cor: '#22c55e' },
+            ],
+            'Quinta': [
+                { disc: 'Ciências', prof: 'Prof. Carlos', cor: '#22c55e' },
+                { disc: 'Geografia', prof: 'Prof. Luiza', cor: '#a855f7' },
+                { disc: 'Português', prof: 'Prof. João', cor: '#ef4444' },
+                { disc: 'Matemática', prof: 'Prof. Ana', cor: '#3b82f6' },
+                { disc: 'História', prof: 'Prof. Maria', cor: '#eab308' },
+            ],
+            'Sexta': [
+                { disc: 'Ed. Física', prof: 'Prof. Pedro', cor: '#f97316' },
+                { disc: 'Inglês', prof: 'Prof. Sara', cor: '#06b6d4' },
+                { disc: 'Geografia', prof: 'Prof. Luiza', cor: '#a855f7' },
+                { disc: 'Ciências', prof: 'Prof. Carlos', cor: '#22c55e' },
+                { disc: 'Matemática', prof: 'Prof. Ana', cor: '#3b82f6' },
+            ],
+        };
+
+        const tbody = document.getElementById('demo-grade-body');
+        Object.entries(DEMO_DATA).forEach(([dia, aulas]) => {
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = dia;
+            th.style.cssText = 'background:var(--bg3);padding:8px;border-radius:6px;color:var(--text);font-size:0.75rem;';
+            tr.appendChild(th);
+            aulas.forEach(a => {
+                const td = document.createElement('td');
+                td.className = 'demo-cell';
+                const div = document.createElement('div');
+                div.className = 'demo-aula';
+                div.style.background = a.cor + '22';
+                div.style.borderLeftColor = a.cor;
+                div.style.color = a.cor;
+                div.innerHTML = `<div style="font-weight:700;font-size:0.72rem;">${a.disc}</div><div style="font-size:0.65rem;color:var(--muted);margin-top:2px;">${a.prof}</div>`;
+                td.appendChild(div);
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+
+        // ─── Charts ───────────────────────────────────────────────────────────────────
+        const chartColors = {
+            green: 'rgba(34,197,94,0.8)',
+            blue: 'rgba(59,130,246,0.8)',
+            purple: 'rgba(168,85,247,0.8)',
+            orange: 'rgba(249,115,22,0.8)',
+            red: 'rgba(239,68,68,0.8)',
+        };
+
+        // Chart 1: Aulas por dia
+        new Chart(document.getElementById('chartDias'), {
+            type: 'bar',
+            data: {
+                labels: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'],
+                datasets: [{
+                    label: 'Aulas',
+                    data: [15, 14, 16, 13, 15],
+                    backgroundColor: [
+                        'rgba(34,197,94,0.7)', 'rgba(59,130,246,0.7)',
+                        'rgba(168,85,247,0.7)', 'rgba(249,115,22,0.7)',
+                        'rgba(239,68,68,0.7)'
+                    ],
+                    borderRadius: 6, borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+                    y: { grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#94a3b8', font: { size: 11 } }, beginAtZero: true }
+                }
+            }
+        });
+
+        // Chart 2: Aulas por disciplina (doughnut)
+        new Chart(document.getElementById('chartDisc'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Matemática', 'Português', 'História', 'Ciências', 'Geografia', 'Ed. Física', 'Inglês'],
+                datasets: [{
+                    data: [12, 11, 9, 10, 8, 7, 9],
+                    backgroundColor: [
+                        '#3b82f6', '#ef4444', '#eab308', '#22c55e',
+                        '#a855f7', '#f97316', '#06b6d4'
+                    ],
+                    borderWidth: 0, hoverOffset: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#94a3b8', font: { size: 10 }, padding: 8, boxWidth: 12 }
+                    }
+                },
+                cutout: '65%',
+            }
+        });
+
+        // ─── Contador animado ─────────────────────────────────────────────────────────
+        function animateCount(el, target, duration = 1500) {
+            let start = 0;
+            const step = target / (duration / 16);
+            const timer = setInterval(() => {
+                start += step;
+                if (start >= target) { start = target; clearInterval(timer); }
+                el.textContent = Math.floor(start) + (target > 10 ? '+' : '');
+            }, 16);
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    animateCount(document.getElementById('cnt-escolas'), 99);
+                    animateCount(document.getElementById('cnt-turmas'), 50);
+                    animateCount(document.getElementById('cnt-aulas'), 75);
+                    animateCount(document.getElementById('cnt-periodos'), 5, 500);
+                    animateCount(document.getElementById('cnt-dias'), 5, 500);
+                    observer.disconnect();
+                }
+            });
+        }, { threshold: 0.3 });
+
+        observer.observe(document.querySelector('.stats-grid'));
+    </script>
+
+</body>
+
+</html>

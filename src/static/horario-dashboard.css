@@ -1,0 +1,24 @@
+/* ─── Dashboard Specific Styles ────────────────────────────────────────────── */
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.5rem;
+}
+
+.dashboard-header-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+/* Substituição de estilos inline do dashboard.html */
+.dashboard-swatches {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.dashboard-empty-msg {
+    text-align: center;
+    padding: 1.5rem 0;
+}

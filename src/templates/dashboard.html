@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — {{ escola.nome }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='horario-dashboard.css') }}" />
+<script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+{% endblock %}
+
+{% block body_attrs %}data-escola-id="{{ escola.id }}"{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('escola.home') }}">← Início</a>
+<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="active">Dashboard</a>
+<a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}">Horários</a>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3 mt-2">
+        <div>
+            <h1 class="dashboard-header-title">🏫 {{ escola.nome }}</h1>
+            <p class="text-muted text-sm mt-1">Gerencie disciplinas, professores e turmas</p>
+        </div>
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="btn btn-primary">
+            📅 Ver Horários
+        </a>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ disciplinas|length }}</div>
+            <div class="stat-label">Disciplinas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ professores|length }}</div>
+            <div class="stat-label">Professores</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ turmas|length }}</div>
+            <div class="stat-label">Turmas</div>
+        </div>
+    </div>
+
+    <!-- Grid: Disciplinas + Professores + Turmas -->
+    <div class="dashboard-grid">
+
+        <!-- ─── Disciplinas ─────────────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="icon icon-green">📚</div>
+                    Disciplinas
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-disc')">+ Adicionar</button>
+            </div>
+
+            {% if disciplinas %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Cor</th>
+                            <th style="width:80px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in disciplinas %}
+                        <tr>
+                            <td>{{ d.nome }}</td>
+                            <td>
+                                <span class="badge badge-dynamic" data-color="{{ d.cor }}">
+                                    <span class="color-dot dot-dynamic" data-color="{{ d.cor }}"></span>
+                                    {{ d.cor }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-secondary btn-sm btn-icon btn-edit-disc" title="Editar"
+                                        data-id="{{ d.id }}" data-nome="{{ d.nome }}" data-cor="{{ d.cor }}">✏️</button>
+                                    <form method="POST"
+                                        action="{{ url_for('dashboard.deletar_disc', escola_id=escola.id, disc_id=d.id) }}"
+                                        onsubmit="return confirm('Remover disciplina {{ d.nome }}?')">
+                                        <button type="submit" class="btn btn-danger btn-sm btn-icon"
+                                            title="Remover">🗑</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-sm dashboard-empty-msg">
+                Nenhuma disciplina cadastrada.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- ─── Professores ─────────────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="icon icon-blue">👨‍🏫</div>
+                    Professores
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas
+                    %}disabled title="Cadastre disciplinas primeiro" {% endif %}>
+                    + Adicionar
+                </button>
+            </div>
+
+            {% if professores %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Disciplina</th>
+                            <th>Máx/sem</th>
+                            <th style="width:80px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in professores %}
+                        <tr>
+                            <td>{{ p.nome }}</td>
+                            <td>
+                                <span class="badge badge-dynamic" data-color="{{ p.disciplina_cor }}">
+                                    <span class="color-dot dot-dynamic" data-color="{{ p.disciplina_cor }}"></span>
+                                    {{ p.disciplina_nome }}
+                                </span>
+                            </td>
+                            <td>{{ p.max_aulas_semana }}</td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
+                                        data-id="{{ p.id }}" data-nome="{{ p.nome }}"
+                                        data-disc-id="{{ p.disciplina_id }}" data-max="{{ p.max_aulas_semana }}"
+                                        data-dias='{{ p.dias_lista | tojson }}'>✏️</button>
+                                    <form method="POST"
+                                        action="{{ url_for('dashboard.deletar_prof', escola_id=escola.id, prof_id=p.id) }}"
+                                        onsubmit="return confirm('Remover professor {{ p.nome }}?')">
+                                        <button type="submit" class="btn btn-danger btn-sm btn-icon"
+                                            title="Remover">🗑</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-sm dashboard-empty-msg">
+                Nenhum professor cadastrado.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- ─── Turmas ──────────────────────────────────────────────────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="icon icon-purple">🎓</div>
+                    Turmas
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-turma')">+ Adicionar</button>
+            </div>
+
+            {% if turmas %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th style="width:80px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in turmas %}
+                        <tr>
+                            <td>{{ t.nome }}</td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-secondary btn-sm btn-icon btn-edit-turma" title="Editar"
+                                        data-id="{{ t.id }}" data-nome="{{ t.nome }}">✏️</button>
+                                    <form method="POST"
+                                        action="{{ url_for('dashboard.deletar_turm', escola_id=escola.id, turma_id=t.id) }}"
+                                        onsubmit="return confirm('Remover turma {{ t.nome }}?')">
+                                        <button type="submit" class="btn btn-danger btn-sm btn-icon"
+                                            title="Remover">🗑</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-sm dashboard-empty-msg">
+                Nenhuma turma cadastrada.
+            </p>
+            {% endif %}
+        </div>
+
+    </div><!-- /grid -->
+</div>
+
+<!-- ─── Modal: Criar Disciplina ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-disc">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">📚 Nova Disciplina</span>
+            <button class="modal-close" onclick="closeModal('modal-disc')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.criar_disc', escola_id=escola.id) }}">
+            <div class="form-group">
+                <label class="form-label">Nome</label>
+                <input type="text" name="nome" class="form-control" placeholder="Ex: Matemática" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Cor</label>
+                <div class="color-picker-wrap">
+                    <input type="color" name="cor" id="cor-disciplina" value="#22c55e" />
+                    <div id="swatches-disciplina" class="dashboard-swatches"></div>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Criar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-disc')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ─── Modal: Editar Disciplina ───────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-disc-edit">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">✏️ Editar Disciplina</span>
+            <button class="modal-close" onclick="closeModal('modal-disc-edit')">✕</button>
+        </div>
+        <form method="POST" id="form-disc-edit">
+            <div class="form-group">
+                <label class="form-label">Nome</label>
+                <input type="text" name="nome" id="edit-disc-nome" class="form-control" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Cor</label>
+                <div class="color-picker-wrap">
+                    <input type="color" name="cor" id="cor-disciplina-edit" value="#22c55e" />
+                    <div id="swatches-disciplina-edit" class="dashboard-swatches"></div>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Salvar</button>
+                <button type="button" class="btn btn-secondary"
+                    onclick="closeModal('modal-disc-edit')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ─── Modal: Criar Professor ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-prof">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">👨‍🏫 Novo Professor</span>
+            <button class="modal-close" onclick="closeModal('modal-prof')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.criar_prof', escola_id=escola.id) }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Nome</label>
+                    <input type="text" name="nome" class="form-control" placeholder="Nome do professor" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Disciplina</label>
+                    <select name="disciplina_id" class="form-control" required>
+                        <option value="">Selecione...</option>
+                        {% for d in disciplinas %}
+                        <option value="{{ d.id }}">{{ d.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Máx. aulas por semana</label>
+                <input type="number" name="max_aulas_semana" class="form-control" value="10" min="1" max="25" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Dias disponíveis</label>
+                <div class="dias-grid">
+                    {% for dia in dias_semana %}
+                    <label class="dia-chip">
+                        <input type="checkbox" name="dias_disponiveis" value="{{ dia }}" checked />
+                        {{ dia }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Criar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-prof')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ─── Modal: Editar Professor ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-prof-edit">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">✏️ Editar Professor</span>
+            <button class="modal-close" onclick="closeModal('modal-prof-edit')">✕</button>
+        </div>
+        <form method="POST" id="form-prof-edit">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Nome</label>
+                    <input type="text" name="nome" id="edit-prof-nome" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Disciplina</label>
+                    <select name="disciplina_id" id="edit-prof-disc" class="form-control" required>
+                        {% for d in disciplinas %}
+                        <option value="{{ d.id }}">{{ d.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Máx. aulas por semana</label>
+                <input type="number" name="max_aulas_semana" id="edit-prof-max" class="form-control" min="1" max="25" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Dias disponíveis</label>
+                <div class="dias-grid" id="edit-prof-dias">
+                    {% for dia in dias_semana %}
+                    <label class="dia-chip">
+                        <input type="checkbox" name="dias_disponiveis" value="{{ dia }}" class="edit-dia-check" />
+                        {{ dia }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Salvar</button>
+                <button type="button" class="btn btn-secondary"
+                    onclick="closeModal('modal-prof-edit')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ─── Modal: Criar Turma ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-turma">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">🎓 Nova Turma</span>
+            <button class="modal-close" onclick="closeModal('modal-turma')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.criar_turm', escola_id=escola.id) }}">
+            <div class="form-group">
+                <label class="form-label">Nome da Turma</label>
+                <input type="text" name="nome" class="form-control" placeholder="Ex: 6º Ano A" required />
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Criar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-turma')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ─── Modal: Editar Turma ────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-turma-edit">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">✏️ Editar Turma</span>
+            <button class="modal-close" onclick="closeModal('modal-turma-edit')">✕</button>
+        </div>
+        <form method="POST" id="form-turma-edit">
+            <div class="form-group">
+                <label class="form-label">Nome da Turma</label>
+                <input type="text" name="nome" id="edit-turma-nome" class="form-control" required />
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Salvar</button>
+                <button type="button" class="btn btn-secondary"
+                    onclick="closeModal('modal-turma-edit')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

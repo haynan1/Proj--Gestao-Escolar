@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}EduSchedule — Início{% endblock %}
+
+{% block content %}
+<div class="container">
+
+    <!-- Hero -->
+    <div class="hero">
+        <h1>Gerador de Horários Escolares</h1>
+        <p>Crie grades de horários automáticas, inteligentes e sem conflitos para sua escola.</p>
+        <button class="btn btn-primary btn-lg" onclick="openModal('modal-criar-escola')">
+            + Nova Escola
+        </button>
+    </div>
+
+    <!-- Stats -->
+    {% if escolas %}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ escolas|length }}</div>
+            <div class="stat-label">Escola(s) cadastrada(s)</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Escolas -->
+    {% if escolas %}
+    <h2 class="mb-2" style="font-size:1.1rem; color:var(--text-muted); font-weight:500;">Suas Escolas</h2>
+    <div class="escolas-grid">
+        {% for escola in escolas %}
+        <div class="escola-card">
+            <div style="font-size:2rem; margin-bottom:0.5rem;">🏫</div>
+            <h3>{{ escola.nome }}</h3>
+            <p class="text-muted text-sm">Criada em {{ escola.criado_em[:10] if escola.criado_em else '—' }}</p>
+            <div class="actions">
+                <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="btn btn-primary btn-sm">
+                    Abrir Dashboard
+                </a>
+                <a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="btn btn-secondary btn-sm">
+                    Ver Horários
+                </a>
+                <form method="POST" action="{{ url_for('escola.deletar', escola_id=escola.id) }}"
+                    onsubmit="return confirm('Remover escola {{ escola.nome }}? Todos os dados serão perdidos.')">
+                    <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">🗑</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center; padding:3rem;">
+        <div style="font-size:3rem; margin-bottom:1rem;">🏫</div>
+        <p class="text-muted">Nenhuma escola cadastrada ainda.</p>
+        <p class="text-muted text-sm mt-1">Clique em "Nova Escola" para começar.</p>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal: Criar Escola -->
+<div class="modal-overlay" id="modal-criar-escola">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">🏫 Nova Escola</span>
+            <button class="modal-close" onclick="closeModal('modal-criar-escola')">✕</button>
+        </div>
+        <form method="POST" action="{{ url_for('escola.criar') }}">
+            <div class="form-group">
+                <label class="form-label">Nome da Escola</label>
+                <input type="text" name="nome" class="form-control" placeholder="Ex: Escola Estadual João Silva"
+                    required autofocus />
+            </div>
+            <div class="flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary w-full">Criar Escola</button>
+                <button type="button" class="btn btn-secondary"
+                    onclick="closeModal('modal-criar-escola')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
