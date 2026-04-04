@@ -1,6 +1,10 @@
 from database.connection import get_connection
 
 
+class DisciplineInUseError(ValueError):
+    """Raised when trying to delete a discipline linked to teachers."""
+
+
 def criar_disciplina(escola_id, nome, cor):
     conn = get_connection()
     try:
@@ -44,6 +48,20 @@ def atualizar_disciplina(disciplina_id, nome, cor):
 
 def deletar_disciplina(disciplina_id):
     conn = get_connection()
-    conn.execute("DELETE FROM disciplinas WHERE id = %s", (disciplina_id,))
-    conn.commit()
-    conn.close()
+    try:
+        professores_vinculados = conn.execute(
+            "SELECT COUNT(*) AS total FROM professores WHERE disciplina_id = %s",
+            (disciplina_id,),
+        ).fetchone()
+        if professores_vinculados and professores_vinculados['total'] > 0:
+            raise DisciplineInUseError(
+                "Não é possível remover a disciplina porque existem professores vinculados a ela."
+            )
+
+        conn.execute("DELETE FROM disciplinas WHERE id = %s", (disciplina_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

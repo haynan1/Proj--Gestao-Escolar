@@ -1,21 +1,70 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
+import os
+
+from flask import (
+    Blueprint,
+    after_this_request,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 from models.escola import buscar_escola
-from models.disciplina import (criar_disciplina, listar_disciplinas, buscar_disciplina,
-                                atualizar_disciplina, deletar_disciplina)
-from models.professor import (criar_professor, listar_professores, buscar_professor,
-                               atualizar_professor, deletar_professor)
-from models.turma import (criar_turma, listar_turmas, buscar_turma,
-                           atualizar_turma, deletar_turma)
-from models.aula import listar_aulas, mover_aula
+from models.disciplina import (
+    DisciplineInUseError,
+    atualizar_disciplina,
+    criar_disciplina,
+    deletar_disciplina,
+    listar_disciplinas,
+)
+from models.professor import (
+    atualizar_professor,
+    criar_professor,
+    deletar_professor,
+    listar_professores,
+)
+from models.turma import criar_turma, listar_turmas, atualizar_turma, deletar_turma
+from models.aula import (
+    ScheduleConflictError,
+    ScheduleValidationError,
+    listar_aulas,
+    mover_aula,
+)
 from scheduler import gerar_horario
 from exports.excel_export import exportar_excel
 from exports.pdf_export import exportar_pdf
-from utils.conflitos import DIAS, PERIODOS
-import os
+from utils.conflitos import PERIODOS
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
+
+
+def _json_error(message, status_code=400, code='bad_request'):
+    response = jsonify({
+        'status': 'erro',
+        'error': {
+            'code': code,
+            'message': message,
+        },
+    })
+    response.status_code = status_code
+    return response
+
+
+def _send_temp_file(filepath, download_name):
+    @after_this_request
+    def remover_temporario(response):
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except OSError:
+            pass
+        return response
+
+    return send_file(filepath, as_attachment=True, download_name=download_name)
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/dashboard')
@@ -61,8 +110,11 @@ def editar_disc(escola_id, disc_id):
 
 @dashboard_bp.route('/escola/<int:escola_id>/disciplina/<int:disc_id>/deletar', methods=['POST'])
 def deletar_disc(escola_id, disc_id):
-    deletar_disciplina(disc_id)
-    flash('Disciplina removida.', 'success')
+    try:
+        deletar_disciplina(disc_id)
+        flash('Disciplina removida.', 'success')
+    except DisciplineInUseError as exc:
+        flash(str(exc), 'error')
     return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
 
 
@@ -186,14 +238,27 @@ def gerar(escola_id):
 
 @dashboard_bp.route('/escola/<int:escola_id>/mover_aula', methods=['POST'])
 def mover(escola_id):
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _json_error('Corpo da requisição inválido.', code='invalid_payload')
+
     aula_id = data.get('aula_id')
     novo_dia = data.get('dia')
     novo_periodo = data.get('periodo')
-    if aula_id and novo_dia and novo_periodo:
-        mover_aula(int(aula_id), novo_dia, int(novo_periodo))
-        return jsonify({'status': 'ok'})
-    return jsonify({'status': 'erro', 'msg': 'Dados inválidos'}), 400
+
+    if aula_id is None or novo_dia is None or novo_periodo is None:
+        return _json_error('Dados obrigatórios ausentes.', code='invalid_payload')
+
+    try:
+        mover_aula(int(aula_id), str(novo_dia), int(novo_periodo), escola_id=escola_id)
+    except ScheduleConflictError as exc:
+        return _json_error(str(exc), code='schedule_conflict')
+    except ScheduleValidationError as exc:
+        return _json_error(str(exc), code='schedule_validation')
+    except ValueError:
+        return _json_error('IDs e períodos devem ser numéricos.', code='invalid_payload')
+
+    return jsonify({'status': 'ok'})
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/ocupacao')
@@ -218,7 +283,7 @@ def exportar_xls(escola_id):
     aulas = listar_aulas(escola_id)
     turmas = listar_turmas(escola_id)
     filepath = exportar_excel(escola, aulas, turmas)
-    return send_file(filepath, as_attachment=True, download_name='horario.xlsx')
+    return _send_temp_file(filepath, 'horario.xlsx')
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/exportar/pdf')
@@ -228,4 +293,4 @@ def exportar_pdf_route(escola_id):
     turmas = listar_turmas(escola_id)
     disciplinas = listar_disciplinas(escola_id)
     filepath = exportar_pdf(escola, aulas, turmas, disciplinas)
-    return send_file(filepath, as_attachment=True, download_name='horario.pdf')
+    return _send_temp_file(filepath, 'horario.pdf')

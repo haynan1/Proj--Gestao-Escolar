@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS aulas (
     disciplina_id INT NOT NULL,
     dia VARCHAR(20) NOT NULL,
     periodo INT NOT NULL,
+    UNIQUE KEY uq_aulas_turma_slot (turma_id, dia, periodo),
+    UNIQUE KEY uq_aulas_professor_slot (professor_id, dia, periodo),
     CONSTRAINT fk_aulas_escola
         FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
     CONSTRAINT fk_aulas_turma

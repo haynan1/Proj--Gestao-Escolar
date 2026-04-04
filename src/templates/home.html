@@ -32,7 +32,7 @@
         <div class="escola-card">
             <div style="font-size:2rem; margin-bottom:0.5rem;">🏫</div>
             <h3>{{ escola.nome }}</h3>
-            <p class="text-muted text-sm">Criada em {{ escola.criado_em[:10] if escola.criado_em else '—' }}</p>
+            <p class="text-muted text-sm">Criada em {{ escola.criado_em_formatado or '—' }}</p>
             <div class="actions">
                 <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="btn btn-primary btn-sm">
                     Abrir Dashboard
