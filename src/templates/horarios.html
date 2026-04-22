@@ -26,6 +26,7 @@
         <div class="export-bar">
             <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id) }}"
                 onsubmit="return confirm('Gerar novo horário para esta turma? O horário atual desta turma será substituído.')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
                 <button type="submit" class="btn btn-primary">
                     ⚡ Gerar Horário da Turma

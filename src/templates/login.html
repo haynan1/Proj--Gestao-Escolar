@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Entrar — EduSchedule{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('auth.login') }}" class="active">Entrar</a>
+<a href="{{ url_for('auth.cadastro') }}">Criar conta</a>
+{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-copy">
+            <span class="auth-eyebrow">Acesso seguro</span>
+            <h1>Entre para gerenciar suas escolas.</h1>
+            <p>Seu painel agora fica protegido por sessão autenticada, com dados separados por usuário.</p>
+        </div>
+
+        <form method="POST" class="auth-form card">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <input type="email" name="email" class="form-control" placeholder="voce@escola.com" required />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Senha</label>
+                <input type="password" name="senha" class="form-control" placeholder="Sua senha" required />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full">Entrar</button>
+
+            <p class="auth-switch">
+                Ainda não tem conta?
+                <a href="{{ url_for('auth.cadastro') }}">Criar conta</a>
+            </p>
+            <p class="auth-switch auth-switch-links">
+                <a href="{{ url_for('auth.forgot_password') }}">Esqueci minha senha</a>
+                <a href="{{ url_for('auth.resend_verification') }}">Reenviar verificação</a>
+            </p>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -25,22 +25,34 @@ def listar_turmas(escola_id):
     return [dict(r) for r in rows]
 
 
-def buscar_turma(turma_id):
+def buscar_turma(turma_id, escola_id=None):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM turmas WHERE id = %s", (turma_id,)).fetchone()
+    if escola_id is None:
+        row = conn.execute("SELECT * FROM turmas WHERE id = %s", (turma_id,)).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT * FROM turmas WHERE id = %s AND escola_id = %s",
+            (turma_id, escola_id),
+        ).fetchone()
     conn.close()
     return dict(row) if row else None
 
 
-def atualizar_turma(turma_id, nome):
+def atualizar_turma(turma_id, escola_id, nome):
     conn = get_connection()
-    conn.execute("UPDATE turmas SET nome = %s WHERE id = %s", (nome, turma_id))
+    conn.execute(
+        "UPDATE turmas SET nome = %s WHERE id = %s AND escola_id = %s",
+        (nome, turma_id, escola_id),
+    )
     conn.commit()
     conn.close()
 
 
-def deletar_turma(turma_id):
+def deletar_turma(turma_id, escola_id):
     conn = get_connection()
-    conn.execute("DELETE FROM turmas WHERE id = %s", (turma_id,))
+    conn.execute(
+        "DELETE FROM turmas WHERE id = %s AND escola_id = %s",
+        (turma_id, escola_id),
+    )
     conn.commit()
     conn.close()

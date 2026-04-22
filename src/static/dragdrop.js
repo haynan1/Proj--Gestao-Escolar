@@ -4,6 +4,7 @@
 
 let draggedCard = null;
 let draggedAulaId = null;
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 async function destacarConflitos(profId) {
     if (!profId) return;
@@ -102,31 +103,35 @@ function initDragDrop() {
 
             if (!aulaId || !novoDia || !novoPeriodo) return;
 
-            // Verifica se a célula tem o destaque de conflito
             if (cell.classList.contains('conflict-busy')) {
-                if (!confirm('⚠️ Este professor já tem aula em outra turma neste horário. Deseja criar um conflito proposital?')) {
-                    return;
-                }
+                showToast('Esse professor já possui aula nesse horário.', 'error');
+                return;
             }
 
             // Verifica se célula já tem aula (conflito de turma)
             if (cell.querySelector('.aula-card') && cell.querySelector('.aula-card').dataset.aulaId !== aulaId) {
-                if (!confirm('⚠️ Esta turma já tem outra aula neste horário. Deseja sobrepor?')) {
-                    return;
-                }
+                showToast('Essa turma já possui outra aula nesse horário.', 'error');
+                return;
+            }
+
+            if (draggedCard && draggedCard.closest('.grade-cell') === cell) {
+                return;
             }
 
             try {
                 const escolaId = document.body.dataset.escolaId;
                 const resp = await fetch(`/escola/${escolaId}/mover_aula`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken,
+                    },
                     body: JSON.stringify({ aula_id: parseInt(aulaId), dia: novoDia, periodo: parseInt(novoPeriodo) })
                 });
 
                 const data = await resp.json();
 
-                if (data.status === 'ok') {
+                if (resp.ok && data.status === 'ok') {
                     // Move o card visualmente
                     if (draggedCard) {
                         const oldCell = draggedCard.closest('.grade-cell');
@@ -138,7 +143,8 @@ function initDragDrop() {
                     }
                     showToast('✓ Aula movida com sucesso!', 'success');
                 } else {
-                    showToast('Erro ao mover aula: ' + (data.msg || 'Tente novamente'), 'error');
+                    const message = data?.error?.message || data.msg || 'Tente novamente';
+                    showToast('Erro ao mover aula: ' + message, 'error');
                 }
             } catch (err) {
                 showToast('Erro de conexão ao mover aula.', 'error');

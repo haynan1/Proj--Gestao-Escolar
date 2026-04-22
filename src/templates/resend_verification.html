@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Reenviar Verificação — EduSchedule{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('auth.login') }}">Entrar</a>
+<a href="{{ url_for('auth.cadastro') }}">Criar conta</a>
+{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-copy">
+            <span class="auth-eyebrow">Confirmação</span>
+            <h1>Reenviar link de verificação.</h1>
+            <p>Se sua conta ainda não foi ativada, informe o e-mail abaixo para receber um novo link de confirmação.</p>
+        </div>
+
+        <form method="POST" class="auth-form card">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <input type="email" name="email" class="form-control" placeholder="voce@escola.com" required />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full">Reenviar verificação</button>
+
+            <p class="auth-switch">
+                Já verificou o e-mail?
+                <a href="{{ url_for('auth.login') }}">Voltar para o login</a>
+            </p>
+        </form>
+    </div>
+</div>
+{% endblock %}

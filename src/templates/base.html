@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Horários Escolares{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
         rel="stylesheet" />
@@ -16,12 +17,19 @@
 
     <!-- Navbar -->
     <nav class="navbar">
-        <a href="{{ url_for('escola.home') }}" class="navbar-brand">
+        <a href="{{ url_for('escola.home' if current_user else 'auth.login') }}" class="navbar-brand">
             <div class="logo-icon">📅</div>
             <span>EduSchedule</span>
         </a>
         <div class="navbar-links">
             {% block nav_links %}{% endblock %}
+            {% if current_user %}
+            <span class="navbar-user">{{ current_user.nome }}</span>
+            <form method="POST" action="{{ url_for('auth.logout') }}" class="navbar-logout-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary btn-sm">Sair</button>
+            </form>
+            {% endif %}
         </div>
     </nav>
 

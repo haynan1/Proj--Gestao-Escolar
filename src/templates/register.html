@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Criar Conta — EduSchedule{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('auth.login') }}">Entrar</a>
+<a href="{{ url_for('auth.cadastro') }}" class="active">Criar conta</a>
+{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-copy">
+            <span class="auth-eyebrow">Primeiro acesso</span>
+            <h1>Crie sua conta e organize cada escola no seu espaço.</h1>
+            <p>Novos cadastros já entram com ambiente isolado e pronto para usar o gerador de horários.</p>
+        </div>
+
+        <form method="POST" class="auth-form card">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label class="form-label">Nome</label>
+                <input type="text" name="nome" class="form-control" placeholder="Seu nome" required />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <input type="email" name="email" class="form-control" placeholder="voce@escola.com" required />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Senha</label>
+                <input type="password" name="senha" class="form-control" placeholder="Mínimo de 8 caracteres" required />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Confirmar senha</label>
+                <input type="password" name="confirmar_senha" class="form-control" placeholder="Repita sua senha" required />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full">Criar conta</button>
+
+            <p class="auth-switch">
+                Já tem conta?
+                <a href="{{ url_for('auth.login') }}">Entrar</a>
+            </p>
+        </form>
+    </div>
+</div>
+{% endblock %}

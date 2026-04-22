@@ -32,7 +32,7 @@
         <div class="escola-card">
             <div style="font-size:2rem; margin-bottom:0.5rem;">🏫</div>
             <h3>{{ escola.nome }}</h3>
-            <p class="text-muted text-sm">Criada em {{ escola.criado_em.strftime('%d/%m/%Y') if escola.criado_em else '—' }}</p>
+            <p class="text-muted text-sm">Criada em {{ escola.criado_em_formatado or '—' }}</p>
             <div class="actions">
                 <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="btn btn-primary btn-sm">
                     Abrir Dashboard
@@ -42,6 +42,7 @@
                 </a>
                 <form method="POST" action="{{ url_for('escola.deletar', escola_id=escola.id) }}"
                     onsubmit="return confirm('Remover escola {{ escola.nome }}? Todos os dados serão perdidos.')">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">🗑</button>
                 </form>
             </div>
@@ -66,6 +67,7 @@
             <button class="modal-close" onclick="closeModal('modal-criar-escola')">✕</button>
         </div>
         <form method="POST" action="{{ url_for('escola.criar') }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label class="form-label">Nome da Escola</label>
                 <input type="text" name="nome" class="form-control" placeholder="Ex: Escola Estadual João Silva"
