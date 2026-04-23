@@ -253,7 +253,13 @@ def _ensure_bootstrap_admin(cursor):
     ).fetchone()
     if existing:
         cursor.execute(
-            "UPDATE usuarios SET role = %s WHERE id = %s",
+            """UPDATE usuarios
+               SET role = %s,
+                   email_verificado = 1,
+                   email_verificado_em = COALESCE(email_verificado_em, CURRENT_TIMESTAMP),
+                   tentativas_login_falhas = 0,
+                   bloqueado_ate = NULL
+               WHERE id = %s""",
             (ROLE_ADMIN, existing['id']),
         )
         return

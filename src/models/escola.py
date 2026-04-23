@@ -48,14 +48,15 @@ def listar_escolas_para_usuario(user: dict):
             ).fetchall()
         else:
             escolas = conn.execute(
-                """SELECT DISTINCT e.*,
-                                  dono.nome AS owner_nome
+                """SELECT e.*,
+                          dono.nome AS owner_nome
                    FROM escolas e
                    LEFT JOIN usuarios dono ON dono.id = e.user_id
-                   LEFT JOIN usuarios_escolas ue ON ue.escola_id = e.id
-                   WHERE e.user_id = %s OR ue.usuario_id = %s
+                   JOIN usuarios_escolas ue
+                     ON ue.escola_id = e.id
+                  WHERE ue.usuario_id = %s
                    ORDER BY e.nome""",
-                (user['id'], user['id']),
+                (user['id'],),
             ).fetchall()
         return [_serialize_escola(e) for e in escolas]
     finally:
@@ -87,8 +88,6 @@ def usuario_pode_acessar_escola(user: dict | None, escola: dict | None) -> bool:
     if not user or not escola:
         return False
     if user_has_permission(user, 'admin_access'):
-        return True
-    if escola.get('user_id') == user.get('id'):
         return True
     return usuario_tem_vinculo(user['id'], escola['id'])
 
