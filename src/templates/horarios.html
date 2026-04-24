@@ -31,6 +31,11 @@
                 <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
                 <button type="submit" class="btn btn-primary">Gerar Horario da Turma</button>
             </form>
+            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id) }}"
+                onsubmit="return confirm('Gerar novo horario para todas as turmas? Todos os horarios atuais serao substituidos.')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
+            </form>
             {% endif %}
             <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id) }}" class="btn btn-secondary">
                 Excel

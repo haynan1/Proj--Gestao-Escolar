@@ -114,8 +114,8 @@
                     Professores
                 </div>
                 {% if can_manage_resources %}
-                <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas
-                    %}disabled title="Cadastre disciplinas primeiro" {% endif %}>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas or not turmas
+                    %}disabled title="Cadastre disciplinas e turmas primeiro" {% endif %}>
                     + Adicionar
                 </button>
                 {% endif %}
@@ -127,6 +127,7 @@
                         <tr>
                             <th>Nome</th>
                             <th>Disciplina</th>
+                            <th>Turmas</th>
                             <th>Max/sem</th>
                             {% if can_manage_resources %}<th style="width:80px;">Ações</th>{% endif %}
                         </tr>
@@ -141,6 +142,7 @@
                                     {{ p.disciplina_nome }}
                                 </span>
                             </td>
+                            <td>{{ p.turmas_nomes or '-' }}</td>
                             <td>{{ p.max_aulas_semana }}</td>
                             {% if can_manage_resources %}
                             <td>
@@ -148,7 +150,8 @@
                                     <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
                                         data-id="{{ p.id }}" data-nome="{{ p.nome }}"
                                         data-disc-id="{{ p.disciplina_id }}" data-max="{{ p.max_aulas_semana }}"
-                                        data-dias='{{ p.dias_lista | tojson }}'>E</button>
+                                        data-dias='{{ p.dias_lista | tojson }}'
+                                        data-turmas='{{ p.turma_ids | tojson }}'>E</button>
                                     <form method="POST"
                                         action="{{ url_for('dashboard.deletar_prof', escola_id=escola.id, prof_id=p.id) }}"
                                         onsubmit="return confirm('Remover professor {{ p.nome }}?')">
@@ -168,6 +171,9 @@
             <p class="text-muted text-sm dashboard-empty-msg">Nenhum professor cadastrado.</p>
             {% if can_manage_resources and not disciplinas %}
             <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma disciplina antes de adicionar professores.</p>
+            {% endif %}
+            {% if can_manage_resources and not turmas %}
+            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma turma antes de adicionar professores.</p>
             {% endif %}
             {% endif %}
         </div>
@@ -302,6 +308,17 @@
                 </div>
             </div>
             <div class="form-group">
+                <label class="form-label">Turmas vinculadas</label>
+                <div class="dias-grid">
+                    {% for turma in turmas %}
+                    <label class="dia-chip">
+                        <input type="checkbox" name="turma_ids" value="{{ turma.id }}" checked />
+                        {{ turma.nome }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="form-group">
                 <label class="form-label">Max. aulas por semana</label>
                 <input type="number" name="max_aulas_semana" class="form-control" value="10" min="1" max="25" />
             </div>
@@ -344,6 +361,17 @@
                         <option value="{{ d.id }}">{{ d.nome }}</option>
                         {% endfor %}
                     </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Turmas vinculadas</label>
+                <div class="dias-grid" id="edit-prof-turmas">
+                    {% for turma in turmas %}
+                    <label class="dia-chip">
+                        <input type="checkbox" name="turma_ids" value="{{ turma.id }}" class="edit-turma-check" />
+                        {{ turma.nome }}
+                    </label>
+                    {% endfor %}
                 </div>
             </div>
             <div class="form-group">

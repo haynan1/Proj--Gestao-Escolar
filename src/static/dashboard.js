@@ -22,8 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Editar Professor
         if (e.target.closest('.btn-edit-prof')) {
             const btn = e.target.closest('.btn-edit-prof');
-            const { id, nome, discId, max, dias } = btn.dataset;
+            const { id, nome, discId, max, dias, turmas } = btn.dataset;
             const diasLista = JSON.parse(dias || '[]');
+            const turmaIds = JSON.parse(turmas || '[]').map(String);
 
             document.getElementById('edit-prof-nome').value = nome;
             document.getElementById('edit-prof-disc').value = discId;
@@ -31,6 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.querySelectorAll('.edit-dia-check').forEach(cb => {
                 cb.checked = diasLista.includes(cb.value);
+            });
+
+            document.querySelectorAll('.edit-turma-check').forEach(cb => {
+                cb.checked = turmaIds.includes(cb.value);
             });
 
             document.getElementById('form-prof-edit').action = `/escola/${escolaId}/professor/${id}/editar`;

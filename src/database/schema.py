@@ -88,6 +88,19 @@ TABLE_STATEMENTS = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
+    CREATE TABLE IF NOT EXISTS professores_turmas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        professor_id INT NOT NULL,
+        turma_id INT NOT NULL,
+        criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_professores_turmas (professor_id, turma_id),
+        CONSTRAINT fk_professores_turmas_professor
+            FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE,
+        CONSTRAINT fk_professores_turmas_turma
+            FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    """
     CREATE TABLE IF NOT EXISTS aulas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
@@ -243,6 +256,20 @@ def _ensure_user_school_links(cursor):
     )
 
 
+def _backfill_professor_turma_links(cursor):
+    cursor.execute(
+        """INSERT IGNORE INTO professores_turmas (professor_id, turma_id)
+           SELECT p.id, t.id
+           FROM professores p
+           JOIN turmas t ON t.escola_id = p.escola_id
+           WHERE NOT EXISTS (
+               SELECT 1
+               FROM professores_turmas pt
+               WHERE pt.professor_id = p.id
+           )"""
+    )
+
+
 def _ensure_bootstrap_admin(cursor):
     email = os.getenv('AUTH_BOOTSTRAP_ADMIN_EMAIL', '').strip().lower()
     password = os.getenv('AUTH_BOOTSTRAP_ADMIN_PASSWORD', '').strip()
@@ -387,6 +414,7 @@ def create_tables():
         _ensure_user_school_links(conn)
         _ensure_bootstrap_admin(conn)
         _ensure_system_test_user(conn)
+        _backfill_professor_turma_links(conn)
         _assign_legacy_schools(conn)
         _backfill_school_links(conn)
         conn.commit()

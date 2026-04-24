@@ -169,12 +169,15 @@ def criar_prof(escola_id):
     disciplina_id = request.form.get('disciplina_id')
     max_aulas = request.form.get('max_aulas_semana', 10)
     dias = request.form.getlist('dias_disponiveis')
+    turma_ids = request.form.getlist('turma_ids')
     if not nome or not disciplina_id:
         flash('Nome e disciplina sao obrigatorios.', 'error')
     elif not dias:
         flash('Selecione pelo menos um dia disponivel.', 'error')
+    elif not turma_ids:
+        flash('Selecione pelo menos uma turma para vincular ao professor.', 'error')
     else:
-        sucesso, msg = criar_professor(escola['id'], nome, int(disciplina_id), int(max_aulas), dias)
+        sucesso, msg = criar_professor(escola['id'], nome, int(disciplina_id), int(max_aulas), dias, turma_ids)
         flash(msg, 'success' if sucesso else 'error')
     return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
 
@@ -190,9 +193,12 @@ def editar_prof(escola_id, prof_id):
     disciplina_id = request.form.get('disciplina_id')
     max_aulas = request.form.get('max_aulas_semana', 10)
     dias = request.form.getlist('dias_disponiveis')
-    if nome and disciplina_id and dias:
-        atualizar_professor(prof_id, escola['id'], nome, int(disciplina_id), int(max_aulas), dias)
+    turma_ids = request.form.getlist('turma_ids')
+    if nome and disciplina_id and dias and turma_ids:
+        atualizar_professor(prof_id, escola['id'], nome, int(disciplina_id), int(max_aulas), dias, turma_ids)
         flash('Professor atualizado.', 'success')
+    else:
+        flash('Preencha nome, disciplina, dias disponiveis e pelo menos uma turma.', 'error')
     return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
 
 
@@ -301,7 +307,9 @@ def gerar(escola_id):
     turma_id = request.form.get('turma_id', type=int)
     sucesso, msg, total = gerar_horario(escola['id'], turma_id)
     flash(msg, 'success' if sucesso else 'error')
-    return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    if turma_id:
+        return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    return redirect(url_for('dashboard.horarios', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/mover_aula', methods=['POST'])

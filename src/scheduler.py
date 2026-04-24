@@ -36,14 +36,6 @@ def gerar_horario(escola_id, turma_id_especifica=None):
     # grade[turma_id][(dia, periodo)] = {professor_id, disciplina_id, ...}
     grade = {t['id']: {} for t in turmas}
 
-    # Mapa de disciplina -> lista de professores
-    disc_para_prof = {}
-    for p in professores:
-        disc_id = p['disciplina_id']
-        if disc_id not in disc_para_prof:
-            disc_para_prof[disc_id] = []
-        disc_para_prof[disc_id].append(p)
-
     # Calcular quantas aulas por disciplina por turma
     # Distribuição: total de slots / número de disciplinas
     total_slots = len(DIAS) * len(PERIODOS)  # 25 por turma
@@ -61,7 +53,10 @@ def gerar_horario(escola_id, turma_id_especifica=None):
 
         for disc in discs_shuffled:
             disc_id = disc['id']
-            profs_disponiveis = disc_para_prof.get(disc_id, [])
+            profs_disponiveis = [
+                p for p in professores
+                if p['disciplina_id'] == disc_id and turma_id in p.get('turma_ids', [])
+            ]
             if not profs_disponiveis:
                 continue
 
@@ -129,7 +124,7 @@ def gerar_horario(escola_id, turma_id_especifica=None):
             })
 
     if not aulas_geradas:
-        return False, "Não foi possível gerar nenhuma aula. Verifique as configurações de professores e disciplinas.", 0
+        return False, "Não foi possível gerar nenhuma aula. Verifique os vínculos entre professores, turmas e disciplinas.", 0
 
     salvar_aulas(escola_id, aulas_geradas, turma_id_especifica)
     return True, f"Horário gerado com sucesso! {len(aulas_geradas)} aulas distribuídas.", len(aulas_geradas)

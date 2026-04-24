@@ -65,6 +65,18 @@ CREATE TABLE IF NOT EXISTS turmas (
         FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS professores_turmas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    professor_id INT NOT NULL,
+    turma_id INT NOT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_professores_turmas (professor_id, turma_id),
+    CONSTRAINT fk_professores_turmas_professor
+        FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_professores_turmas_turma
+        FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS aulas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
