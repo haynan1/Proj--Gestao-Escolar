@@ -7,7 +7,7 @@
     padding: 0;
 }
 
-:root {
+:root, [data-theme="dark"] {
     --bg: #0f172a;
     --bg2: #1e293b;
     --bg3: #273549;
@@ -20,7 +20,18 @@
     --red: #ef4444;
     --yellow: #eab308;
     --radius: 12px;
-    --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --bg3: #273549;
+    --border: #334155;
+    --green: #22c55e;
+    --green-dark: #16a34a;
+    --green-light: #4ade80;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --radius: 12px;
 }
 
 body {
@@ -1021,4 +1032,37 @@ tr:hover td {
 
 .hidden {
     display: none !important;
+}
+
+[data-theme="light"] {
+    --bg: #f8fafc;
+    --bg2: #ffffff;
+    --bg3: #f1f5f9;
+    --border: #e2e8f0;
+    --green: #16a34a;
+    --green-dark: #15803d;
+    --green-light: #22c55e;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --red: #dc2626;
+    --yellow: #ca8a04;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.theme-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.theme-toggle:hover {
+    background: var(--bg3);
+    color: var(--text);
 }

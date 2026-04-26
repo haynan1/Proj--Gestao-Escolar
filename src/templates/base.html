@@ -12,6 +12,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
         rel="stylesheet" />
+    <script>
+        // Inicialização imediata do tema para evitar "flash" de cor branca/preta
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     {% block head %}{% endblock %}
 </head>
 
@@ -41,6 +48,12 @@
                 <button type="submit" class="btn btn-secondary btn-sm">Sair</button>
             </form>
             {% endif %}
+            
+            <!-- Theme Toggle -->
+            <button id="theme-toggle" class="theme-toggle" title="Alternar Tema">
+                <span class="theme-icon-dark">🌙</span>
+                <span class="theme-icon-light" style="display:none;">☀️</span>
+            </button>
         </div>
     </nav>
 
@@ -57,6 +70,35 @@
 
     {% block content %}{% endblock %}
 
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeToggle = document.getElementById('theme-toggle');
+            const darkIcon = themeToggle.querySelector('.theme-icon-dark');
+            const lightIcon = themeToggle.querySelector('.theme-icon-light');
+            
+            const updateIcons = (theme) => {
+                if (theme === 'light') {
+                    darkIcon.style.display = 'none';
+                    lightIcon.style.display = 'inline';
+                } else {
+                    darkIcon.style.display = 'inline';
+                    lightIcon.style.display = 'none';
+                }
+            };
+
+            // Sincronizar ícones com o tema atual
+            updateIcons(document.documentElement.getAttribute('data-theme'));
+
+            themeToggle.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateIcons(newTheme);
+            });
+        });
+    </script>
     <script src="{{ url_for('static', filename='ui.js') }}"></script>
     <script src="{{ url_for('static', filename='cores.js') }}"></script>
     <script src="{{ url_for('static', filename='dragdrop.js') }}"></script>
