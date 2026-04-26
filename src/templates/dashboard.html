@@ -77,9 +77,8 @@
                         <tr>
                             <td>{{ d.nome }}</td>
                             <td>
-                                <span class="badge badge-dynamic" data-color="{{ d.cor }}">
+                                <span class="badge badge-dynamic" data-color="{{ d.cor }}" title="{{ d.cor }}">
                                     <span class="color-dot dot-dynamic" data-color="{{ d.cor }}"></span>
-                                    {{ d.cor }}
                                 </span>
                             </td>
                             {% if can_manage_resources %}
