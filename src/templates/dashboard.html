@@ -3,8 +3,8 @@
 {% block title %}Dashboard - {{ escola.nome }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='horario-dashboard.css') }}" />
-<script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+<link rel="stylesheet" href="{{ static_url('horario-dashboard.css') }}" />
+<script src="{{ static_url('dashboard.js') }}" defer></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         // Aplica as cores dinâmicas aos elementos com data-color

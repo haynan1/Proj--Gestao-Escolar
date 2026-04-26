@@ -3,7 +3,7 @@
 {% block title %}Horários - {{ escola.nome }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='horario-grade.css') }}" />
+<link rel="stylesheet" href="{{ static_url('horario-grade.css') }}" />
 {% endblock %}
 
 {% block body_attrs %}data-escola-id="{{ escola.id }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}

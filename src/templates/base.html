@@ -5,9 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Planax{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon/imagem.ico') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon/imagem.ico') }}" />
+    <link rel="stylesheet" href="{{ static_url('style.css') }}" />
+    <link rel="icon" type="image/x-icon" href="{{ static_url('favicon/imagem.ico') }}" />
+    <link rel="shortcut icon" href="{{ static_url('favicon/imagem.ico') }}" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
@@ -99,9 +99,9 @@
             });
         });
     </script>
-    <script src="{{ url_for('static', filename='ui.js') }}"></script>
-    <script src="{{ url_for('static', filename='cores.js') }}"></script>
-    <script src="{{ url_for('static', filename='dragdrop.js') }}"></script>
+    <script src="{{ static_url('ui.js') }}"></script>
+    <script src="{{ static_url('cores.js') }}"></script>
+    <script src="{{ static_url('dragdrop.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 

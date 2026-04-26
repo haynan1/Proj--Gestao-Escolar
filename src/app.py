@@ -8,7 +8,7 @@ PROJECT_ROOT = os.path.dirname(SRC_DIR)
 # Garante que o diretório src está no path
 sys.path.insert(0, SRC_DIR)
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, url_for
 from dotenv import load_dotenv
 from auth import csrf_protect
 from database.schema import create_tables
@@ -51,6 +51,19 @@ if app_base_url:
         app.config['SERVER_NAME'] = parsed_base_url.netloc
 
 app.before_request(csrf_protect)
+
+
+@app.context_processor
+def inject_static_url():
+    def static_url(filename):
+        static_path = os.path.join(app.static_folder, filename)
+        try:
+            version = int(os.path.getmtime(static_path))
+        except OSError:
+            version = int(os.path.getmtime(__file__))
+        return url_for('static', filename=filename, v=version)
+
+    return {'static_url': static_url}
 
 
 @app.route('/favicon.ico')
