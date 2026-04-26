@@ -100,6 +100,11 @@ def _parse_cargas_professor(form):
     return cargas
 
 
+def _calcular_max_aulas_professor(cargas, fallback=10):
+    total = sum(int(carga.get('aulas_semana') or 0) for carga in cargas)
+    return total if total > 0 else fallback
+
+
 def _load_accessible_escola(escola_id):
     return buscar_escola(escola_id, user=g.user)
 
@@ -194,9 +199,9 @@ def criar_prof(escola_id):
         return failure
 
     nome = request.form.get('nome', '').strip()
-    max_aulas = request.form.get('max_aulas_semana', 10)
     dias = request.form.getlist('dias_disponiveis')
     cargas = _parse_cargas_professor(request.form)
+    max_aulas = _calcular_max_aulas_professor(cargas)
     disciplina_ids = sorted(set(request.form.getlist('disciplina_ids') + [
         str(carga['disciplina_id']) for carga in cargas
     ]))
@@ -210,7 +215,7 @@ def criar_prof(escola_id):
     elif not turma_ids:
         flash('Selecione pelo menos uma turma para vincular ao professor.', 'error')
     else:
-        sucesso, msg = criar_professor(escola['id'], nome, disciplina_ids, int(max_aulas), dias, turma_ids, cargas)
+        sucesso, msg = criar_professor(escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas)
         flash(msg, 'success' if sucesso else 'error')
     return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
 
@@ -223,9 +228,9 @@ def editar_prof(escola_id, prof_id):
         return failure
 
     nome = request.form.get('nome', '').strip()
-    max_aulas = request.form.get('max_aulas_semana', 10)
     dias = request.form.getlist('dias_disponiveis')
     cargas = _parse_cargas_professor(request.form)
+    max_aulas = _calcular_max_aulas_professor(cargas)
     disciplina_ids = sorted(set(request.form.getlist('disciplina_ids') + [
         str(carga['disciplina_id']) for carga in cargas
     ]))
@@ -234,7 +239,7 @@ def editar_prof(escola_id, prof_id):
     ]))
     if nome and disciplina_ids and dias and turma_ids:
         try:
-            atualizar_professor(prof_id, escola['id'], nome, disciplina_ids, int(max_aulas), dias, turma_ids, cargas)
+            atualizar_professor(prof_id, escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas)
             flash('Professor atualizado.', 'success')
         except ValueError as exc:
             flash(str(exc), 'error')

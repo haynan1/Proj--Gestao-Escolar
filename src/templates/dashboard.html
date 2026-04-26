@@ -144,7 +144,6 @@
                             <th>Nome</th>
                             <th>Disciplinas</th>
                             <th>Turmas</th>
-                            <th>Max/sem</th>
                             <th>Carga por turma</th>
                             {% if can_manage_resources %}<th style="width:80px;">Ações</th>{% endif %}
                         </tr>
@@ -164,7 +163,6 @@
                                 {% endfor %}
                             </td>
                             <td>{{ p.turmas_nomes or '-' }}</td>
-                            <td>{{ p.max_aulas_semana }}</td>
                             <td>
                                 {% if p.cargas_lista %}
                                 <div class="carga-resumo">
@@ -183,7 +181,7 @@
                                     <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
                                         data-id="{{ p.id }}" data-nome="{{ p.nome }}"
                                         data-disciplina-ids='{{ p.disciplina_ids | tojson }}'
-                                        data-max="{{ p.max_aulas_semana }}" data-dias='{{ p.dias_lista | tojson }}'
+                                        data-dias='{{ p.dias_lista | tojson }}'
                                         data-turmas='{{ p.turma_ids | tojson }}'
                                         data-cargas='{{ p.cargas_mapa | tojson }}'>E</button>
                                     <form method="POST"
@@ -357,10 +355,6 @@
                 </div>
             </div>
             <div class="form-group">
-                <label class="form-label">Max. aulas por semana</label>
-                <input type="number" name="max_aulas_semana" class="form-control" value="10" min="1" max="25" />
-            </div>
-            <div class="form-group">
                 <label class="form-label">Aulas por turma e disciplina</label>
                 <div class="carga-grid">
                     <table>
@@ -446,10 +440,6 @@
                     </label>
                     {% endfor %}
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Max. aulas por semana</label>
-                <input type="number" name="max_aulas_semana" id="edit-prof-max" class="form-control" min="1" max="25" />
             </div>
             <div class="form-group">
                 <label class="form-label">Aulas por turma e disciplina</label>

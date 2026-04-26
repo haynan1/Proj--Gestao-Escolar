@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Editar Professor
         if (e.target.closest('.btn-edit-prof')) {
             const btn = e.target.closest('.btn-edit-prof');
-            const { id, nome, disciplinaIds, max, dias, turmas, cargas } = btn.dataset;
+            const { id, nome, disciplinaIds, dias, turmas, cargas } = btn.dataset;
             const disciplinaIdsLista = JSON.parse(disciplinaIds || '[]').map(String);
             const diasLista = JSON.parse(dias || '[]');
             const turmaIds = JSON.parse(turmas || '[]').map(String);
@@ -81,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('form-prof-edit');
 
             document.getElementById('edit-prof-nome').value = nome;
-            document.getElementById('edit-prof-max').value = max;
 
             document.querySelectorAll('.edit-disciplina-check').forEach(cb => {
                 cb.checked = disciplinaIdsLista.includes(cb.value);
