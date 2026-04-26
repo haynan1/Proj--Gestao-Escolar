@@ -318,14 +318,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: clamp(1.25rem, 4vw, 3rem);
 }
 
 .auth-card {
-    width: min(960px, 100%);
+    width: min(1020px, 100%);
     display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+    gap: clamp(1rem, 2.4vw, 1.75rem);
     align-items: stretch;
 }
 
@@ -335,19 +335,27 @@ body {
         linear-gradient(160deg, #102033 0%, #17283d 100%);
     border: 1px solid rgba(148, 163, 184, 0.16);
     border-radius: 20px;
-    padding: 2.5rem;
+    padding: clamp(2rem, 4.5vw, 3.25rem);
     box-shadow: var(--shadow);
+    color: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 348px;
 }
 
 .auth-copy h1 {
     font-size: clamp(2rem, 4vw, 3rem);
     line-height: 1.1;
     margin-bottom: 1rem;
+    color: #f8fafc;
+    max-width: 11ch;
 }
 
 .auth-copy p {
-    color: var(--text-muted);
+    color: #cbd5e1;
     max-width: 42ch;
+    font-size: 1rem;
 }
 
 .auth-eyebrow {
@@ -362,7 +370,8 @@ body {
 
 .auth-form {
     border-radius: 20px;
-    padding: 2rem;
+    padding: clamp(1.5rem, 3vw, 2.15rem);
+    align-self: center;
 }
 
 .auth-switch {
@@ -375,6 +384,7 @@ body {
 .auth-switch a {
     color: var(--green-light);
     text-decoration: none;
+    font-weight: 700;
 }
 
 .auth-switch-links {
@@ -387,6 +397,14 @@ body {
 @media (max-width: 900px) {
     .auth-card {
         grid-template-columns: 1fr;
+    }
+
+    .auth-copy {
+        min-height: auto;
+    }
+
+    .auth-copy h1 {
+        max-width: 14ch;
     }
 
     .navbar {
@@ -783,6 +801,12 @@ tr:hover td {
     margin: 0 auto 2rem;
 }
 
+.school-section-title {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 /* ─── Escola Cards Grid ─────────────────────────────────────────────────────── */
 .escolas-grid {
     display: grid;
@@ -820,6 +844,7 @@ tr:hover td {
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 1rem;
+    color: var(--text);
 }
 
 .escola-card-icon,
@@ -1048,6 +1073,161 @@ tr:hover td {
     --yellow: #ca8a04;
     --radius: 12px;
     --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] body {
+    background:
+        linear-gradient(180deg, #f8fafc 0%, #eef7f1 100%);
+}
+
+[data-theme="light"] .navbar {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="light"] .auth-copy {
+    background:
+        linear-gradient(135deg, rgba(22, 163, 74, 0.1), rgba(37, 99, 235, 0.08)),
+        #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 22px 70px rgba(15, 23, 42, 0.1);
+    color: #0f172a;
+}
+
+[data-theme="light"] .auth-copy h1 {
+    color: #0f172a;
+}
+
+[data-theme="light"] .auth-copy p {
+    color: #475569;
+}
+
+[data-theme="light"] .auth-eyebrow {
+    color: #15803d;
+}
+
+[data-theme="light"] .auth-form {
+    border-color: rgba(15, 23, 42, 0.08);
+    box-shadow: 0 18px 58px rgba(15, 23, 42, 0.09);
+}
+
+[data-theme="light"] .form-label {
+    color: #334155;
+}
+
+[data-theme="light"] .form-control {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+[data-theme="light"] .form-control::placeholder {
+    color: #94a3b8;
+}
+
+[data-theme="light"] .auth-switch a {
+    color: #15803d;
+}
+
+[data-theme="light"] .alert-success {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+    box-shadow: 0 10px 28px rgba(22, 101, 52, 0.08);
+    font-weight: 600;
+}
+
+[data-theme="light"] .alert-error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+    font-weight: 600;
+}
+
+[data-theme="light"] .hero h1 {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: #0f172a;
+}
+
+[data-theme="light"] .hero p,
+[data-theme="light"] .text-muted,
+[data-theme="light"] .stat-label,
+[data-theme="light"] .school-section-title {
+    color: #475569;
+}
+
+[data-theme="light"] .stat-card,
+[data-theme="light"] .escola-card,
+[data-theme="light"] .card {
+    background: #ffffff;
+    border-color: #d8e0ea;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
+}
+
+[data-theme="light"] .escola-card::before {
+    background: linear-gradient(90deg, #16a34a, #2563eb);
+}
+
+[data-theme="light"] .escola-card:hover {
+    border-color: #16a34a;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .escola-card h3 {
+    color: #020617;
+}
+
+[data-theme="light"] .escola-card-icon,
+[data-theme="light"] .escola-empty-icon {
+    background:
+        linear-gradient(145deg, #e0f2fe 0%, #dcfce7 100%);
+    border-color: #b6c9d8;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        0 10px 22px rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .school-stroke {
+    stroke: #2563eb;
+}
+
+[data-theme="light"] .school-fill {
+    fill: #bfdbfe;
+    stroke: #1d4ed8;
+}
+
+[data-theme="light"] .school-door {
+    stroke: #15803d;
+}
+
+[data-theme="light"] .btn-primary {
+    background: #15803d;
+    color: #ffffff;
+}
+
+[data-theme="light"] .btn-primary:hover {
+    background: #166534;
+}
+
+[data-theme="light"] .btn-secondary {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+[data-theme="light"] .btn-secondary:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+[data-theme="light"] .btn-danger {
+    background: #fee2e2;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
+
+[data-theme="light"] .btn-danger:hover {
+    background: #fecaca;
+    color: #7f1d1d;
 }
 
 .theme-toggle {
