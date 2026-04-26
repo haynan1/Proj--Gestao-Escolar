@@ -93,6 +93,8 @@ function initDragDrop() {
             const aulaId = e.dataTransfer.getData('text/plain');
             const novoDia = cell.dataset.dia;
             const novoPeriodo = cell.dataset.periodo;
+            const cardToMove = draggedCard || document.querySelector(`.aula-card[data-aula-id="${aulaId}"]`);
+            const oldCell = cardToMove?.closest('.grade-cell');
 
             if (!aulaId || !novoDia || !novoPeriodo) return;
 
@@ -106,7 +108,7 @@ function initDragDrop() {
                 return;
             }
 
-            if (draggedCard && draggedCard.closest('.grade-cell') === cell) {
+            if (oldCell === cell) {
                 return;
             }
 
@@ -123,13 +125,13 @@ function initDragDrop() {
 
                 const data = await resp.json();
                 if (resp.ok && data.status === 'ok') {
-                    if (draggedCard) {
-                        const oldCell = draggedCard.closest('.grade-cell');
-                        cell.appendChild(draggedCard);
+                    if (cardToMove) {
+                        cell.appendChild(cardToMove);
                         cell.classList.remove('empty');
                         if (oldCell && !oldCell.querySelector('.aula-card')) {
                             oldCell.classList.add('empty');
                         }
+                        cardToMove.classList.remove('dragging');
                     }
                     showToast('Aula movida com sucesso!', 'success');
                 } else {
@@ -139,6 +141,8 @@ function initDragDrop() {
             } catch (err) {
                 showToast('Erro de conexao ao mover aula.', 'error');
                 console.error(err);
+            } finally {
+                limparDestaques();
             }
         });
     });
