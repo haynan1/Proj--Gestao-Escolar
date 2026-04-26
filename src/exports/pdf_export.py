@@ -11,7 +11,6 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 
 
 DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
-PERIODOS = [1, 2, 3, 4, 5]
 
 PAGE_BG = colors.HexColor('#f8fafc')
 INK = colors.HexColor('#0f172a')
@@ -65,6 +64,11 @@ def _build_index(aulas):
     for aula in aulas:
         idx.setdefault(aula['turma_id'], {}).setdefault(aula['dia'], {})[aula['periodo']] = aula
     return idx
+
+
+def _periodos_turma(turma):
+    aulas_por_dia = int(turma.get('aulas_por_dia') or 5)
+    return list(range(1, aulas_por_dia + 1))
 
 
 def _draw_page(canvas, doc):
@@ -180,12 +184,13 @@ def _header(escola, turma, styles):
 
 
 def _schedule_table(turma, idx, styles):
-    header_row = ['Dia / Período'] + [f'{periodo}º Período' for periodo in PERIODOS]
+    periodos = _periodos_turma(turma)
+    header_row = ['Dia / Período'] + [f'{periodo}º Período' for periodo in periodos]
     table_data = [header_row]
 
     for dia in DIAS:
         row = [dia]
-        for periodo in PERIODOS:
+        for periodo in periodos:
             aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
             if aula:
                 cor = _hex_color(aula.get('disciplina_cor', '#22c55e'))
@@ -200,7 +205,7 @@ def _schedule_table(turma, idx, styles):
 
     table = Table(
         table_data,
-        colWidths=[3.2 * cm] + [4.45 * cm] * len(PERIODOS),
+        colWidths=[3.2 * cm] + [(22.2 / len(periodos)) * cm] * len(periodos),
         rowHeights=[1.05 * cm] + [2.15 * cm] * len(DIAS),
         repeatRows=1,
     )
@@ -227,7 +232,7 @@ def _schedule_table(turma, idx, styles):
     ]
 
     for row_idx, dia in enumerate(DIAS, 1):
-        for col_idx, periodo in enumerate(PERIODOS, 1):
+        for col_idx, periodo in enumerate(periodos, 1):
             aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
             if aula:
                 table_style.append((

@@ -1,5 +1,5 @@
 DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
-PERIODOS = [1, 2, 3, 4, 5]
+PERIODOS = [1, 2, 3, 4, 5, 6]
 
 
 def verificar_conflito_professor(grade, professor_id, dia, periodo):
@@ -16,7 +16,7 @@ def verificar_conflito_turma(grade, turma_id, dia, periodo):
     return (dia, periodo) in grade.get(turma_id, {})
 
 
-def verificar_aulas_seguidas(grade, turma_id, disciplina_id, dia, periodo):
+def verificar_aulas_seguidas(grade, turma_id, disciplina_id, dia, periodo, max_periodo=6):
     """Verifica se haveria mais de 2 aulas seguidas da mesma disciplina."""
     slots = grade.get(turma_id, {})
     count = 0
@@ -26,7 +26,7 @@ def verificar_aulas_seguidas(grade, turma_id, disciplina_id, dia, periodo):
         if aula and aula['disciplina_id'] == disciplina_id:
             count += 1
     # Verifica períodos posteriores
-    for p in range(periodo + 1, min(6, periodo + 3)):
+    for p in range(periodo + 1, min(max_periodo + 1, periodo + 3)):
         aula = slots.get((dia, p))
         if aula and aula['disciplina_id'] == disciplina_id:
             count += 1

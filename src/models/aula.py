@@ -53,15 +53,17 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
     """Move uma aula para outro dia/período, validando conflitos no backend."""
     if novo_dia not in DIAS:
         raise ScheduleValidationError("Dia inválido para a grade horária.")
-    if novo_periodo not in PERIODOS:
-        raise ScheduleValidationError("Período inválido para a grade horária.")
-
     conn = get_connection()
     try:
         aula_atual = conn.execute(
-            """SELECT id, escola_id, turma_id, professor_id
-               FROM aulas
-               WHERE id = %s""",
+            """SELECT a.id,
+                      a.escola_id,
+                      a.turma_id,
+                      a.professor_id,
+                      COALESCE(t.aulas_por_dia, 5) AS aulas_por_dia
+               FROM aulas a
+               JOIN turmas t ON t.id = a.turma_id
+               WHERE a.id = %s""",
             (aula_id,),
         ).fetchone()
 
@@ -69,6 +71,8 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
             raise ScheduleValidationError("Aula não encontrada.")
         if escola_id is not None and aula_atual['escola_id'] != escola_id:
             raise ScheduleValidationError("A aula informada não pertence a esta escola.")
+        if novo_periodo not in PERIODOS or novo_periodo > int(aula_atual.get('aulas_por_dia') or 5):
+            raise ScheduleValidationError("Período inválido para a grade desta turma.")
 
         conflito_turma = conn.execute(
             """SELECT id

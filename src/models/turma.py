@@ -1,12 +1,21 @@
 from database.connection import get_connection
 
 
-def criar_turma(escola_id, nome):
+def _normalizar_aulas_por_dia(aulas_por_dia):
+    try:
+        valor = int(aulas_por_dia)
+    except (TypeError, ValueError):
+        valor = 5
+    return valor if valor in (5, 6) else 5
+
+
+def criar_turma(escola_id, nome, aulas_por_dia=5):
+    aulas_por_dia = _normalizar_aulas_por_dia(aulas_por_dia)
     conn = get_connection()
     try:
         conn.execute(
-            "INSERT INTO turmas (escola_id, nome) VALUES (%s, %s)",
-            (escola_id, nome)
+            "INSERT INTO turmas (escola_id, nome, aulas_por_dia) VALUES (%s, %s, %s)",
+            (escola_id, nome, aulas_por_dia)
         )
         conn.commit()
         return True, "Turma criada com sucesso."
@@ -38,14 +47,30 @@ def buscar_turma(turma_id, escola_id=None):
     return dict(row) if row else None
 
 
-def atualizar_turma(turma_id, escola_id, nome):
+def atualizar_turma(turma_id, escola_id, nome, aulas_por_dia=5):
+    aulas_por_dia = _normalizar_aulas_por_dia(aulas_por_dia)
     conn = get_connection()
-    conn.execute(
-        "UPDATE turmas SET nome = %s WHERE id = %s AND escola_id = %s",
-        (nome, turma_id, escola_id),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute(
+            """UPDATE turmas
+               SET nome = %s,
+                   aulas_por_dia = %s
+               WHERE id = %s AND escola_id = %s""",
+            (nome, aulas_por_dia, turma_id, escola_id),
+        )
+        conn.execute(
+            """DELETE FROM aulas
+               WHERE escola_id = %s
+                 AND turma_id = %s
+                 AND periodo > %s""",
+            (escola_id, turma_id, aulas_por_dia),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def deletar_turma(turma_id, escola_id):

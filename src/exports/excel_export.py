@@ -8,7 +8,6 @@ from openpyxl.utils import get_column_letter
 
 
 DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
-PERIODOS = [1, 2, 3, 4, 5]
 
 NAVY = '111827'
 NAVY_2 = '1E293B'
@@ -65,6 +64,11 @@ def _build_index(aulas):
     return idx
 
 
+def _periodos_turma(turma):
+    aulas_por_dia = int(turma.get('aulas_por_dia') or 5)
+    return list(range(1, aulas_por_dia + 1))
+
+
 def _setup_sheet(ws):
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = 'B5'
@@ -81,14 +85,16 @@ def _setup_sheet(ws):
     ws.oddFooter.right.text = 'Página &P de &N'
 
     for row in range(1, 16):
-        for col in range(1, 8):
+        for col in range(1, 9):
             ws.cell(row=row, column=col).fill = PatternFill('solid', fgColor=PAGE)
 
 
 def _write_header(ws, escola, turma):
     generated_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    end_col = get_column_letter(len(_periodos_turma(turma)) + 1)
+    brand_col = get_column_letter(len(_periodos_turma(turma)) + 2)
 
-    ws.merge_cells('A1:F1')
+    ws.merge_cells(f'A1:{end_col}1')
     title = ws['A1']
     title.value = f'Grade de Horários - {turma["nome"]}'
     title.font = Font(name='Aptos Display', bold=True, size=20, color=INK)
@@ -96,7 +102,7 @@ def _write_header(ws, escola, turma):
     title.fill = PatternFill('solid', fgColor=PAGE)
     ws.row_dimensions[1].height = 30
 
-    ws.merge_cells('A2:F2')
+    ws.merge_cells(f'A2:{end_col}2')
     subtitle = ws['A2']
     subtitle.value = f'{escola["nome"]} | Atualizado em {generated_at}'
     subtitle.font = Font(name='Aptos', size=10, color=MUTED)
@@ -104,22 +110,23 @@ def _write_header(ws, escola, turma):
     subtitle.fill = PatternFill('solid', fgColor=PAGE)
     ws.row_dimensions[2].height = 20
 
-    ws['G1'] = 'Planax'
-    ws['G1'].font = Font(name='Aptos', bold=True, size=11, color=WHITE)
-    ws['G1'].alignment = Alignment(horizontal='center', vertical='center')
-    ws['G1'].fill = PatternFill('solid', fgColor=GREEN)
-    ws['G1'].border = _border(GREEN)
+    ws[f'{brand_col}1'] = 'Planax'
+    ws[f'{brand_col}1'].font = Font(name='Aptos', bold=True, size=11, color=WHITE)
+    ws[f'{brand_col}1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws[f'{brand_col}1'].fill = PatternFill('solid', fgColor=GREEN)
+    ws[f'{brand_col}1'].border = _border(GREEN)
 
-    ws['G2'] = 'Gestão escolar'
-    ws['G2'].font = Font(name='Aptos', bold=True, size=9, color=WHITE)
-    ws['G2'].alignment = Alignment(horizontal='center', vertical='center')
-    ws['G2'].fill = PatternFill('solid', fgColor=NAVY_2)
-    ws['G2'].border = _border(NAVY_2)
+    ws[f'{brand_col}2'] = 'Gestão escolar'
+    ws[f'{brand_col}2'].font = Font(name='Aptos', bold=True, size=9, color=WHITE)
+    ws[f'{brand_col}2'].alignment = Alignment(horizontal='center', vertical='center')
+    ws[f'{brand_col}2'].fill = PatternFill('solid', fgColor=NAVY_2)
+    ws[f'{brand_col}2'].border = _border(NAVY_2)
 
 
 def _write_schedule(ws, turma, idx):
     start_row = 4
-    headers = ['Dia / Período'] + [f'{periodo}º Período' for periodo in PERIODOS]
+    periodos = _periodos_turma(turma)
+    headers = ['Dia / Período'] + [f'{periodo}º Período' for periodo in periodos]
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=start_row, column=col_idx, value=header)
         cell.font = Font(name='Aptos', bold=True, color=WHITE, size=10)
@@ -129,9 +136,9 @@ def _write_schedule(ws, turma, idx):
     ws.row_dimensions[start_row].height = 28
 
     ws.column_dimensions['A'].width = 18
-    for col in range(2, 7):
+    for col in range(2, len(periodos) + 2):
         ws.column_dimensions[get_column_letter(col)].width = 24
-    ws.column_dimensions['G'].width = 18
+    ws.column_dimensions[get_column_letter(len(periodos) + 2)].width = 18
 
     for row_idx, dia in enumerate(DIAS, start_row + 1):
         ws.row_dimensions[row_idx].height = 62
@@ -142,7 +149,7 @@ def _write_schedule(ws, turma, idx):
         day_cell.alignment = Alignment(horizontal='center', vertical='center')
         day_cell.border = _border()
 
-        for col_idx, periodo in enumerate(PERIODOS, 2):
+        for col_idx, periodo in enumerate(periodos, 2):
             aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
             cell = ws.cell(row=row_idx, column=col_idx)
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -162,12 +169,17 @@ def _write_schedule(ws, turma, idx):
                 cell.fill = PatternFill('solid', fgColor=EMPTY)
                 cell.font = Font(name='Aptos', size=11, color='94A3B8')
 
-    ws.auto_filter.ref = f'A{start_row}:F{start_row + len(DIAS)}'
+    ws.auto_filter.ref = f'A{start_row}:{get_column_letter(len(periodos) + 1)}{start_row + len(DIAS)}'
 
 
 def _write_legend(ws, turma, aulas):
     legend_title_row = 11
-    ws.merge_cells(start_row=legend_title_row, start_column=1, end_row=legend_title_row, end_column=6)
+    ws.merge_cells(
+        start_row=legend_title_row,
+        start_column=1,
+        end_row=legend_title_row,
+        end_column=len(_periodos_turma(turma)) + 1,
+    )
     title = ws.cell(row=legend_title_row, column=1, value='Legenda')
     title.font = Font(name='Aptos', bold=True, size=11, color=GREEN)
     title.alignment = Alignment(horizontal='left', vertical='center')

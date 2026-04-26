@@ -106,9 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Editar Turma
         if (e.target.closest('.btn-edit-turma')) {
             const btn = e.target.closest('.btn-edit-turma');
-            const { id, nome } = btn.dataset;
+            const { id, nome, aulasPorDia } = btn.dataset;
 
             document.getElementById('edit-turma-nome').value = nome;
+            document.querySelectorAll('.edit-turma-aulas-dia').forEach(input => {
+                input.checked = input.value === (aulasPorDia || '5');
+            });
             document.getElementById('form-turma-edit').action = `/escola/${escolaId}/turma/${id}/editar`;
             openModal('modal-turma-edit');
         }

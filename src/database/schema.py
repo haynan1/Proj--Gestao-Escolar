@@ -97,6 +97,7 @@ TABLE_STATEMENTS = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
         nome VARCHAR(255) NOT NULL,
+        aulas_por_dia INT NOT NULL DEFAULT 5,
         CONSTRAINT fk_turmas_escola
             FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -285,6 +286,13 @@ def _ensure_user_school_links(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """
     )
+
+
+def _ensure_turma_period_columns(cursor):
+    if not _column_exists(cursor, 'turmas', 'aulas_por_dia'):
+        cursor.execute(
+            "ALTER TABLE turmas ADD COLUMN aulas_por_dia INT NOT NULL DEFAULT 5 AFTER nome"
+        )
 
 
 def _backfill_professor_turma_links(cursor):
@@ -550,6 +558,7 @@ def create_tables():
         _ensure_user_security_columns(conn)
         _ensure_school_owner_column(conn)
         _ensure_user_school_links(conn)
+        _ensure_turma_period_columns(conn)
         _ensure_bootstrap_admin(conn)
         _ensure_system_test_user(conn)
         _backfill_professor_disciplina_links(conn)

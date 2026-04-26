@@ -228,6 +228,7 @@
                     <thead>
                         <tr>
                             <th>Nome</th>
+                            <th>Aulas/dia</th>
                             {% if can_manage_resources %}<th style="width:80px;">Ações</th>{% endif %}
                         </tr>
                     </thead>
@@ -235,11 +236,13 @@
                         {% for t in turmas %}
                         <tr>
                             <td>{{ t.nome }}</td>
+                            <td>{{ t.aulas_por_dia or 5 }}</td>
                             {% if can_manage_resources %}
                             <td>
                                 <div class="flex gap-2">
                                     <button class="btn btn-secondary btn-sm btn-icon btn-edit-turma" title="Editar"
-                                        data-id="{{ t.id }}" data-nome="{{ t.nome }}">E</button>
+                                        data-id="{{ t.id }}" data-nome="{{ t.nome }}"
+                                        data-aulas-por-dia="{{ t.aulas_por_dia or 5 }}">E</button>
                                     <form method="POST"
                                         action="{{ url_for('dashboard.deletar_turm', escola_id=escola.id, turma_id=t.id) }}"
                                         onsubmit="return confirm('Remover turma {{ t.nome }}?')">
@@ -504,6 +507,20 @@
                 <label class="form-label">Nome da Turma</label>
                 <input type="text" name="nome" class="form-control" placeholder="Ex: 6 Ano A" required />
             </div>
+            <div class="form-group">
+                <label class="form-label">Aulas por dia no calendário</label>
+                <div class="segmented-control">
+                    <label>
+                        <input type="radio" name="aulas_por_dia" value="5" checked>
+                        <span>5 aulas</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="aulas_por_dia" value="6">
+                        <span>6 aulas</span>
+                    </label>
+                </div>
+                <p class="text-muted text-sm mt-1">A grade de horários será montada com essa quantidade de períodos.</p>
+            </div>
             <div class="flex gap-2 mt-2">
                 <button type="submit" class="btn btn-primary w-full">Criar</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('modal-turma')">Cancelar</button>
@@ -523,6 +540,20 @@
             <div class="form-group">
                 <label class="form-label">Nome da Turma</label>
                 <input type="text" name="nome" id="edit-turma-nome" class="form-control" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Aulas por dia no calendário</label>
+                <div class="segmented-control">
+                    <label>
+                        <input type="radio" name="aulas_por_dia" value="5" class="edit-turma-aulas-dia" />
+                        <span>5 aulas</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="aulas_por_dia" value="6" class="edit-turma-aulas-dia" />
+                        <span>6 aulas</span>
+                    </label>
+                </div>
+                <p class="text-muted text-sm mt-1">Ao reduzir para 5 aulas, horários já salvos no 6º período serão removidos.</p>
             </div>
             <div class="flex gap-2 mt-2">
                 <button type="submit" class="btn btn-primary w-full">Salvar</button>

@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS turmas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
     nome VARCHAR(255) NOT NULL,
+    aulas_por_dia INT NOT NULL DEFAULT 5,
     CONSTRAINT fk_turmas_escola
         FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

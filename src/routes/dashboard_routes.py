@@ -39,7 +39,6 @@ from models.professor import (
 )
 from models.turma import atualizar_turma, criar_turma, deletar_turma, listar_turmas
 from scheduler import gerar_horario
-from utils.conflitos import PERIODOS
 
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -268,10 +267,11 @@ def criar_turm(escola_id):
         return failure
 
     nome = request.form.get('nome', '').strip()
+    aulas_por_dia = request.form.get('aulas_por_dia', 5)
     if not nome:
         flash('Nome da turma e obrigatorio.', 'error')
     else:
-        sucesso, msg = criar_turma(escola['id'], nome)
+        sucesso, msg = criar_turma(escola['id'], nome, aulas_por_dia)
         flash(msg, 'success' if sucesso else 'error')
     return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
 
@@ -284,8 +284,9 @@ def editar_turm(escola_id, turma_id):
         return failure
 
     nome = request.form.get('nome', '').strip()
+    aulas_por_dia = request.form.get('aulas_por_dia', 5)
     if nome:
-        atualizar_turma(turma_id, escola['id'], nome)
+        atualizar_turma(turma_id, escola['id'], nome, aulas_por_dia)
         flash('Turma atualizada.', 'success')
     return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
 
@@ -316,7 +317,8 @@ def horarios(escola_id):
 
     grade = {}
     for turma in turmas:
-        grade[turma['id']] = {dia: {p: None for p in PERIODOS} for dia in DIAS_SEMANA}
+        periodos_turma = list(range(1, int(turma.get('aulas_por_dia') or 5) + 1))
+        grade[turma['id']] = {dia: {p: None for p in periodos_turma} for dia in DIAS_SEMANA}
 
     for aula in aulas:
         tid = aula['turma_id']
@@ -328,6 +330,8 @@ def horarios(escola_id):
     turma_selecionada_id = request.args.get('turma_id', type=int)
     if not turma_selecionada_id and turmas:
         turma_selecionada_id = turmas[0]['id']
+    turma_selecionada = next((turma for turma in turmas if turma['id'] == turma_selecionada_id), None)
+    periodos_turma = list(range(1, int((turma_selecionada or {}).get('aulas_por_dia') or 5) + 1))
 
     return render_template(
         'horarios.html',
@@ -338,7 +342,7 @@ def horarios(escola_id):
         disciplinas=disciplinas,
         professores=professores,
         dias=DIAS_SEMANA,
-        periodos=PERIODOS,
+        periodos=periodos_turma,
         turma_selecionada_id=turma_selecionada_id,
     )
 

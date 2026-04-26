@@ -1,6 +1,6 @@
 import random
 from utils.conflitos import (
-    DIAS, PERIODOS,
+    DIAS,
     verificar_conflito_professor,
     verificar_conflito_turma,
     verificar_aulas_seguidas,
@@ -36,12 +36,19 @@ def _demandas_detalhadas(professores, turmas, disciplinas):
     return demandas
 
 
-def _alocar_demanda(grade, turma_id, disc, qtd, professores_disponiveis, tentativas_max):
+def _periodos_turma(turma):
+    aulas_por_dia = int(turma.get('aulas_por_dia') or 5)
+    return list(range(1, aulas_por_dia + 1))
+
+
+def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas_max):
+    turma_id = turma['id']
+    periodos = _periodos_turma(turma)
     disc_id = disc['id']
     colocadas = 0
     tentativas = 0
 
-    slots = [(d, p) for d in DIAS for p in PERIODOS]
+    slots = [(d, p) for d in DIAS for p in periodos]
     random.shuffle(slots)
 
     for (dia, periodo) in slots:
@@ -54,7 +61,7 @@ def _alocar_demanda(grade, turma_id, disc, qtd, professores_disponiveis, tentati
         if verificar_conflito_turma(grade, turma_id, dia, periodo):
             continue
 
-        if verificar_aulas_seguidas(grade, turma_id, disc_id, dia, periodo):
+        if verificar_aulas_seguidas(grade, turma_id, disc_id, dia, periodo, max(periodos)):
             continue
 
         profs_shuffled = professores_disponiveis.copy()
@@ -105,20 +112,18 @@ def gerar_horario(escola_id, turma_id_especifica=None):
         return False, "Cadastre pelo menos uma disciplina antes de gerar o horário.", 0
 
     grade = {t['id']: {} for t in turmas}
-
-    total_slots = len(DIAS) * len(PERIODOS)
     n_disc = len(disciplinas)
-    aulas_por_disc = max(1, total_slots // n_disc)
 
     aulas_geradas = []
     tentativas_max = 5000
     demandas = _demandas_detalhadas(professores, turmas, disciplinas)
+    turmas_por_id = {turma['id']: turma for turma in turmas}
 
     if demandas:
         for demanda in demandas:
             _alocar_demanda(
                 grade,
-                demanda['turma_id'],
+                turmas_por_id[demanda['turma_id']],
                 demanda['disciplina'],
                 demanda['qtd'],
                 [demanda['professor']],
@@ -127,6 +132,7 @@ def gerar_horario(escola_id, turma_id_especifica=None):
     else:
         for turma in turmas:
             turma_id = turma['id']
+            aulas_por_disc = max(1, (len(DIAS) * len(_periodos_turma(turma))) // n_disc)
             discs_shuffled = disciplinas.copy()
             random.shuffle(discs_shuffled)
 
@@ -141,7 +147,7 @@ def gerar_horario(escola_id, turma_id_especifica=None):
 
                 _alocar_demanda(
                     grade,
-                    turma_id,
+                    turma,
                     disc,
                     aulas_por_disc,
                     profs_disponiveis,

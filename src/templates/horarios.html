@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Horarios - {{ escola.nome }}{% endblock %}
+{% block title %}Horários - {{ escola.nome }}{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='horario-grade.css') }}" />
@@ -9,9 +9,9 @@
 {% block body_attrs %}data-escola-id="{{ escola.id }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
 
 {% block nav_links %}
-<a href="{{ url_for('escola.home') }}">Inicio</a>
+<a href="{{ url_for('escola.home') }}">Início</a>
 <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}">Dashboard</a>
-<a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="active">Horarios</a>
+<a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="active">Horários</a>
 {% endblock %}
 
 {% set can_manage_schedule = has_permission('manage_schedule') %}
@@ -20,19 +20,19 @@
 <div class="container">
     <div class="horarios-header">
         <div>
-            <h1 class="horarios-title">Grade de Horarios</h1>
+            <h1 class="horarios-title">Grade de Horários</h1>
             <p class="text-muted text-sm mt-1">{{ escola.nome }}</p>
         </div>
         <div class="export-bar">
             {% if can_manage_schedule %}
             <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id) }}"
-                onsubmit="return confirm('Gerar novo horario para esta turma? O horario atual desta turma sera substituido.')">
+                onsubmit="return confirm('Gerar novo horário para esta turma? O horário atual desta turma será substituído.')">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
-                <button type="submit" class="btn btn-primary">Gerar Horario da Turma</button>
+                <button type="submit" class="btn btn-primary">Gerar Horário da Turma</button>
             </form>
             <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id) }}"
-                onsubmit="return confirm('Gerar novo horario para todas as turmas? Todos os horarios atuais serao substituidos.')">
+                onsubmit="return confirm('Gerar novo horário para todas as turmas? Todos os horários atuais serão substituídos.')">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
             </form>
@@ -72,18 +72,21 @@
                 <div class="icon icon-purple">T</div>
                 {{ turma_atual.nome }}
             </div>
-            <span class="text-muted text-sm">
-                {% if can_manage_schedule %}Arraste as aulas para reorganizar{% else %}Visualizacao somente leitura{% endif %}
-            </span>
+            <div class="horarios-card-meta">
+                <span class="schedule-period-badge">{{ turma_atual.aulas_por_dia or 5 }} aulas por dia</span>
+                <span class="text-muted text-sm">
+                    {% if can_manage_schedule %}Arraste as aulas para reorganizar{% else %}Visualização somente leitura{% endif %}
+                </span>
+            </div>
         </div>
 
         <div class="grade-container">
             <table class="grade-table">
                 <thead>
                     <tr>
-                        <th style="min-width:90px;">Dia / Periodo</th>
+                        <th style="min-width:90px;">Dia / Período</th>
                         {% for p in periodos %}
-                        <th>{{ p }} Periodo</th>
+                        <th>{{ p }}º Período</th>
                         {% endfor %}
                     </tr>
                 </thead>

@@ -457,6 +457,40 @@ body {
     color: var(--green);
 }
 
+.segmented-control {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.segmented-control label {
+    cursor: pointer;
+}
+
+.segmented-control input {
+    display: none;
+}
+
+.segmented-control span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg3);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 700;
+    transition: all 0.2s;
+}
+
+.segmented-control input:checked + span {
+    background: rgba(34, 197, 94, 0.16);
+    border-color: var(--green);
+    color: var(--green-light);
+}
+
 /* Color picker */
 .color-picker-wrap {
     display: flex;
@@ -1125,6 +1159,19 @@ tr:hover td {
 
 [data-theme="light"] .auth-switch a {
     color: #15803d;
+}
+
+[data-theme="light"] .segmented-control span {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+[data-theme="light"] .segmented-control input:checked + span {
+    background: #dcfce7;
+    border-color: #16a34a;
+    color: #166534;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 [data-theme="light"] .alert-success {
