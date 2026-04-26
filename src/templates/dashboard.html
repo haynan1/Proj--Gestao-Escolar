@@ -5,6 +5,23 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='horario-dashboard.css') }}" />
 <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Aplica as cores dinâmicas aos elementos com data-color
+        document.querySelectorAll('.dot-dynamic').forEach(el => {
+            const color = el.dataset.color;
+            if (color) el.style.backgroundColor = color;
+        });
+        document.querySelectorAll('.badge-dynamic').forEach(el => {
+            const color = el.dataset.color;
+            if (color) {
+                el.style.backgroundColor = color + '15'; // Fundo suave
+                el.style.color = color;
+                el.style.borderColor = color + '30';
+            }
+        });
+    });
+</script>
 {% endblock %}
 
 {% block body_attrs %}data-escola-id="{{ escola.id }}"{% endblock %}
@@ -77,9 +94,8 @@
                         <tr>
                             <td>{{ d.nome }}</td>
                             <td>
-                                <span class="badge badge-dynamic" data-color="{{ d.cor }}">
+                                <span class="badge badge-dynamic" data-color="{{ d.cor }}" title="{{ d.cor }}">
                                     <span class="color-dot dot-dynamic" data-color="{{ d.cor }}"></span>
-                                    {{ d.cor }}
                                 </span>
                             </td>
                             {% if can_manage_resources %}
@@ -114,8 +130,8 @@
                     Professores
                 </div>
                 {% if can_manage_resources %}
-                <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas or not turmas
-                    %}disabled title="Cadastre disciplinas e turmas primeiro" {% endif %}>
+                <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas or not
+                    turmas %}disabled title="Cadastre disciplinas e turmas primeiro" {% endif %}>
                     + Adicionar
                 </button>
                 {% endif %}
@@ -153,7 +169,8 @@
                                 {% if p.cargas_lista %}
                                 <div class="carga-resumo">
                                     {% for carga in p.cargas_lista %}
-                                    <span>{{ carga.turma_nome }} / {{ carga.disciplina_nome }}: {{ carga.aulas_semana }}</span>
+                                    <span>{{ carga.turma_nome }} / {{ carga.disciplina_nome }}: {{ carga.aulas_semana
+                                        }}</span>
                                     {% endfor %}
                                 </div>
                                 {% else %}
@@ -166,8 +183,7 @@
                                     <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
                                         data-id="{{ p.id }}" data-nome="{{ p.nome }}"
                                         data-disciplina-ids='{{ p.disciplina_ids | tojson }}'
-                                        data-max="{{ p.max_aulas_semana }}"
-                                        data-dias='{{ p.dias_lista | tojson }}'
+                                        data-max="{{ p.max_aulas_semana }}" data-dias='{{ p.dias_lista | tojson }}'
                                         data-turmas='{{ p.turma_ids | tojson }}'
                                         data-cargas='{{ p.cargas_mapa | tojson }}'>E</button>
                                     <form method="POST"
@@ -188,10 +204,12 @@
             {% else %}
             <p class="text-muted text-sm dashboard-empty-msg">Nenhum professor cadastrado.</p>
             {% if can_manage_resources and not disciplinas %}
-            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma disciplina antes de adicionar professores.</p>
+            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma disciplina antes de adicionar
+                professores.</p>
             {% endif %}
             {% if can_manage_resources and not turmas %}
-            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma turma antes de adicionar professores.</p>
+            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma turma antes de adicionar professores.
+            </p>
             {% endif %}
             {% endif %}
         </div>
@@ -360,14 +378,9 @@
                                 <td>{{ turma.nome }}</td>
                                 <td>{{ d.nome }}</td>
                                 <td>
-                                    <input type="number"
-                                        name="aulas_carga_{{ turma.id }}_{{ d.id }}"
-                                        class="form-control carga-input"
-                                        value="0"
-                                        min="0"
-                                        max="25"
-                                        data-turma-id="{{ turma.id }}"
-                                        data-disciplina-id="{{ d.id }}" />
+                                    <input type="number" name="aulas_carga_{{ turma.id }}_{{ d.id }}"
+                                        class="form-control carga-input" value="0" min="0" max="25"
+                                        data-turma-id="{{ turma.id }}" data-disciplina-id="{{ d.id }}" />
                                 </td>
                             </tr>
                             {% endfor %}
@@ -375,7 +388,8 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-muted text-sm mt-1">Preencha apenas as combinações que este professor realmente ministra.</p>
+                <p class="text-muted text-sm mt-1">Preencha apenas as combinações que este professor realmente ministra.
+                </p>
             </div>
             <div class="form-group">
                 <label class="form-label">Dias disponíveis</label>
@@ -414,7 +428,8 @@
                     <div class="dias-grid" id="edit-prof-disciplinas">
                         {% for d in disciplinas %}
                         <label class="dia-chip">
-                            <input type="checkbox" name="disciplina_ids" value="{{ d.id }}" class="edit-disciplina-check" />
+                            <input type="checkbox" name="disciplina_ids" value="{{ d.id }}"
+                                class="edit-disciplina-check" />
                             {{ d.nome }}
                         </label>
                         {% endfor %}
@@ -450,18 +465,14 @@
                         <tbody>
                             {% for turma in turmas %}
                             {% for d in disciplinas %}
-                            <tr class="carga-row edit-carga-row" data-turma-id="{{ turma.id }}" data-disciplina-id="{{ d.id }}">
+                            <tr class="carga-row edit-carga-row" data-turma-id="{{ turma.id }}"
+                                data-disciplina-id="{{ d.id }}">
                                 <td>{{ turma.nome }}</td>
                                 <td>{{ d.nome }}</td>
                                 <td>
-                                    <input type="number"
-                                        name="aulas_carga_{{ turma.id }}_{{ d.id }}"
-                                        class="form-control carga-input edit-carga-input"
-                                        value="0"
-                                        min="0"
-                                        max="25"
-                                        data-turma-id="{{ turma.id }}"
-                                        data-disciplina-id="{{ d.id }}" />
+                                    <input type="number" name="aulas_carga_{{ turma.id }}_{{ d.id }}"
+                                        class="form-control carga-input edit-carga-input" value="0" min="0" max="25"
+                                        data-turma-id="{{ turma.id }}" data-disciplina-id="{{ d.id }}" />
                                 </td>
                             </tr>
                             {% endfor %}
