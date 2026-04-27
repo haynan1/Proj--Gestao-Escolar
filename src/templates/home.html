@@ -59,7 +59,7 @@
                     Abrir Dashboard
                 </a>
                 <a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="btn btn-secondary btn-sm">
-                    Ver Horários
+                    Gerar e ver horários de aulas
                 </a>
                 {% if has_permission('manage_schools') %}
                 <form method="POST" action="{{ url_for('escola.deletar', escola_id=escola.id) }}"
