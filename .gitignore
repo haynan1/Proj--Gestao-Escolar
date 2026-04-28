@@ -6,6 +6,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+src/database/*.local.sql
+src/database/*.local.sql.gz
 .DS_Store
 *.log
 .pytest_cache/
