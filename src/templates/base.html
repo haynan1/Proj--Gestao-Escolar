@@ -70,11 +70,16 @@
 
     {% block content %}{% endblock %}
 
+    <button type="button" id="back-to-top" class="back-to-top" aria-label="Voltar ao topo" title="Voltar ao topo">
+        ↑
+    </button>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const themeToggle = document.getElementById('theme-toggle');
             const darkIcon = themeToggle.querySelector('.theme-icon-dark');
             const lightIcon = themeToggle.querySelector('.theme-icon-light');
+            const backToTop = document.getElementById('back-to-top');
             
             const updateIcons = (theme) => {
                 if (theme === 'light') {
@@ -96,6 +101,16 @@
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);
                 updateIcons(newTheme);
+            });
+
+            const updateBackToTop = () => {
+                backToTop.classList.toggle('visible', window.scrollY > 420);
+            };
+
+            updateBackToTop();
+            window.addEventListener('scroll', updateBackToTop, { passive: true });
+            backToTop.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             });
         });
     </script>

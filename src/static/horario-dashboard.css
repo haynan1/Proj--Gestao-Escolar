@@ -2,8 +2,9 @@
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    grid-template-columns: repeat(2, minmax(320px, 1fr));
     gap: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .dashboard-header-title {
@@ -21,6 +22,169 @@
 .dashboard-empty-msg {
     text-align: center;
     padding: 1.5rem 0;
+}
+
+.dashboard-scroll-list {
+    max-height: 100%;
+    overflow: auto;
+    padding-right: 0.25rem;
+}
+
+.disciplinas-scroll-list {
+    max-height: 394px;
+}
+
+.dashboard-scroll-list table {
+    margin: 0;
+}
+
+.dashboard-scroll-list thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.disciplinas-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.disciplinas-card .card-header {
+    flex: 0 0 auto;
+}
+
+.disciplinas-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    max-height: 398px;
+    overflow: auto;
+    padding-right: 0.25rem;
+}
+
+.disciplina-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 42px;
+    padding: 0.45rem 0.55rem;
+    background: var(--bg3);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 8px;
+}
+
+.disciplina-main {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 0.5rem;
+}
+
+.disciplina-name {
+    min-width: 0;
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.disciplina-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.disciplina-actions .btn-icon {
+    width: 30px;
+    height: 30px;
+}
+
+.schedule-balance-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.schedule-balance-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.schedule-balance-header h2 {
+    font-size: 1.05rem;
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+}
+
+.schedule-balance-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.schedule-balance-summary > div {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+}
+
+.summary-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    margin-bottom: 0.35rem;
+}
+
+.schedule-balance-summary strong {
+    display: block;
+    color: var(--text);
+    font-size: 1.55rem;
+    line-height: 1;
+}
+
+.schedule-balance-table table {
+    min-width: 720px;
+}
+
+.balance-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.balance-badge-ok {
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.32);
+    color: var(--green-light);
+}
+
+.balance-badge-under {
+    background: rgba(234, 179, 8, 0.14);
+    border-color: rgba(234, 179, 8, 0.34);
+    color: #facc15;
+}
+
+.balance-badge-over {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.34);
+    color: #f87171;
 }
 
 .carga-grid {
@@ -45,7 +209,306 @@
 
 .carga-resumo {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    flex-wrap: wrap;
+    gap: 0.35rem;
     font-size: 0.85rem;
+}
+
+.carga-resumo span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.professores-panel {
+    margin-bottom: 1.5rem;
+}
+
+.professores-panel .card-header {
+    align-items: flex-start;
+}
+
+.professores-table {
+    min-width: 980px;
+    table-layout: fixed;
+}
+
+.professores-table th:nth-child(1),
+.professores-table td:nth-child(1) {
+    width: 16%;
+}
+
+.professores-table th:nth-child(2),
+.professores-table td:nth-child(2) {
+    width: 22%;
+}
+
+.professores-table th:nth-child(3),
+.professores-table td:nth-child(3) {
+    width: 22%;
+}
+
+.professores-table th:nth-child(4),
+.professores-table td:nth-child(4) {
+    width: 32%;
+}
+
+.professores-table th:nth-child(5),
+.professores-table td:nth-child(5) {
+    width: 8%;
+}
+
+.professor-name {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.professor-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.professor-turmas {
+    line-height: 1.65;
+    color: var(--text);
+}
+
+.professores-actions {
+    justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+    .dashboard-page-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .dashboard-page-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .dashboard-header-title {
+        font-size: 1.35rem;
+        line-height: 1.2;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .card,
+    .schedule-balance-panel {
+        padding: 1rem;
+        border-radius: 10px;
+    }
+
+    .card-header,
+    .professores-panel .card-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .card-header .btn,
+    .professores-panel .card-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .schedule-balance-header {
+        flex-direction: column;
+    }
+
+    .schedule-balance-summary {
+        grid-template-columns: 1fr;
+        gap: 0.55rem;
+    }
+
+    .schedule-balance-summary > div {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 0.85rem;
+    }
+
+    .schedule-balance-summary strong {
+        font-size: 1.25rem;
+    }
+
+    .summary-label {
+        margin-bottom: 0;
+    }
+
+    .table-wrap {
+        overflow: visible;
+        max-width: 100%;
+    }
+
+    .dashboard-scroll-list {
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
+    }
+
+    .dashboard-scroll-list thead th {
+        position: static;
+    }
+
+    .disciplinas-list {
+        grid-template-columns: 1fr;
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
+    }
+
+    .disciplina-item {
+        min-height: 44px;
+    }
+
+    .responsive-table,
+    .responsive-table tbody,
+    .responsive-table tr,
+    .responsive-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .responsive-table {
+        min-width: 0;
+        max-width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .schedule-balance-table table,
+    .professores-table,
+    .compact-resource-table {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .responsive-table thead {
+        display: none;
+    }
+
+    .responsive-table tr {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0.55rem 0.65rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .responsive-table td {
+        display: grid;
+        grid-template-columns: minmax(88px, 36%) minmax(0, 1fr);
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .responsive-table td:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .responsive-table td::before {
+        content: attr(data-label);
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .responsive-table tr:hover td {
+        background: transparent;
+    }
+
+    .compact-resource-table td[data-label="Ações"],
+    .professores-table td[data-label="Ações"] {
+        grid-template-columns: 1fr;
+    }
+
+    .compact-resource-table td[data-label="Ações"]::before,
+    .professores-table td[data-label="Ações"]::before {
+        display: none;
+    }
+
+    .professores-table {
+        min-width: 0;
+        table-layout: auto;
+    }
+
+    .professores-table th:nth-child(n),
+    .professores-table td:nth-child(n) {
+        width: 100%;
+    }
+
+    .professor-name {
+        font-size: 1rem;
+    }
+
+    .professor-badges,
+    .carga-resumo {
+        gap: 0.3rem;
+    }
+
+    .carga-resumo span {
+        white-space: normal;
+        border-radius: 8px;
+        line-height: 1.3;
+        min-height: 26px;
+        padding: 0.2rem 0.45rem;
+    }
+
+    .professor-turmas {
+        line-height: 1.45;
+        word-break: break-word;
+    }
+
+    .professores-actions {
+        justify-content: flex-start;
+    }
+
+    .carga-grid {
+        max-height: 55vh;
+    }
+
+    .carga-grid .responsive-table,
+    .carga-grid table {
+        min-width: 520px;
+    }
+}
+
+@media (max-width: 420px) {
+    .responsive-table td {
+        grid-template-columns: minmax(84px, 34%) minmax(0, 1fr);
+        gap: 0.45rem;
+    }
+
+    .balance-badge {
+        width: fit-content;
+    }
+
+    .schedule-balance-panel,
+    .card {
+        padding: 0.85rem;
+    }
+
+    .responsive-table tr {
+        padding: 0.5rem 0.6rem;
+    }
 }

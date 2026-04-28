@@ -34,10 +34,16 @@
 
 {% set can_manage_resources = has_permission('manage_school_resources') %}
 {% set can_manage_schedule = has_permission('manage_schedule') %}
+{% macro edit_icon() -%}
+<svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+</svg>
+{%- endmacro %}
 
 {% block content %}
 <div class="container">
-    <div class="flex items-center justify-between mb-3 mt-2">
+    <div class="dashboard-page-header flex items-center justify-between mb-3 mt-2">
         <div>
             <h1 class="dashboard-header-title">{{ escola.nome }}</h1>
             <p class="text-muted text-sm mt-1">
@@ -68,8 +74,74 @@
         </div>
     </div>
 
+    <section class="schedule-balance-panel" aria-labelledby="schedule-balance-title">
+        <div class="schedule-balance-header">
+            <div>
+                <h2 id="schedule-balance-title">Carga horária</h2>
+                <p class="text-muted text-sm">Compare a capacidade da grade com as aulas cadastradas por turma.</p>
+            </div>
+            <span class="balance-badge balance-badge-{{ horario_balance.total_status }}">
+                {{ horario_balance.total_status_label }}
+            </span>
+        </div>
+
+        <div class="schedule-balance-summary">
+            <div>
+                <span class="summary-label">Horários permitidos</span>
+                <strong>{{ horario_balance.total_permitido }}</strong>
+            </div>
+            <div>
+                <span class="summary-label">Aulas cadastradas</span>
+                <strong>{{ horario_balance.total_cadastrado }}</strong>
+            </div>
+            <div>
+                <span class="summary-label">Diferença</span>
+                <strong>
+                    {% if horario_balance.total_diferenca > 0 %}+{% endif %}{{ horario_balance.total_diferenca }}
+                </strong>
+            </div>
+        </div>
+
+        {% if horario_balance.turmas %}
+            <div class="table-wrap schedule-balance-table">
+            <table class="responsive-table">
+                <thead>
+                    <tr>
+                        <th>Turma</th>
+                        <th>Aulas/dia</th>
+                        <th>Permitidos</th>
+                        <th>Cadastrados</th>
+                        <th>Diferença</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for turma_balance in horario_balance.turmas %}
+                    <tr>
+                        <td data-label="Turma">{{ turma_balance.nome }}</td>
+                        <td data-label="Aulas/dia">{{ turma_balance.aulas_por_dia }}</td>
+                        <td data-label="Permitidos">{{ turma_balance.permitido }}</td>
+                        <td data-label="Cadastrados">{{ turma_balance.cadastrado }}</td>
+                        <td data-label="Diferença">
+                            {% if turma_balance.diferenca > 0 %}+{% endif %}{{ turma_balance.diferenca }}
+                        </td>
+                        <td data-label="Status">
+                            <span class="balance-badge balance-badge-{{ turma_balance.status }}">
+                                {{ turma_balance.status_label }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-sm dashboard-empty-msg">Cadastre turmas para visualizar a carga horária.</p>
+        {% endif %}
+    </section>
+
     <div class="dashboard-grid">
-        <div class="card">
+        <div class="card disciplinas-card">
             <div class="card-header">
                 <div class="card-title">
                     <div class="icon icon-green">D</div>
@@ -80,135 +152,33 @@
                 {% endif %}
             </div>
             {% if disciplinas %}
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Cor</th>
-                            {% if can_manage_resources %}<th style="width:80px;">Ações</th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for d in disciplinas %}
-                        <tr>
-                            <td>{{ d.nome }}</td>
-                            <td>
-                                <span class="badge badge-dynamic" data-color="{{ d.cor }}" title="{{ d.cor }}">
-                                    <span class="color-dot dot-dynamic" data-color="{{ d.cor }}"></span>
-                                </span>
-                            </td>
-                            {% if can_manage_resources %}
-                            <td>
-                                <div class="flex gap-2">
-                                    <button class="btn btn-secondary btn-sm btn-icon btn-edit-disc" title="Editar"
-                                        data-id="{{ d.id }}" data-nome="{{ d.nome }}" data-cor="{{ d.cor }}">E</button>
-                                    <form method="POST"
-                                        action="{{ url_for('dashboard.deletar_disc', escola_id=escola.id, disc_id=d.id) }}"
-                                        onsubmit="return confirm('Remover disciplina {{ d.nome }}?')">
-                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-danger btn-sm btn-icon"
-                                            title="Remover">X</button>
-                                    </form>
-                                </div>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="disciplinas-list" aria-label="Disciplinas cadastradas">
+                {% for d in disciplinas %}
+                <div class="disciplina-item">
+                    <div class="disciplina-main">
+                        <span class="color-dot dot-dynamic" data-color="{{ d.cor }}"></span>
+                        <span class="disciplina-name">{{ d.nome }}</span>
+                    </div>
+                    {% if can_manage_resources %}
+                    <div class="disciplina-actions">
+                        <button class="btn btn-secondary btn-sm btn-icon btn-edit-disc" title="Editar"
+                            aria-label="Editar disciplina {{ d.nome }}"
+                            data-id="{{ d.id }}" data-nome="{{ d.nome }}" data-cor="{{ d.cor }}">
+                            {{ edit_icon() }}
+                        </button>
+                        <form method="POST"
+                            action="{{ url_for('dashboard.deletar_disc', escola_id=escola.id, disc_id=d.id) }}"
+                            onsubmit="return confirm('Remover disciplina {{ d.nome }}?')">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">X</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
             </div>
             {% else %}
             <p class="text-muted text-sm dashboard-empty-msg">Nenhuma disciplina cadastrada.</p>
-            {% endif %}
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">
-                    <div class="icon icon-blue">P</div>
-                    Professores
-                </div>
-                {% if can_manage_resources %}
-                <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas or not
-                    turmas %}disabled title="Cadastre disciplinas e turmas primeiro" {% endif %}>
-                    + Adicionar
-                </button>
-                {% endif %}
-            </div>
-            {% if professores %}
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Disciplinas</th>
-                            <th>Turmas</th>
-                            <th>Carga por turma</th>
-                            {% if can_manage_resources %}<th style="width:80px;">Ações</th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in professores %}
-                        <tr>
-                            <td>{{ p.nome }}</td>
-                            <td>
-                                {% for disciplina in p.disciplinas_lista %}
-                                <span class="badge badge-dynamic" data-color="{{ disciplina.cor }}">
-                                    <span class="color-dot dot-dynamic" data-color="{{ disciplina.cor }}"></span>
-                                    {{ disciplina.nome }}
-                                </span>
-                                {% else %}
-                                -
-                                {% endfor %}
-                            </td>
-                            <td>{{ p.turmas_nomes or '-' }}</td>
-                            <td>
-                                {% if p.cargas_lista %}
-                                <div class="carga-resumo">
-                                    {% for carga in p.cargas_lista %}
-                                    <span>{{ carga.turma_nome }} / {{ carga.disciplina_nome }}: {{ carga.aulas_semana
-                                        }}</span>
-                                    {% endfor %}
-                                </div>
-                                {% else %}
-                                <span class="text-muted">Sem detalhamento</span>
-                                {% endif %}
-                            </td>
-                            {% if can_manage_resources %}
-                            <td>
-                                <div class="flex gap-2">
-                                    <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
-                                        data-id="{{ p.id }}" data-nome="{{ p.nome }}"
-                                        data-disciplina-ids='{{ p.disciplina_ids | tojson }}'
-                                        data-dias='{{ p.dias_lista | tojson }}'
-                                        data-turmas='{{ p.turma_ids | tojson }}'
-                                        data-cargas='{{ p.cargas_mapa | tojson }}'>E</button>
-                                    <form method="POST"
-                                        action="{{ url_for('dashboard.deletar_prof', escola_id=escola.id, prof_id=p.id) }}"
-                                        onsubmit="return confirm('Remover professor {{ p.nome }}?')">
-                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-danger btn-sm btn-icon"
-                                            title="Remover">X</button>
-                                    </form>
-                                </div>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p class="text-muted text-sm dashboard-empty-msg">Nenhum professor cadastrado.</p>
-            {% if can_manage_resources and not disciplinas %}
-            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma disciplina antes de adicionar
-                professores.</p>
-            {% endif %}
-            {% if can_manage_resources and not turmas %}
-            <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma turma antes de adicionar professores.
-            </p>
-            {% endif %}
             {% endif %}
         </div>
 
@@ -224,7 +194,7 @@
             </div>
             {% if turmas %}
             <div class="table-wrap">
-                <table>
+                <table class="responsive-table compact-resource-table">
                     <thead>
                         <tr>
                             <th>Nome</th>
@@ -235,14 +205,17 @@
                     <tbody>
                         {% for t in turmas %}
                         <tr>
-                            <td>{{ t.nome }}</td>
-                            <td>{{ t.aulas_por_dia or 5 }}</td>
+                            <td data-label="Nome">{{ t.nome }}</td>
+                            <td data-label="Aulas/dia">{{ t.aulas_por_dia or 5 }}</td>
                             {% if can_manage_resources %}
-                            <td>
+                            <td data-label="Ações">
                                 <div class="flex gap-2">
                                     <button class="btn btn-secondary btn-sm btn-icon btn-edit-turma" title="Editar"
+                                        aria-label="Editar turma {{ t.nome }}"
                                         data-id="{{ t.id }}" data-nome="{{ t.nome }}"
-                                        data-aulas-por-dia="{{ t.aulas_por_dia or 5 }}">E</button>
+                                        data-aulas-por-dia="{{ t.aulas_por_dia or 5 }}">
+                                        {{ edit_icon() }}
+                                    </button>
                                     <form method="POST"
                                         action="{{ url_for('dashboard.deletar_turm', escola_id=escola.id, turma_id=t.id) }}"
                                         onsubmit="return confirm('Remover turma {{ t.nome }}?')">
@@ -263,6 +236,102 @@
             {% endif %}
         </div>
     </div>
+
+    <section class="card professores-panel">
+        <div class="card-header">
+            <div>
+                <div class="card-title">
+                    <div class="icon icon-blue">P</div>
+                    Professores
+                </div>
+                <p class="text-muted text-sm mt-1">Consulte vínculos e cargas com mais espaço para leitura.</p>
+            </div>
+            {% if can_manage_resources %}
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas or not
+                turmas %}disabled title="Cadastre disciplinas e turmas primeiro" {% endif %}>
+                + Adicionar
+            </button>
+            {% endif %}
+        </div>
+        {% if professores %}
+        <div class="table-wrap professores-table-wrap">
+            <table class="responsive-table professores-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Disciplinas</th>
+                        <th>Turmas</th>
+                        <th>Aulas do professor</th>
+                        {% if can_manage_resources %}<th>Ações</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in professores %}
+                    <tr>
+                        <td class="professor-name" data-label="Nome">{{ p.nome }}</td>
+                        <td data-label="Disciplinas">
+                            <div class="professor-badges">
+                                {% for disciplina in p.disciplinas_lista %}
+                                <span class="badge badge-dynamic" data-color="{{ disciplina.cor }}">
+                                    <span class="color-dot dot-dynamic" data-color="{{ disciplina.cor }}"></span>
+                                    {{ disciplina.nome }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="professor-turmas" data-label="Turmas">{{ p.turmas_nomes or '-' }}</td>
+                        <td data-label="Aulas do professor">
+                            {% if p.cargas_lista %}
+                            <div class="carga-resumo">
+                                {% for carga in p.cargas_lista %}
+                                <span>{{ carga.turma_nome }} / {{ carga.disciplina_nome }}: {{ carga.aulas_semana }}</span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted">Sem detalhamento</span>
+                            {% endif %}
+                        </td>
+                        {% if can_manage_resources %}
+                        <td data-label="Ações">
+                            <div class="flex gap-2 professores-actions">
+                                <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
+                                    aria-label="Editar professor {{ p.nome }}"
+                                    data-id="{{ p.id }}" data-nome="{{ p.nome }}"
+                                    data-disciplina-ids='{{ p.disciplina_ids | tojson }}'
+                                    data-dias='{{ p.dias_lista | tojson }}'
+                                    data-turmas='{{ p.turma_ids | tojson }}'
+                                    data-cargas='{{ p.cargas_mapa | tojson }}'>
+                                    {{ edit_icon() }}
+                                </button>
+                                <form method="POST"
+                                    action="{{ url_for('dashboard.deletar_prof', escola_id=escola.id, prof_id=p.id) }}"
+                                    onsubmit="return confirm('Remover professor {{ p.nome }}?')">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-danger btn-sm btn-icon"
+                                        title="Remover">X</button>
+                                </form>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-sm dashboard-empty-msg">Nenhum professor cadastrado.</p>
+        {% if can_manage_resources and not disciplinas %}
+        <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma disciplina antes de adicionar
+            professores.</p>
+        {% endif %}
+        {% if can_manage_resources and not turmas %}
+        <p class="text-muted text-sm dashboard-empty-msg mt-1">Cadastre uma turma antes de adicionar professores.
+        </p>
+        {% endif %}
+        {% endif %}
+    </section>
 </div>
 
 {% if can_manage_resources %}

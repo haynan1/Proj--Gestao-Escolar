@@ -46,6 +46,69 @@ dashboard_bp = Blueprint('dashboard', __name__)
 DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
 
 
+def _build_horario_balance(turmas, professores):
+    cargas_por_turma = {turma['id']: 0 for turma in turmas}
+
+    for professor in professores:
+        for carga in professor.get('cargas_lista', []):
+            turma_id = carga.get('turma_id')
+            if turma_id in cargas_por_turma:
+                cargas_por_turma[turma_id] += int(carga.get('aulas_semana') or 0)
+
+    turmas_balance = []
+    total_permitido = 0
+    total_cadastrado = 0
+
+    for turma in turmas:
+        aulas_por_dia = int(turma.get('aulas_por_dia') or 5)
+        permitido = aulas_por_dia * len(DIAS_SEMANA)
+        cadastrado = cargas_por_turma.get(turma['id'], 0)
+        diferenca = cadastrado - permitido
+
+        if diferenca == 0:
+            status = 'ok'
+            status_label = 'Completo'
+        elif diferenca > 0:
+            status = 'over'
+            status_label = f'Excede {diferenca}'
+        else:
+            status = 'under'
+            status_label = f'Faltam {abs(diferenca)}'
+
+        total_permitido += permitido
+        total_cadastrado += cadastrado
+        turmas_balance.append({
+            'id': turma['id'],
+            'nome': turma['nome'],
+            'aulas_por_dia': aulas_por_dia,
+            'permitido': permitido,
+            'cadastrado': cadastrado,
+            'diferenca': diferenca,
+            'status': status,
+            'status_label': status_label,
+        })
+
+    total_diferenca = total_cadastrado - total_permitido
+    if total_diferenca == 0:
+        total_status = 'ok'
+        total_status_label = 'Fechado'
+    elif total_diferenca > 0:
+        total_status = 'over'
+        total_status_label = f'Excede {total_diferenca}'
+    else:
+        total_status = 'under'
+        total_status_label = f'Faltam {abs(total_diferenca)}'
+
+    return {
+        'total_permitido': total_permitido,
+        'total_cadastrado': total_cadastrado,
+        'total_diferenca': total_diferenca,
+        'total_status': total_status,
+        'total_status_label': total_status_label,
+        'turmas': turmas_balance,
+    }
+
+
 def _json_error(message, status_code=400, code='bad_request'):
     response = jsonify({
         'status': 'erro',
@@ -133,12 +196,14 @@ def dashboard(escola_id):
     disciplinas = listar_disciplinas(escola_id)
     professores = listar_professores(escola_id)
     turmas = listar_turmas(escola_id)
+    horario_balance = _build_horario_balance(turmas, professores)
     return render_template(
         'dashboard.html',
         escola=escola,
         disciplinas=disciplinas,
         professores=professores,
         turmas=turmas,
+        horario_balance=horario_balance,
         dias_semana=DIAS_SEMANA,
     )
 
