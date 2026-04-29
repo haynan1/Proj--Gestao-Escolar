@@ -618,6 +618,94 @@ body {
     letter-spacing: 0.02em;
 }
 
+.dashboard-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.backup-hidden-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    padding: 0.34rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(96, 165, 250, 0.14);
+    border: 1px solid rgba(96, 165, 250, 0.32);
+    color: #93c5fd;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.backup-admin-panel .card-header {
+    gap: 1rem;
+}
+
+.admin-backups-table th,
+.admin-backups-table td {
+    vertical-align: top;
+}
+
+.backup-school-name {
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.45rem;
+}
+
+.backup-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-width: 220px;
+}
+
+.backup-metrics span {
+    display: inline-flex;
+    padding: 0.32rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.admin-backup-actions-col {
+    width: 260px;
+}
+
+.backup-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    min-width: 240px;
+}
+
+.backup-row-actions .btn {
+    justify-content: center;
+}
+
+.backup-empty-state {
+    padding: 2.5rem 1rem;
+    text-align: center;
+}
+
+.backup-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: 1rem;
+    border-radius: 16px;
+    background: rgba(96, 165, 250, 0.14);
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    color: #93c5fd;
+    font-weight: 800;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
@@ -947,6 +1035,43 @@ tr:hover td {
     margin-top: 1rem;
 }
 
+.escola-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.escola-card-main-actions,
+.escola-card-admin-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.escola-card-main-actions .btn,
+.escola-card-admin-actions .btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    min-height: 34px;
+    white-space: normal;
+    line-height: 1.2;
+}
+
+.escola-card-admin-actions {
+    margin-top: 0.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.escola-card-admin-actions form {
+    min-width: 0;
+}
+
+.btn-admin-action {
+    font-size: 0.76rem;
+    padding-inline: 0.75rem;
+}
+
 /* ─── Modal ─────────────────────────────────────────────────────────────────── */
 .modal-overlay {
     position: fixed;
@@ -1114,6 +1239,51 @@ tr:hover td {
         max-width: calc(100vw - 1.5rem);
         padding: 1.25rem;
         border-radius: 12px;
+    }
+
+    .admin-page-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .admin-page-header .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .backup-admin-panel .card-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .backup-row-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        min-width: 180px;
+    }
+
+    .backup-row-actions .btn,
+    .backup-row-actions form {
+        width: 100%;
+    }
+
+    .escolas-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .escola-card {
+        padding: 1.15rem;
+    }
+
+    .escola-card-main-actions,
+    .escola-card-admin-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .escola-card-main-actions .btn,
+    .escola-card-admin-actions .btn {
+        min-height: 42px;
     }
 }
 
@@ -1320,6 +1490,23 @@ tr:hover td {
 
 [data-theme="light"] .escola-card h3 {
     color: #020617;
+}
+
+[data-theme="light"] .escola-card-admin-actions {
+    border-top-color: #e2e8f0;
+}
+
+[data-theme="light"] .backup-hidden-badge,
+[data-theme="light"] .backup-empty-icon {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+}
+
+[data-theme="light"] .backup-metrics span {
+    background: #f8fafc;
+    border-color: #d8e0ea;
+    color: #475569;
 }
 
 [data-theme="light"] .escola-card-icon,

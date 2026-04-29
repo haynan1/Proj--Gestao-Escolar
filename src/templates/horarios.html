@@ -21,7 +21,12 @@
 <div class="container">
     <div class="horarios-header">
         <div>
-            <h1 class="horarios-title">Grade de Horários</h1>
+            <div class="dashboard-title-row">
+                <h1 class="horarios-title">Grade de Horários</h1>
+                {% if escola.oculta %}
+                <span class="backup-hidden-badge">Backup oculto</span>
+                {% endif %}
+            </div>
             <p class="text-muted text-sm mt-1">{{ escola.nome }}</p>
         </div>
         <div class="export-bar">

@@ -32,8 +32,14 @@
             {% block nav_links %}{% endblock %}
             {% if current_user and has_permission('manage_users') %}
             <a href="{{ url_for('admin.usuarios') }}"
-                class="{% if request.endpoint and request.endpoint.startswith('admin.') %}active{% endif %}">
+                class="{% if request.endpoint in ['admin.usuarios'] %}active{% endif %}">
                 Usuarios
+            </a>
+            {% endif %}
+            {% if current_user and has_permission('admin_access') %}
+            <a href="{{ url_for('admin.backups') }}"
+                class="{% if request.endpoint and request.endpoint.startswith('admin.backups') %}active{% endif %}">
+                Backups
             </a>
             {% endif %}
             {% if current_user %}

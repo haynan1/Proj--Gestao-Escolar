@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from access_control import user_has_permission
 from database.connection import get_connection
 from models.user_link import usuario_tem_vinculo
@@ -44,6 +46,7 @@ def listar_escolas_para_usuario(user: dict):
                           dono.nome AS owner_nome
                    FROM escolas e
                    LEFT JOIN usuarios dono ON dono.id = e.user_id
+                   WHERE e.oculta = 0
                    ORDER BY e.nome"""
             ).fetchall()
         else:
@@ -55,6 +58,7 @@ def listar_escolas_para_usuario(user: dict):
                    JOIN usuarios_escolas ue
                      ON ue.escola_id = e.id
                   WHERE ue.usuario_id = %s
+                    AND e.oculta = 0
                    ORDER BY e.nome""",
                 (user['id'],),
             ).fetchall()
@@ -77,6 +81,8 @@ def buscar_escola(escola_id, user=None):
         escola = _serialize_escola(escola) if escola else None
         if not escola:
             return None
+        if escola.get('oculta') and not user_has_permission(user, 'admin_access'):
+            return None
         if not user or usuario_pode_acessar_escola(user, escola):
             return escola
         return None
@@ -89,6 +95,8 @@ def usuario_pode_acessar_escola(user: dict | None, escola: dict | None) -> bool:
         return False
     if user_has_permission(user, 'admin_access'):
         return True
+    if escola.get('oculta'):
+        return False
     return usuario_tem_vinculo(user['id'], escola['id'])
 
 
@@ -101,6 +109,177 @@ def deletar_escola(escola_id):
         conn.close()
 
 
+def _gerar_nome_backup(conn, escola):
+    base = f"{escola['nome']} (backup {datetime.now().strftime('%Y-%m-%d %H%M%S')})"
+    nome = base
+    for indice in range(2, 30):
+        existente = conn.execute(
+            """SELECT id
+               FROM escolas
+               WHERE user_id <=> %s
+                 AND nome = %s""",
+            (escola.get('user_id'), nome),
+        ).fetchone()
+        if not existente:
+            return nome
+        nome = f"{base} {indice}"
+    return f"{base} {datetime.now().microsecond}"
+
+
+def duplicar_escola_oculta(escola_id):
+    conn = get_connection()
+    try:
+        escola = conn.execute(
+            "SELECT * FROM escolas WHERE id = %s AND oculta = 0",
+            (escola_id,),
+        ).fetchone()
+        if not escola:
+            return False, 'Escola nao encontrada para backup.', None
+
+        nome_backup = _gerar_nome_backup(conn, escola)
+        cursor = conn.execute(
+            """INSERT INTO escolas (user_id, nome, oculta, backup_de_escola_id)
+               VALUES (%s, %s, 1, %s)""",
+            (escola.get('user_id'), nome_backup, escola['id']),
+        )
+        backup_id = cursor.lastrowid
+
+        disciplina_map = {}
+        disciplinas = conn.execute(
+            "SELECT * FROM disciplinas WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall()
+        for disciplina in disciplinas:
+            cursor = conn.execute(
+                "INSERT INTO disciplinas (escola_id, nome, cor) VALUES (%s, %s, %s)",
+                (backup_id, disciplina['nome'], disciplina['cor']),
+            )
+            disciplina_map[disciplina['id']] = cursor.lastrowid
+
+        turma_map = {}
+        turmas = conn.execute(
+            "SELECT * FROM turmas WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall()
+        for turma in turmas:
+            cursor = conn.execute(
+                "INSERT INTO turmas (escola_id, nome, aulas_por_dia) VALUES (%s, %s, %s)",
+                (backup_id, turma['nome'], turma.get('aulas_por_dia') or 5),
+            )
+            turma_map[turma['id']] = cursor.lastrowid
+
+        professor_map = {}
+        professores = conn.execute(
+            "SELECT * FROM professores WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall()
+        for professor in professores:
+            disciplina_id = disciplina_map.get(professor['disciplina_id'])
+            if not disciplina_id:
+                continue
+            cursor = conn.execute(
+                """INSERT INTO professores (
+                       escola_id,
+                       nome,
+                       disciplina_id,
+                       max_aulas_semana,
+                       dias_disponiveis
+                   ) VALUES (%s, %s, %s, %s, %s)""",
+                (
+                    backup_id,
+                    professor['nome'],
+                    disciplina_id,
+                    professor.get('max_aulas_semana') or 10,
+                    professor.get('dias_disponiveis') or '',
+                ),
+            )
+            professor_map[professor['id']] = cursor.lastrowid
+
+        for row in conn.execute(
+            """SELECT pd.professor_id, pd.disciplina_id
+               FROM professores_disciplinas pd
+               JOIN professores p ON p.id = pd.professor_id
+               WHERE p.escola_id = %s""",
+            (escola_id,),
+        ).fetchall():
+            professor_id = professor_map.get(row['professor_id'])
+            disciplina_id = disciplina_map.get(row['disciplina_id'])
+            if professor_id and disciplina_id:
+                conn.execute(
+                    """INSERT IGNORE INTO professores_disciplinas (professor_id, disciplina_id)
+                       VALUES (%s, %s)""",
+                    (professor_id, disciplina_id),
+                )
+
+        for row in conn.execute(
+            """SELECT pt.professor_id, pt.turma_id
+               FROM professores_turmas pt
+               JOIN professores p ON p.id = pt.professor_id
+               WHERE p.escola_id = %s""",
+            (escola_id,),
+        ).fetchall():
+            professor_id = professor_map.get(row['professor_id'])
+            turma_id = turma_map.get(row['turma_id'])
+            if professor_id and turma_id:
+                conn.execute(
+                    """INSERT IGNORE INTO professores_turmas (professor_id, turma_id)
+                       VALUES (%s, %s)""",
+                    (professor_id, turma_id),
+                )
+
+        for row in conn.execute(
+            """SELECT pc.professor_id,
+                      pc.turma_id,
+                      pc.disciplina_id,
+                      pc.aulas_semana
+               FROM professores_cargas pc
+               JOIN professores p ON p.id = pc.professor_id
+               WHERE p.escola_id = %s""",
+            (escola_id,),
+        ).fetchall():
+            professor_id = professor_map.get(row['professor_id'])
+            turma_id = turma_map.get(row['turma_id'])
+            disciplina_id = disciplina_map.get(row['disciplina_id'])
+            if professor_id and turma_id and disciplina_id:
+                conn.execute(
+                    """INSERT IGNORE INTO professores_cargas (
+                           professor_id,
+                           turma_id,
+                           disciplina_id,
+                           aulas_semana
+                       ) VALUES (%s, %s, %s, %s)""",
+                    (professor_id, turma_id, disciplina_id, row.get('aulas_semana') or 1),
+                )
+
+        for aula in conn.execute(
+            "SELECT * FROM aulas WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall():
+            turma_id = turma_map.get(aula['turma_id'])
+            professor_id = professor_map.get(aula['professor_id'])
+            disciplina_id = disciplina_map.get(aula['disciplina_id'])
+            if turma_id and professor_id and disciplina_id:
+                conn.execute(
+                    """INSERT INTO aulas (
+                           escola_id,
+                           turma_id,
+                           professor_id,
+                           disciplina_id,
+                           dia,
+                           periodo
+                       ) VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (backup_id, turma_id, professor_id, disciplina_id, aula['dia'], aula['periodo']),
+                )
+
+        conn.commit()
+        return True, f'Backup oculto criado com sucesso: {nome_backup}.', backup_id
+    except Exception:
+        conn.rollback()
+        return False, 'Nao foi possivel criar o backup oculto desta escola.', None
+    finally:
+        conn.close()
+
+
 def listar_escolas():
     conn = get_connection()
     try:
@@ -108,8 +287,55 @@ def listar_escolas():
             """SELECT e.*, dono.nome AS owner_nome
                FROM escolas e
                LEFT JOIN usuarios dono ON dono.id = e.user_id
+               WHERE e.oculta = 0
                ORDER BY e.nome"""
         ).fetchall()
         return [_serialize_escola(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def listar_backups_ocultos():
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT backup.*,
+                      dono.nome AS owner_nome,
+                      original.nome AS escola_original_nome,
+                      (
+                          SELECT COUNT(*)
+                          FROM turmas t
+                          WHERE t.escola_id = backup.id
+                      ) AS total_turmas,
+                      (
+                          SELECT COUNT(*)
+                          FROM professores p
+                          WHERE p.escola_id = backup.id
+                      ) AS total_professores,
+                      (
+                          SELECT COUNT(*)
+                          FROM aulas a
+                          WHERE a.escola_id = backup.id
+                      ) AS total_aulas
+               FROM escolas backup
+               LEFT JOIN usuarios dono ON dono.id = backup.user_id
+               LEFT JOIN escolas original ON original.id = backup.backup_de_escola_id
+               WHERE backup.oculta = 1
+               ORDER BY backup.criado_em DESC, backup.nome"""
+        ).fetchall()
+        return [_serialize_escola(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def deletar_backup_oculto(escola_id):
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM escolas WHERE id = %s AND oculta = 1",
+            (escola_id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
     finally:
         conn.close()

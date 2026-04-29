@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Backups de escolas{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('escola.home') }}">Inicio</a>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="flex items-center justify-between mb-3 mt-2 admin-page-header">
+        <div>
+            <h1 class="dashboard-header-title">Backups de escolas</h1>
+            <p class="text-muted text-sm mt-1">Copias ocultas para revisao, testes e recuperacao administrativa.</p>
+        </div>
+        <a href="{{ url_for('escola.home') }}" class="btn btn-secondary">Voltar as escolas</a>
+    </div>
+
+    <div class="card backup-admin-panel">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Backups ocultos</div>
+                <p class="text-muted text-sm mt-1">Somente administradores podem abrir, editar ou excluir estes dados.</p>
+            </div>
+            <span class="admin-master-badge">{{ backups|length }} backup{{ '' if backups|length == 1 else 's' }}</span>
+        </div>
+
+        {% if backups %}
+        <div class="table-wrap">
+            <table class="admin-backups-table">
+                <thead>
+                    <tr>
+                        <th>Backup</th>
+                        <th>Origem</th>
+                        <th>Conteudo</th>
+                        <th>Responsavel</th>
+                        <th>Criado em</th>
+                        <th class="admin-backup-actions-col">Acoes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backups %}
+                    <tr>
+                        <td>
+                            <div class="backup-school-name">{{ backup.nome }}</div>
+                            <span class="backup-hidden-badge">Oculto</span>
+                        </td>
+                        <td>{{ backup.escola_original_nome or 'Origem removida' }}</td>
+                        <td>
+                            <div class="backup-metrics">
+                                <span>{{ backup.total_turmas or 0 }} turmas</span>
+                                <span>{{ backup.total_professores or 0 }} professores</span>
+                                <span>{{ backup.total_aulas or 0 }} aulas</span>
+                            </div>
+                        </td>
+                        <td>{{ backup.owner_nome or '-' }}</td>
+                        <td>{{ backup.criado_em_formatado or '-' }}</td>
+                        <td>
+                            <div class="backup-row-actions">
+                                <a href="{{ url_for('dashboard.dashboard', escola_id=backup.id) }}"
+                                    class="btn btn-primary btn-sm">
+                                    Abrir
+                                </a>
+                                <a href="{{ url_for('dashboard.horarios', escola_id=backup.id) }}"
+                                    class="btn btn-secondary btn-sm">
+                                    Horarios
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.deletar_backup', escola_id=backup.id) }}"
+                                    onsubmit="return confirm('Excluir definitivamente o backup {{ backup.nome }}? A escola original nao sera alterada.')">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="backup-empty-state">
+            <div class="backup-empty-icon">BK</div>
+            <p class="text-muted">Nenhum backup oculto criado ainda.</p>
+            <p class="text-muted text-sm mt-1">Use "Criar backup" no card de uma escola para gerar uma copia administrativa.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

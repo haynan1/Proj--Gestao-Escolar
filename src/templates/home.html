@@ -3,6 +3,7 @@
 {% block title %}Planax - Início{% endblock %}
 
 {% block content %}
+{% set is_admin = has_permission('admin_access') %}
 <div class="container">
     <div class="hero">
         <h1>Gestão de escolas com acesso por perfil</h1>
@@ -54,19 +55,32 @@
             {% if escola.owner_nome %}
             <p class="text-muted text-sm">Responsável: {{ escola.owner_nome }}</p>
             {% endif %}
-            <div class="actions">
+            <div class="actions escola-card-actions">
+                <div class="escola-card-main-actions">
                 <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="btn btn-primary btn-sm">
                     Abrir Dashboard
                 </a>
                 <a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="btn btn-secondary btn-sm">
                     Gerar e ver horários de aulas
                 </a>
+                </div>
                 {% if has_permission('manage_schools') %}
+                <div class="escola-card-admin-actions" aria-label="Acoes administrativas de {{ escola.nome }}">
+                    {% if is_admin %}
+                    <form method="POST" action="{{ url_for('escola.criar_backup', escola_id=escola.id) }}"
+                        onsubmit="return confirm('Criar um backup oculto de {{ escola.nome }}? A escola original nao sera alterada.')">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-secondary btn-sm btn-admin-action">
+                            Criar backup
+                        </button>
+                    </form>
+                    {% endif %}
                 <form method="POST" action="{{ url_for('escola.deletar', escola_id=escola.id) }}"
-                    onsubmit="return confirm('Remover escola {{ escola.nome }}? Todos os dados serao perdidos.')">
+                    onsubmit="return confirm('Excluir a escola {{ escola.nome }}? Todos os dados visiveis dessa escola serao removidos permanentemente.')">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">X</button>
+                    <button type="submit" class="btn btn-danger btn-sm btn-admin-action">Excluir</button>
                 </form>
+                </div>
                 {% endif %}
             </div>
         </div>

@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS escolas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NULL,
     nome VARCHAR(255) NOT NULL,
+    oculta TINYINT(1) NOT NULL DEFAULT 0,
+    backup_de_escola_id INT NULL,
     criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_escolas_oculta (oculta),
+    KEY idx_escolas_backup_de (backup_de_escola_id),
     UNIQUE KEY uq_escolas_usuario_nome (user_id, nome),
     CONSTRAINT fk_escolas_usuario
         FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
