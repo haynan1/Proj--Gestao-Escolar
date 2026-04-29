@@ -15,6 +15,7 @@
 {% endblock %}
 
 {% set can_manage_schedule = has_permission('manage_schedule') %}
+{% set can_export_schedule = has_permission('export_school') %}
 
 {% block content %}
 <div class="container">
@@ -37,12 +38,14 @@
                 <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
             </form>
             {% endif %}
+            {% if can_export_schedule %}
             <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id) }}" class="btn btn-secondary">
                 Excel
             </a>
             <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id) }}" class="btn btn-secondary">
                 PDF
             </a>
+            {% endif %}
         </div>
     </div>
 

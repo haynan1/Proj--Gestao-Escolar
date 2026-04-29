@@ -16,6 +16,10 @@ from models.aula import salvar_aulas
 MAX_TENTATIVAS_GRADE = 100
 
 
+def _nova_semente_aleatoria():
+    return random.SystemRandom().randrange(1, 2**63)
+
+
 def _demandas_detalhadas(professores, turmas, disciplinas):
     turma_ids = {turma['id'] for turma in turmas}
     disciplinas_por_id = {disciplina['id']: disciplina for disciplina in disciplinas}
@@ -173,8 +177,8 @@ def _montar_aulas_geradas(grade):
     return aulas_geradas
 
 
-def _gerar_grade_por_demandas(demandas, turmas, tentativa):
-    rng = random.Random(tentativa)
+def _gerar_grade_por_demandas(demandas, turmas, semente):
+    rng = random.Random(semente)
     grade = {t['id']: {} for t in turmas}
     pendencias = []
     turmas_por_id = {turma['id']: turma for turma in turmas}
@@ -256,8 +260,13 @@ def gerar_horario(escola_id, turma_id_especifica=None):
         melhores_pendencias = []
         melhor_total = -1
 
+        semente_base = _nova_semente_aleatoria()
         for tentativa in range(MAX_TENTATIVAS_GRADE):
-            grade_tentativa, pendencias = _gerar_grade_por_demandas(demandas, turmas, tentativa)
+            grade_tentativa, pendencias = _gerar_grade_por_demandas(
+                demandas,
+                turmas,
+                semente_base + tentativa,
+            )
             total_tentativa = sum(len(slots) for slots in grade_tentativa.values())
             if total_tentativa > melhor_total:
                 melhor_grade = grade_tentativa
@@ -277,7 +286,7 @@ def gerar_horario(escola_id, turma_id_especifica=None):
 
         grade = melhor_grade
     else:
-        rng = random.Random(0)
+        rng = random.Random(_nova_semente_aleatoria())
         for turma in turmas:
             turma_id = turma['id']
             aulas_por_disc = max(1, (len(DIAS) * len(_periodos_turma(turma))) // n_disc)
