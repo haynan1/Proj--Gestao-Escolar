@@ -44,12 +44,40 @@
             </form>
             {% endif %}
             {% if can_export_schedule %}
-            <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id) }}" class="btn btn-secondary">
-                Excel
-            </a>
-            <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id) }}" class="btn btn-secondary">
-                PDF
-            </a>
+            <div class="schedule-export-picker">
+                <button type="button" class="btn btn-secondary" data-export-menu-trigger aria-expanded="false">
+                    Excel
+                </button>
+                <div class="schedule-export-menu" role="menu">
+                    <span>Exportar Excel com</span>
+                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, color_mode='disciplina') }}" role="menuitem">
+                        Cores das disciplinas
+                    </a>
+                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, color_mode='professor') }}" role="menuitem">
+                        Cores dos professores
+                    </a>
+                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, color_mode='none') }}" role="menuitem">
+                        Sem cores
+                    </a>
+                </div>
+            </div>
+            <div class="schedule-export-picker">
+                <button type="button" class="btn btn-secondary" data-export-menu-trigger aria-expanded="false">
+                    PDF
+                </button>
+                <div class="schedule-export-menu" role="menu">
+                    <span>Exportar PDF com</span>
+                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, color_mode='disciplina') }}" role="menuitem">
+                        Cores das disciplinas
+                    </a>
+                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, color_mode='professor') }}" role="menuitem">
+                        Cores dos professores
+                    </a>
+                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, color_mode='none') }}" role="menuitem">
+                        Sem cores
+                    </a>
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -227,6 +255,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}`;
         const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
+        const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
         const legends = Array.from(document.querySelectorAll('.schedule-legend-list'));
 
@@ -281,9 +310,31 @@
             localStorage.setItem(storageKey, selectedMode);
         };
 
+        const closeExportMenus = (exceptPicker = null) => {
+            document.querySelectorAll('.schedule-export-picker.open').forEach((picker) => {
+                if (picker === exceptPicker) return;
+                picker.classList.remove('open');
+                picker.querySelector('[data-export-menu-trigger]')?.setAttribute('aria-expanded', 'false');
+            });
+        };
+
         modeButtons.forEach((button) => {
             button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
             button.addEventListener('click', () => setMode(button.dataset.scheduleColorMode));
+        });
+        exportTriggers.forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const picker = button.closest('.schedule-export-picker');
+                const open = !picker.classList.contains('open');
+                closeExportMenus(picker);
+                picker.classList.toggle('open', open);
+                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        });
+        document.addEventListener('click', () => closeExportMenus());
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeExportMenus();
         });
 
         setMode(localStorage.getItem(storageKey));

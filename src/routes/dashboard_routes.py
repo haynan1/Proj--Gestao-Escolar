@@ -499,6 +499,11 @@ def ocupacao_professor(escola_id, prof_id):
     return jsonify(ocupacao)
 
 
+def _export_color_mode():
+    mode = request.args.get('color_mode', 'disciplina')
+    return mode if mode in {'disciplina', 'professor', 'none'} else 'disciplina'
+
+
 @dashboard_bp.route('/escola/<int:escola_id>/exportar/excel')
 @login_required
 def exportar_xls(escola_id):
@@ -508,7 +513,7 @@ def exportar_xls(escola_id):
 
     aulas = listar_aulas(escola['id'])
     turmas = listar_turmas(escola['id'])
-    filepath = exportar_excel(escola, aulas, turmas)
+    filepath = exportar_excel(escola, aulas, turmas, color_mode=_export_color_mode())
     return _send_temp_file(filepath, 'horario.xlsx')
 
 
@@ -522,5 +527,5 @@ def exportar_pdf_route(escola_id):
     aulas = listar_aulas(escola['id'])
     turmas = listar_turmas(escola['id'])
     disciplinas = listar_disciplinas(escola['id'])
-    filepath = exportar_pdf(escola, aulas, turmas, disciplinas)
+    filepath = exportar_pdf(escola, aulas, turmas, disciplinas, color_mode=_export_color_mode())
     return _send_temp_file(filepath, 'horario.pdf')

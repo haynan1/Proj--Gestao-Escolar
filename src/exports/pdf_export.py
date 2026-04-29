@@ -7,7 +7,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
@@ -69,6 +69,18 @@ def _build_index(aulas):
 def _periodos_turma(turma):
     aulas_por_dia = int(turma.get('aulas_por_dia') or 5)
     return list(range(1, aulas_por_dia + 1))
+
+
+def _normalize_color_mode(color_mode):
+    return color_mode if color_mode in {'disciplina', 'professor', 'none'} else 'disciplina'
+
+
+def _aula_color(aula, color_mode):
+    if color_mode == 'professor':
+        return _hex_color(aula.get('professor_cor', '#22c55e'))
+    if color_mode == 'disciplina':
+        return _hex_color(aula.get('disciplina_cor', '#22c55e'))
+    return None
 
 
 def _draw_page(canvas, doc):
@@ -183,7 +195,8 @@ def _header(escola, turma, styles):
     return header
 
 
-def _schedule_table(turma, idx, styles):
+def _schedule_table(turma, idx, styles, color_mode='disciplina'):
+    color_mode = _normalize_color_mode(color_mode)
     periodos = _periodos_turma(turma)
     header_row = ['Dia / Período'] + [f'{periodo}º Período' for periodo in periodos]
     table_data = [header_row]
@@ -193,9 +206,10 @@ def _schedule_table(turma, idx, styles):
         for periodo in periodos:
             aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
             if aula:
-                cor = _hex_color(aula.get('disciplina_cor', '#22c55e'))
+                cor = _aula_color(aula, color_mode)
+                disciplina_cor = cor or '#0f172a'
                 texto = (
-                    f"<font color='{cor}'><b>{escape(aula['disciplina_nome'])}</b></font>"
+                    f"<font color='{disciplina_cor}'><b>{escape(aula['disciplina_nome'])}</b></font>"
                     f"<br/><font color='#475569'>{escape(aula['professor_nome'])}</font>"
                 )
                 row.append(Paragraph(texto, styles['cell']))
@@ -235,11 +249,12 @@ def _schedule_table(turma, idx, styles):
         for col_idx, periodo in enumerate(periodos, 1):
             aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
             if aula:
+                cor = _aula_color(aula, color_mode)
                 table_style.append((
                     'BACKGROUND',
                     (col_idx, row_idx),
                     (col_idx, row_idx),
-                    hex_to_light(aula.get('disciplina_cor', '#22c55e')),
+                    hex_to_light(cor) if cor else colors.white,
                 ))
             else:
                 table_style.append(('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx), EMPTY_BG))
@@ -286,7 +301,7 @@ def _legend(turma, aulas, styles):
     return table
 
 
-def exportar_pdf(escola, aulas, turmas, disciplinas):
+def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina'):
     """Gera PDF com a grade de horários por turma."""
     tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
     tmp.close()
@@ -308,12 +323,11 @@ def exportar_pdf(escola, aulas, turmas, disciplinas):
         if index > 0:
             story.append(PageBreak())
 
-        story.append(_header(escola, turma, styles))
-        story.append(Spacer(1, 0.4 * cm))
-        story.append(_schedule_table(turma, idx, styles))
-        story.append(Spacer(1, 0.35 * cm))
-        story.append(Paragraph('Legenda', styles['eyebrow']))
-        story.append(_legend(turma, aulas, styles))
+        story.append(KeepTogether([
+            _header(escola, turma, styles),
+            Spacer(1, 0.4 * cm),
+            _schedule_table(turma, idx, styles, color_mode=color_mode),
+        ]))
 
     doc.build(story, onFirstPage=_draw_page, onLaterPages=_draw_page)
     return tmp.name

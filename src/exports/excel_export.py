@@ -69,6 +69,18 @@ def _periodos_turma(turma):
     return list(range(1, aulas_por_dia + 1))
 
 
+def _normalize_color_mode(color_mode):
+    return color_mode if color_mode in {'disciplina', 'professor', 'none'} else 'disciplina'
+
+
+def _aula_color(aula, color_mode):
+    if color_mode == 'professor':
+        return aula.get('professor_cor')
+    if color_mode == 'disciplina':
+        return aula.get('disciplina_cor')
+    return None
+
+
 def _setup_sheet(ws):
     ws.sheet_view.showGridLines = False
     ws.freeze_panes = 'B5'
@@ -123,7 +135,8 @@ def _write_header(ws, escola, turma):
     ws[f'{brand_col}2'].border = _border(NAVY_2)
 
 
-def _write_schedule(ws, turma, idx):
+def _write_schedule(ws, turma, idx, color_mode='disciplina'):
+    color_mode = _normalize_color_mode(color_mode)
     start_row = 4
     periodos = _periodos_turma(turma)
     headers = ['Dia / Período'] + [f'{periodo}º Período' for periodo in periodos]
@@ -156,13 +169,14 @@ def _write_schedule(ws, turma, idx):
             cell.border = _border()
 
             if aula:
+                cor = _aula_color(aula, color_mode)
                 cell.value = f"{aula['disciplina_nome']}\n{aula['professor_nome']}"
-                cell.fill = PatternFill('solid', fgColor=_tint(aula.get('disciplina_cor', GREEN)))
+                cell.fill = PatternFill('solid', fgColor=_tint(cor) if cor else WHITE)
                 cell.font = Font(
                     name='Aptos',
                     bold=True,
                     size=9,
-                    color=hex_to_argb(aula.get('disciplina_cor', GREEN)),
+                    color=hex_to_argb(cor, fallback=INK) if cor else INK,
                 )
             else:
                 cell.value = '—'
@@ -260,7 +274,7 @@ def _write_summary(wb, escola, turmas, aulas):
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
 
-def exportar_excel(escola, aulas, turmas):
+def exportar_excel(escola, aulas, turmas, color_mode='disciplina'):
     """Gera arquivo Excel com a grade de horários por turma."""
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -281,8 +295,7 @@ def exportar_excel(escola, aulas, turmas):
         ws = wb.create_sheet(title=title)
         _setup_sheet(ws)
         _write_header(ws, escola, turma)
-        _write_schedule(ws, turma, idx)
-        _write_legend(ws, turma, aulas)
+        _write_schedule(ws, turma, idx, color_mode=color_mode)
 
     tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
     wb.save(tmp.name)
