@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ static_url('horario-grade.css') }}" />
 {% endblock %}
 
-{% block body_attrs %}data-escola-id="{{ escola.id }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turma-id="{{ turma_selecionada_id }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
 
 {% block nav_links %}
 <a href="{{ url_for('escola.home') }}">Início</a>

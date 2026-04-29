@@ -446,7 +446,7 @@ def mover(escola_id):
         return _json_error('Dados obrigatorios ausentes.', code='invalid_payload')
 
     try:
-        mover_aula(int(aula_id), str(novo_dia), int(novo_periodo), escola_id=escola['id'])
+        resultado = mover_aula(int(aula_id), str(novo_dia), int(novo_periodo), escola_id=escola['id'])
     except ScheduleConflictError as exc:
         return _json_error(str(exc), code='schedule_conflict')
     except ScheduleValidationError as exc:
@@ -454,7 +454,7 @@ def mover(escola_id):
     except ValueError:
         return _json_error('IDs e periodos devem ser numericos.', code='invalid_payload')
 
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', **(resultado or {})})
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/ocupacao')
@@ -469,6 +469,7 @@ def ocupacao_professor(escola_id, prof_id):
     for aula in aulas:
         if aula['professor_id'] == prof_id:
             ocupacao.append({
+                'aula_id': aula['id'],
                 'dia': aula['dia'],
                 'periodo': aula['periodo'],
                 'turma_id': aula['turma_id'],

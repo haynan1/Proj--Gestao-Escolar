@@ -50,7 +50,7 @@ def listar_aulas(escola_id):
 
 
 def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
-    """Move uma aula para outro dia/período, validando conflitos no backend."""
+    """Move uma aula para outro dia/periodo ou troca com a aula do destino."""
     if novo_dia not in DIAS:
         raise ScheduleValidationError("Dia inválido para a grade horária.")
     conn = get_connection()
@@ -60,6 +60,8 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                       a.escola_id,
                       a.turma_id,
                       a.professor_id,
+                      a.dia,
+                      a.periodo,
                       COALESCE(t.aulas_por_dia, 5) AS aulas_por_dia
                FROM aulas a
                JOIN turmas t ON t.id = a.turma_id
@@ -74,14 +76,70 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
         if novo_periodo not in PERIODOS or novo_periodo > int(aula_atual.get('aulas_por_dia') or 5):
             raise ScheduleValidationError("Período inválido para a grade desta turma.")
 
-        conflito_turma = conn.execute(
-            """SELECT id
+        aula_destino = conn.execute(
+            """SELECT id,
+                      professor_id,
+                      dia,
+                      periodo
                FROM aulas
                WHERE turma_id = %s AND dia = %s AND periodo = %s AND id <> %s""",
             (aula_atual['turma_id'], novo_dia, novo_periodo, aula_id),
         ).fetchone()
-        if conflito_turma:
-            raise ScheduleConflictError("A turma já possui uma aula nesse dia e período.")
+
+        if aula_destino:
+            conflito_professor_atual = conn.execute(
+                """SELECT id
+                   FROM aulas
+                   WHERE professor_id = %s
+                     AND dia = %s
+                     AND periodo = %s
+                     AND id NOT IN (%s, %s)""",
+                (
+                    aula_atual['professor_id'],
+                    novo_dia,
+                    novo_periodo,
+                    aula_atual['id'],
+                    aula_destino['id'],
+                ),
+            ).fetchone()
+            if conflito_professor_atual:
+                raise ScheduleConflictError("O professor da aula arrastada ja possui aula nesse horario.")
+
+            conflito_professor_destino = conn.execute(
+                """SELECT id
+                   FROM aulas
+                   WHERE professor_id = %s
+                     AND dia = %s
+                     AND periodo = %s
+                     AND id NOT IN (%s, %s)""",
+                (
+                    aula_destino['professor_id'],
+                    aula_atual['dia'],
+                    aula_atual['periodo'],
+                    aula_atual['id'],
+                    aula_destino['id'],
+                ),
+            ).fetchone()
+            if conflito_professor_destino:
+                raise ScheduleConflictError("O professor da aula de destino ja possui aula no horario de origem.")
+
+            conn.execute(
+                "UPDATE aulas SET dia = %s, periodo = %s WHERE id = %s",
+                ('__troca__', -int(aula_destino['id']), aula_destino['id']),
+            )
+            conn.execute(
+                "UPDATE aulas SET dia = %s, periodo = %s WHERE id = %s",
+                (novo_dia, novo_periodo, aula_atual['id']),
+            )
+            conn.execute(
+                "UPDATE aulas SET dia = %s, periodo = %s WHERE id = %s",
+                (aula_atual['dia'], aula_atual['periodo'], aula_destino['id']),
+            )
+            conn.commit()
+            return {
+                'action': 'swap',
+                'swapped_aula_id': aula_destino['id'],
+            }
 
         conflito_professor = conn.execute(
             """SELECT id
@@ -97,6 +155,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
             (novo_dia, novo_periodo, aula_id)
         )
         conn.commit()
+        return {'action': 'move'}
     except Exception:
         conn.rollback()
         raise

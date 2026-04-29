@@ -3,6 +3,19 @@ let draggedAulaId = null;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 
+function getCurrentTurmaId() {
+    return document.body.dataset.turmaId || '';
+}
+
+
+function criarMarcadorOcupacao(texto) {
+    const label = document.createElement('div');
+    label.className = 'conflict-label';
+    label.textContent = texto;
+    return label;
+}
+
+
 async function destacarConflitos(profId) {
     if (!profId) return;
 
@@ -13,21 +26,28 @@ async function destacarConflitos(profId) {
 
         document.querySelectorAll('.grade-cell').forEach((cell) => {
             cell.classList.remove('conflict-busy');
-            const label = cell.querySelector('.conflict-label');
-            if (label) label.remove();
+            cell.classList.remove('professor-busy');
+            cell.classList.remove('professor-origin');
+            cell.querySelectorAll('.conflict-label').forEach((label) => label.remove());
         });
 
         ocupacao.forEach((slot) => {
             const cell = document.querySelector(`.grade-cell[data-dia="${slot.dia}"][data-periodo="${slot.periodo}"]`);
             if (!cell) return;
 
-            const currentTurmaId = document.querySelector('.turma-tabs a.active')?.href.split('turma_id=')[1];
-            if (slot.turma_id != currentTurmaId) {
+            if (slot.aula_id == draggedAulaId) {
+                cell.classList.add('professor-origin');
+                cell.appendChild(criarMarcadorOcupacao('Origem'));
+                return;
+            }
+
+            const currentTurmaId = getCurrentTurmaId();
+            if (String(slot.turma_id) !== String(currentTurmaId)) {
                 cell.classList.add('conflict-busy');
-                const label = document.createElement('div');
-                label.className = 'conflict-label';
-                label.textContent = `Ocupado: ${slot.turma_nome}`;
-                cell.appendChild(label);
+                cell.appendChild(criarMarcadorOcupacao(`Ocupado: ${slot.turma_nome}`));
+            } else {
+                cell.classList.add('professor-busy');
+                cell.appendChild(criarMarcadorOcupacao('Mesmo professor'));
             }
         });
     } catch (err) {
@@ -39,9 +59,11 @@ async function destacarConflitos(profId) {
 function limparDestaques() {
     document.querySelectorAll('.grade-cell').forEach((cell) => {
         cell.classList.remove('conflict-busy');
+        cell.classList.remove('professor-busy');
+        cell.classList.remove('professor-origin');
         cell.classList.remove('drag-over');
-        const label = cell.querySelector('.conflict-label');
-        if (label) label.remove();
+        cell.classList.remove('swap-target');
+        cell.querySelectorAll('.conflict-label').forEach((label) => label.remove());
     });
 }
 
@@ -78,33 +100,36 @@ function initDragDrop() {
     document.querySelectorAll('.grade-cell').forEach((cell) => {
         cell.addEventListener('dragover', (e) => {
             e.preventDefault();
+            const targetCard = cell.querySelector('.aula-card');
             e.dataTransfer.dropEffect = 'move';
             cell.classList.add('drag-over');
+            if (targetCard && targetCard.dataset.aulaId !== draggedAulaId) {
+                cell.classList.add('swap-target');
+            }
         });
 
         cell.addEventListener('dragleave', () => {
             cell.classList.remove('drag-over');
+            cell.classList.remove('swap-target');
         });
 
         cell.addEventListener('drop', async (e) => {
             e.preventDefault();
             cell.classList.remove('drag-over');
+            cell.classList.remove('swap-target');
 
             const aulaId = e.dataTransfer.getData('text/plain');
             const novoDia = cell.dataset.dia;
             const novoPeriodo = cell.dataset.periodo;
             const cardToMove = draggedCard || document.querySelector(`.aula-card[data-aula-id="${aulaId}"]`);
             const oldCell = cardToMove?.closest('.grade-cell');
+            const targetCard = cell.querySelector('.aula-card');
+            const isSwap = targetCard && targetCard.dataset.aulaId !== aulaId;
 
             if (!aulaId || !novoDia || !novoPeriodo) return;
 
             if (cell.classList.contains('conflict-busy')) {
                 showToast('Esse professor ja possui aula nesse horario.', 'error');
-                return;
-            }
-
-            if (cell.querySelector('.aula-card') && cell.querySelector('.aula-card').dataset.aulaId !== aulaId) {
-                showToast('Essa turma ja possui outra aula nesse horario.', 'error');
                 return;
             }
 
@@ -126,6 +151,10 @@ function initDragDrop() {
                 const data = await resp.json();
                 if (resp.ok && data.status === 'ok') {
                     if (cardToMove) {
+                        if (data.action === 'swap' && isSwap && targetCard && oldCell) {
+                            oldCell.appendChild(targetCard);
+                            oldCell.classList.remove('empty');
+                        }
                         cell.appendChild(cardToMove);
                         cell.classList.remove('empty');
                         if (oldCell && !oldCell.querySelector('.aula-card')) {
@@ -133,7 +162,7 @@ function initDragDrop() {
                         }
                         cardToMove.classList.remove('dragging');
                     }
-                    showToast('Aula movida com sucesso!', 'success');
+                    showToast(data.action === 'swap' ? 'Aulas trocadas com sucesso!' : 'Aula movida com sucesso!', 'success');
                 } else {
                     const message = data?.error?.message || data.msg || 'Tente novamente';
                     showToast(`Erro ao mover aula: ${message}`, 'error');
