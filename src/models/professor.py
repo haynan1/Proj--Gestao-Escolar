@@ -1,4 +1,23 @@
+import re
+
 from database.connection import get_connection
+
+
+CORES_PROFESSOR = [
+    '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c',
+    '#0891b2', '#4f46e5', '#be123c', '#0d9488', '#a16207',
+    '#7c3aed', '#0284c7', '#65a30d', '#c2410c', '#db2777',
+    '#4338ca', '#047857', '#b91c1c', '#0369a1', '#92400e',
+]
+COR_PROFESSOR_PADRAO = CORES_PROFESSOR[0]
+HEX_COLOR_PATTERN = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+def _normalizar_cor(cor):
+    cor = (cor or '').strip()
+    if HEX_COLOR_PATTERN.fullmatch(cor):
+        return cor
+    return None
 
 
 def _normalizar_ids(ids):
@@ -233,7 +252,7 @@ def _anexar_vinculos(professores):
     return _anexar_cargas(_anexar_turmas(_anexar_disciplinas(professores)))
 
 
-def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None):
+def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None):
     disciplina_ids = _normalizar_ids(disciplina_ids)
     if not disciplina_ids:
         return False, "Selecione pelo menos uma disciplina."
@@ -242,9 +261,9 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
     try:
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
         cursor = conn.execute(
-            """INSERT INTO professores (escola_id, nome, disciplina_id, max_aulas_semana, dias_disponiveis)
-               VALUES (%s, %s, %s, %s, %s)""",
-            (escola_id, nome, disciplina_ids[0], max_aulas_semana, dias_str),
+            """INSERT INTO professores (escola_id, nome, cor, disciplina_id, max_aulas_semana, dias_disponiveis)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (escola_id, nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str),
         )
         _sincronizar_disciplinas_professor(conn, cursor.lastrowid, escola_id, disciplina_ids)
         _sincronizar_turmas_professor(conn, cursor.lastrowid, escola_id, turma_ids)
@@ -305,7 +324,7 @@ def buscar_professor(professor_id, escola_id=None):
     return None
 
 
-def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None):
+def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None):
     disciplina_ids = _normalizar_ids(disciplina_ids)
     if not disciplina_ids:
         raise ValueError("Selecione pelo menos uma disciplina.")
@@ -316,11 +335,12 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
         conn.execute(
             """UPDATE professores
                SET nome = %s,
+                   cor = %s,
                    disciplina_id = %s,
                    max_aulas_semana = %s,
                    dias_disponiveis = %s
                WHERE id = %s AND escola_id = %s""",
-            (nome, disciplina_ids[0], max_aulas_semana, dias_str, professor_id, escola_id),
+            (nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str, professor_id, escola_id),
         )
         _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids)
         _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids)

@@ -62,7 +62,7 @@ TABLE_STATEMENTS = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
         nome VARCHAR(255) NOT NULL,
-        cor VARCHAR(20) NOT NULL DEFAULT '#22c55e',
+        cor VARCHAR(20) NULL DEFAULT NULL,
         CONSTRAINT fk_disciplinas_escola
             FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -72,6 +72,7 @@ TABLE_STATEMENTS = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
         nome VARCHAR(255) NOT NULL,
+        cor VARCHAR(20) NULL DEFAULT NULL,
         disciplina_id INT NOT NULL,
         max_aulas_semana INT NOT NULL DEFAULT 10,
         dias_disponiveis TEXT NOT NULL,
@@ -312,6 +313,28 @@ def _ensure_turma_period_columns(cursor):
     if not _column_exists(cursor, 'turmas', 'aulas_por_dia'):
         cursor.execute(
             "ALTER TABLE turmas ADD COLUMN aulas_por_dia INT NOT NULL DEFAULT 5 AFTER nome"
+        )
+
+
+def _ensure_disciplina_color_column(cursor):
+    if not _column_exists(cursor, 'disciplinas', 'cor'):
+        cursor.execute(
+            "ALTER TABLE disciplinas ADD COLUMN cor VARCHAR(20) NULL DEFAULT NULL AFTER nome"
+        )
+    else:
+        cursor.execute(
+            "ALTER TABLE disciplinas MODIFY COLUMN cor VARCHAR(20) NULL DEFAULT NULL"
+        )
+
+
+def _ensure_professor_color_column(cursor):
+    if not _column_exists(cursor, 'professores', 'cor'):
+        cursor.execute(
+            "ALTER TABLE professores ADD COLUMN cor VARCHAR(20) NULL DEFAULT NULL AFTER nome"
+        )
+    else:
+        cursor.execute(
+            "ALTER TABLE professores MODIFY COLUMN cor VARCHAR(20) NULL DEFAULT NULL"
         )
 
 
@@ -580,6 +603,8 @@ def create_tables():
         _ensure_school_backup_columns(conn)
         _ensure_user_school_links(conn)
         _ensure_turma_period_columns(conn)
+        _ensure_disciplina_color_column(conn)
+        _ensure_professor_color_column(conn)
         _ensure_bootstrap_admin(conn)
         _ensure_system_test_user(conn)
         _backfill_professor_disciplina_links(conn)

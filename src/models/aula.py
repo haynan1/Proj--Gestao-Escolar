@@ -36,6 +36,7 @@ def listar_aulas(escola_id):
     conn = get_connection()
     rows = conn.execute(
         """SELECT a.*, t.nome AS turma_nome, p.nome AS professor_nome,
+                  p.cor AS professor_cor,
                   d.nome AS disciplina_nome, d.cor AS disciplina_cor
            FROM aulas a
            JOIN turmas t ON a.turma_id = t.id

@@ -159,16 +159,21 @@
             {% if disciplinas %}
             <div class="disciplinas-list" aria-label="Disciplinas cadastradas">
                 {% for d in disciplinas %}
+                {% set disciplina_sem_cor = not d.cor %}
                 <div class="disciplina-item">
                     <div class="disciplina-main">
+                        {% if disciplina_sem_cor %}
+                        <span class="color-dot color-dot-empty" title="Sem cor"></span>
+                        {% else %}
                         <span class="color-dot dot-dynamic" data-color="{{ d.cor }}"></span>
+                        {% endif %}
                         <span class="disciplina-name">{{ d.nome }}</span>
                     </div>
                     {% if can_manage_resources %}
                     <div class="disciplina-actions">
                         <button class="btn btn-secondary btn-sm btn-icon btn-edit-disc" title="Editar"
                             aria-label="Editar disciplina {{ d.nome }}"
-                            data-id="{{ d.id }}" data-nome="{{ d.nome }}" data-cor="{{ d.cor }}">
+                            data-id="{{ d.id }}" data-nome="{{ d.nome }}" data-cor="{{ d.cor or '' }}">
                             {{ edit_icon() }}
                         </button>
                         <form method="POST"
@@ -272,13 +277,29 @@
                 </thead>
                 <tbody>
                     {% for p in professores %}
+                    {% set professor_sem_cor = not p.cor %}
                     <tr>
-                        <td class="professor-name" data-label="Nome">{{ p.nome }}</td>
+                        <td data-label="Nome">
+                            <div class="professor-identity">
+                                {% if professor_sem_cor %}
+                                <span class="professor-color-dot color-dot-empty" title="Sem cor"></span>
+                                {% else %}
+                                <span class="professor-color-dot dot-dynamic" data-color="{{ p.cor }}"></span>
+                                {% endif %}
+                                <span class="professor-name">{{ p.nome }}</span>
+                            </div>
+                        </td>
                         <td data-label="Disciplinas">
                             <div class="professor-badges">
                                 {% for disciplina in p.disciplinas_lista %}
-                                <span class="badge badge-dynamic" data-color="{{ disciplina.cor }}">
+                                {% set disciplina_badge_sem_cor = not disciplina.cor %}
+                                <span class="badge {% if disciplina_badge_sem_cor %}badge-empty{% else %}badge-dynamic{% endif %}"
+                                    {% if not disciplina_badge_sem_cor %}data-color="{{ disciplina.cor }}"{% endif %}>
+                                    {% if disciplina_badge_sem_cor %}
+                                    <span class="color-dot color-dot-empty"></span>
+                                    {% else %}
                                     <span class="color-dot dot-dynamic" data-color="{{ disciplina.cor }}"></span>
+                                    {% endif %}
                                     {{ disciplina.nome }}
                                 </span>
                                 {% else %}
@@ -304,6 +325,7 @@
                                 <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"
                                     aria-label="Editar professor {{ p.nome }}"
                                     data-id="{{ p.id }}" data-nome="{{ p.nome }}"
+                                    data-cor="{{ p.cor or '' }}"
                                     data-disciplina-ids='{{ p.disciplina_ids | tojson }}'
                                     data-dias='{{ p.dias_lista | tojson }}'
                                     data-turmas='{{ p.turma_ids | tojson }}'
@@ -355,8 +377,13 @@
             <div class="form-group">
                 <label class="form-label">Cor</label>
                 <div class="color-picker-wrap">
-                    <input type="color" name="cor" id="cor-disciplina" value="#22c55e" />
-                    <div id="swatches-disciplina" class="dashboard-swatches"></div>
+                    <input type="hidden" name="cor" id="cor-disciplina" value="" data-default-color="#22c55e" />
+                    <button type="button" class="color-current-control" data-color-trigger="cor-disciplina"
+                        aria-label="Editar cor personalizada da disciplina">
+                        <span class="color-current-preview"></span>
+                    </button>
+                    <input type="color" id="cor-disciplina-custom" class="color-custom-input" value="#22c55e" />
+                    <div id="swatches-disciplina" class="dashboard-swatches color-swatch-grid"></div>
                 </div>
             </div>
             <div class="flex gap-2 mt-2">
@@ -382,8 +409,13 @@
             <div class="form-group">
                 <label class="form-label">Cor</label>
                 <div class="color-picker-wrap">
-                    <input type="color" name="cor" id="cor-disciplina-edit" value="#22c55e" />
-                    <div id="swatches-disciplina-edit" class="dashboard-swatches"></div>
+                    <input type="hidden" name="cor" id="cor-disciplina-edit" value="" data-default-color="#22c55e" />
+                    <button type="button" class="color-current-control" data-color-trigger="cor-disciplina-edit"
+                        aria-label="Editar cor personalizada da disciplina">
+                        <span class="color-current-preview"></span>
+                    </button>
+                    <input type="color" id="cor-disciplina-edit-custom" class="color-custom-input" value="#22c55e" />
+                    <div id="swatches-disciplina-edit" class="dashboard-swatches color-swatch-grid"></div>
                 </div>
             </div>
             <div class="flex gap-2 mt-2">
@@ -396,21 +428,41 @@
 </div>
 
 <div class="modal-overlay" id="modal-prof">
-    <div class="modal">
+    <div class="modal modal-professor">
         <div class="modal-header">
             <span class="modal-title">Novo Professor</span>
             <button class="modal-close" onclick="closeModal('modal-prof')">x</button>
         </div>
-        <form method="POST" action="{{ url_for('dashboard.criar_prof', escola_id=escola.id) }}">
+        <form method="POST" action="{{ url_for('dashboard.criar_prof', escola_id=escola.id) }}" class="professor-form">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-            <div class="form-row">
+            <div class="professor-main-grid">
+                <div class="professor-left-stack">
+                    <div class="professor-identity-panel">
                 <div class="form-group">
                     <label class="form-label">Nome</label>
                     <input type="text" name="nome" class="form-control" placeholder="Nome do professor" required />
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Cor do professor</label>
+                    <div class="color-picker-wrap color-picker-wrap-stacked">
+                        <input type="hidden" name="cor" id="cor-professor" value="{{ cor_professor_padrao }}" data-default-color="{{ cor_professor_padrao }}" />
+                        <button type="button" class="color-current-control" data-color-trigger="cor-professor"
+                            aria-label="Editar cor personalizada do professor">
+                            <span class="color-current-preview"></span>
+                        </button>
+                        <input type="color" id="cor-professor-custom" class="color-custom-input" value="{{ cores_professor[0] }}" />
+                        <div id="swatches-professor" class="dashboard-swatches color-swatch-grid">
+                            {% for cor in cores_professor %}
+                            <button type="button" class="color-swatch" data-color="{{ cor }}"
+                                style="background-color: {{ cor }};" aria-label="Selecionar cor {{ loop.index }}"></button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                    </div>
+                <div class="form-group">
                     <label class="form-label">Disciplinas vinculadas</label>
-                    <div class="dias-grid">
+                    <div class="dias-grid professor-chip-grid professor-chip-grid-lg">
                         {% for d in disciplinas %}
                         <label class="dia-chip">
                             <input type="checkbox" name="disciplina_ids" value="{{ d.id }}" />
@@ -419,16 +471,27 @@
                         {% endfor %}
                     </div>
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Turmas vinculadas</label>
-                <div class="dias-grid">
-                    {% for turma in turmas %}
-                    <label class="dia-chip">
-                        <input type="checkbox" name="turma_ids" value="{{ turma.id }}" checked />
-                        {{ turma.nome }}
-                    </label>
-                    {% endfor %}
+                <div class="form-group">
+                    <label class="form-label">Turmas vinculadas</label>
+                    <div class="dias-grid professor-chip-grid">
+                        {% for turma in turmas %}
+                        <label class="dia-chip">
+                            <input type="checkbox" name="turma_ids" value="{{ turma.id }}" checked />
+                            {{ turma.nome }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Dias disponíveis</label>
+                    <div class="dias-grid professor-chip-grid professor-chip-grid-compact">
+                        {% for dia in dias_semana %}
+                        <label class="dia-chip">
+                            <input type="checkbox" name="dias_disponiveis" value="{{ dia }}" checked />
+                            {{ dia }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
             <div class="form-group">
@@ -459,21 +522,9 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-muted text-sm mt-1">Preencha apenas as combinações que este professor realmente ministra.
-                </p>
             </div>
-            <div class="form-group">
-                <label class="form-label">Dias disponíveis</label>
-                <div class="dias-grid">
-                    {% for dia in dias_semana %}
-                    <label class="dia-chip">
-                        <input type="checkbox" name="dias_disponiveis" value="{{ dia }}" checked />
-                        {{ dia }}
-                    </label>
-                    {% endfor %}
-                </div>
             </div>
-            <div class="flex gap-2 mt-2">
+            <div class="flex gap-2 modal-actions-sticky">
                 <button type="submit" class="btn btn-primary w-full">Criar</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('modal-prof')">Cancelar</button>
             </div>
@@ -482,21 +533,41 @@
 </div>
 
 <div class="modal-overlay" id="modal-prof-edit">
-    <div class="modal">
+    <div class="modal modal-professor">
         <div class="modal-header">
             <span class="modal-title">Editar Professor</span>
             <button class="modal-close" onclick="closeModal('modal-prof-edit')">x</button>
         </div>
-        <form method="POST" id="form-prof-edit">
+        <form method="POST" id="form-prof-edit" class="professor-form">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-            <div class="form-row">
+            <div class="professor-main-grid">
+                <div class="professor-left-stack">
+                    <div class="professor-identity-panel">
                 <div class="form-group">
                     <label class="form-label">Nome</label>
                     <input type="text" name="nome" id="edit-prof-nome" class="form-control" required />
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Cor do professor</label>
+                    <div class="color-picker-wrap color-picker-wrap-stacked">
+                        <input type="hidden" name="cor" id="cor-professor-edit" value="" data-default-color="{{ cores_professor[0] }}" />
+                        <button type="button" class="color-current-control" data-color-trigger="cor-professor-edit"
+                            aria-label="Editar cor personalizada do professor">
+                            <span class="color-current-preview"></span>
+                        </button>
+                        <input type="color" id="cor-professor-edit-custom" class="color-custom-input" value="{{ cores_professor[0] }}" />
+                        <div id="swatches-professor-edit" class="dashboard-swatches color-swatch-grid">
+                            {% for cor in cores_professor %}
+                            <button type="button" class="color-swatch" data-color="{{ cor }}"
+                                style="background-color: {{ cor }};" aria-label="Selecionar cor {{ loop.index }}"></button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                    </div>
+                <div class="form-group">
                     <label class="form-label">Disciplinas vinculadas</label>
-                    <div class="dias-grid" id="edit-prof-disciplinas">
+                    <div class="dias-grid professor-chip-grid professor-chip-grid-lg" id="edit-prof-disciplinas">
                         {% for d in disciplinas %}
                         <label class="dia-chip">
                             <input type="checkbox" name="disciplina_ids" value="{{ d.id }}"
@@ -506,16 +577,27 @@
                         {% endfor %}
                     </div>
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Turmas vinculadas</label>
-                <div class="dias-grid" id="edit-prof-turmas">
-                    {% for turma in turmas %}
-                    <label class="dia-chip">
-                        <input type="checkbox" name="turma_ids" value="{{ turma.id }}" class="edit-turma-check" />
-                        {{ turma.nome }}
-                    </label>
-                    {% endfor %}
+                <div class="form-group">
+                    <label class="form-label">Turmas vinculadas</label>
+                    <div class="dias-grid professor-chip-grid" id="edit-prof-turmas">
+                        {% for turma in turmas %}
+                        <label class="dia-chip">
+                            <input type="checkbox" name="turma_ids" value="{{ turma.id }}" class="edit-turma-check" />
+                            {{ turma.nome }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Dias disponíveis</label>
+                    <div class="dias-grid professor-chip-grid professor-chip-grid-compact" id="edit-prof-dias">
+                        {% for dia in dias_semana %}
+                        <label class="dia-chip">
+                            <input type="checkbox" name="dias_disponiveis" value="{{ dia }}" class="edit-dia-check" />
+                            {{ dia }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
             <div class="form-group">
@@ -547,20 +629,9 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-muted text-sm mt-1">Use 0 para combinações que não se aplicam.</p>
             </div>
-            <div class="form-group">
-                <label class="form-label">Dias disponíveis</label>
-                <div class="dias-grid" id="edit-prof-dias">
-                    {% for dia in dias_semana %}
-                    <label class="dia-chip">
-                        <input type="checkbox" name="dias_disponiveis" value="{{ dia }}" class="edit-dia-check" />
-                        {{ dia }}
-                    </label>
-                    {% endfor %}
-                </div>
             </div>
-            <div class="flex gap-2 mt-2">
+            <div class="flex gap-2 modal-actions-sticky">
                 <button type="submit" class="btn btn-primary w-full">Salvar</button>
                 <button type="button" class="btn btn-secondary"
                     onclick="closeModal('modal-prof-edit')">Cancelar</button>

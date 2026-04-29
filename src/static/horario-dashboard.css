@@ -269,6 +269,28 @@
     color: var(--text);
 }
 
+.professor-identity {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 0.55rem;
+}
+
+.professor-color-dot {
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: 999px;
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+    flex: 0 0 auto;
+}
+
+.professor-identity .professor-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .professor-badges {
     display: flex;
     flex-wrap: wrap;

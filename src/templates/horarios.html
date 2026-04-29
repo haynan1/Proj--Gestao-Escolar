@@ -81,6 +81,15 @@
                 {{ turma_atual.nome }}
             </div>
             <div class="horarios-card-meta">
+                <div class="schedule-color-mode" aria-label="Escolha como colorir as aulas">
+                    <span>Colorir por</span>
+                    <button type="button" class="schedule-color-mode-btn active" data-schedule-color-mode="disciplina">
+                        Disciplina
+                    </button>
+                    <button type="button" class="schedule-color-mode-btn" data-schedule-color-mode="professor">
+                        Professor
+                    </button>
+                </div>
                 <span class="schedule-period-badge">{{ turma_atual.aulas_por_dia or 5 }} aulas por dia</span>
                 <span class="text-muted text-sm">
                     {% if can_manage_schedule %}Arraste as aulas para reorganizar{% else %}Visualização somente leitura{% endif %}
@@ -132,7 +141,9 @@
                                 <div class="aula-card aula-card-dynamic" data-aula-id="{{ aula.id }}"
                                     data-professor-id="{{ aula.professor_id }}"
                                     data-professor-nome="{{ aula.professor_nome }}"
-                                    data-color="{{ aula.disciplina_cor }}">
+                                    data-color="{{ aula.disciplina_cor or '' }}"
+                                    data-disciplina-color="{{ aula.disciplina_cor or '' }}"
+                                    data-professor-color="{{ aula.professor_cor or '' }}">
                                     <div class="disc-nome">{{ aula.disciplina_nome }}</div>
                                     <div class="prof-nome text-muted">{{ aula.professor_nome }}</div>
                                 </div>
@@ -148,16 +159,38 @@
 
         {% set aulas_turma = aulas | selectattr('turma_id', 'equalto', turma_selecionada_id) | list %}
         {% if aulas_turma %}
-        <div class="legenda">
+        <div class="legenda schedule-legend-list" data-legend-mode="disciplina">
             {% set seen = [] %}
             {% for aula in aulas_turma %}
             {% if aula.disciplina_id not in seen %}
             {% set _ = seen.append(aula.disciplina_id) %}
             <div class="legenda-item">
+                {% if aula.disciplina_cor %}
                 <span class="color-dot dot-dynamic" data-color="{{ aula.disciplina_cor }}"></span>
                 <strong class="legenda-cor-dinamica" data-color="{{ aula.disciplina_cor }}">{{ aula.disciplina_nome
                     }}</strong>
+                {% else %}
+                <span class="color-dot color-dot-empty"></span>
+                <strong>{{ aula.disciplina_nome }}</strong>
+                {% endif %}
                 <span class="text-muted">- {{ aula.professor_nome }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        <div class="legenda schedule-legend-list hidden" data-legend-mode="professor">
+            {% set seen_professores = [] %}
+            {% for aula in aulas_turma %}
+            {% if aula.professor_id not in seen_professores %}
+            {% set _ = seen_professores.append(aula.professor_id) %}
+            <div class="legenda-item">
+                {% if aula.professor_cor %}
+                <span class="color-dot dot-dynamic" data-color="{{ aula.professor_cor }}"></span>
+                <strong class="legenda-cor-dinamica" data-color="{{ aula.professor_cor }}">{{ aula.professor_nome }}</strong>
+                {% else %}
+                <span class="color-dot color-dot-empty"></span>
+                <strong>{{ aula.professor_nome }}</strong>
+                {% endif %}
             </div>
             {% endif %}
             {% endfor %}
@@ -171,4 +204,60 @@
     {% endif %}
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}`;
+        const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
+        const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
+        const legends = Array.from(document.querySelectorAll('.schedule-legend-list'));
+
+        document.querySelectorAll('.dot-dynamic').forEach((dot) => {
+            const color = dot.dataset.color;
+            if (color) dot.style.backgroundColor = color;
+        });
+        document.querySelectorAll('.legenda-cor-dinamica').forEach((label) => {
+            const color = label.dataset.color;
+            if (color) label.style.color = color;
+        });
+
+        const normalizeMode = (mode) => (mode === 'professor' ? 'professor' : 'disciplina');
+
+        const paintLesson = (card, mode) => {
+            const color = mode === 'professor' ? card.dataset.professorColor : card.dataset.disciplinaColor;
+            card.classList.toggle('aula-card-empty-color', !color);
+            if (!color || typeof aplicarCorAula !== 'function') {
+                card.style.backgroundColor = '';
+                card.style.borderLeftColor = '';
+                card.style.color = '';
+                return;
+            }
+            card.dataset.color = color;
+            aplicarCorAula(card, color);
+        };
+
+        const setMode = (mode) => {
+            const selectedMode = normalizeMode(mode);
+            lessonCards.forEach((card) => paintLesson(card, selectedMode));
+            modeButtons.forEach((button) => {
+                const active = button.dataset.scheduleColorMode === selectedMode;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            legends.forEach((legend) => {
+                legend.classList.toggle('hidden', legend.dataset.legendMode !== selectedMode);
+            });
+            localStorage.setItem(storageKey, selectedMode);
+        };
+
+        modeButtons.forEach((button) => {
+            button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
+            button.addEventListener('click', () => setMode(button.dataset.scheduleColorMode));
+        });
+
+        setMode(localStorage.getItem(storageKey));
+    });
+</script>
 {% endblock %}

@@ -1,4 +1,17 @@
+import re
+
 from database.connection import get_connection
+
+
+COR_DISCIPLINA_PADRAO = '#22c55e'
+HEX_COLOR_PATTERN = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+def _normalizar_cor(cor):
+    cor = (cor or '').strip()
+    if HEX_COLOR_PATTERN.fullmatch(cor):
+        return cor
+    return None
 
 
 class DisciplineInUseError(ValueError):
@@ -10,7 +23,7 @@ def criar_disciplina(escola_id, nome, cor):
     try:
         conn.execute(
             "INSERT INTO disciplinas (escola_id, nome, cor) VALUES (%s, %s, %s)",
-            (escola_id, nome, cor)
+            (escola_id, nome, _normalizar_cor(cor))
         )
         conn.commit()
         return True, "Disciplina criada com sucesso."
@@ -46,7 +59,7 @@ def atualizar_disciplina(disciplina_id, escola_id, nome, cor):
     conn = get_connection()
     conn.execute(
         "UPDATE disciplinas SET nome = %s, cor = %s WHERE id = %s AND escola_id = %s",
-        (nome, cor, disciplina_id, escola_id)
+        (nome, _normalizar_cor(cor), disciplina_id, escola_id)
     )
     conn.commit()
     conn.close()

@@ -65,7 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const { id, nome, cor } = btn.dataset;
 
             document.getElementById('edit-disc-nome').value = nome;
-            document.getElementById('cor-disciplina-edit').value = cor;
+            const corInput = document.getElementById('cor-disciplina-edit');
+            corInput.value = cor || '';
+            corInput.dispatchEvent(new Event('input', { bubbles: true }));
             document.getElementById('form-disc-edit').action = `/escola/${escolaId}/disciplina/${id}/editar`;
             openModal('modal-disc-edit');
         }
@@ -73,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Editar Professor
         if (e.target.closest('.btn-edit-prof')) {
             const btn = e.target.closest('.btn-edit-prof');
-            const { id, nome, disciplinaIds, dias, turmas, cargas } = btn.dataset;
+            const { id, nome, cor, disciplinaIds, dias, turmas, cargas } = btn.dataset;
             const disciplinaIdsLista = JSON.parse(disciplinaIds || '[]').map(String);
             const diasLista = JSON.parse(dias || '[]');
             const turmaIds = JSON.parse(turmas || '[]').map(String);
@@ -81,6 +83,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('form-prof-edit');
 
             document.getElementById('edit-prof-nome').value = nome;
+            const corInput = document.getElementById('cor-professor-edit');
+            if (corInput) {
+                corInput.value = cor || '';
+                corInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
 
             document.querySelectorAll('.edit-disciplina-check').forEach(cb => {
                 cb.checked = disciplinaIdsLista.includes(cb.value);

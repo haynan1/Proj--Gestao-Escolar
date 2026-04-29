@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS disciplinas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
     nome VARCHAR(255) NOT NULL,
-    cor VARCHAR(20) NOT NULL DEFAULT '#22c55e',
+    cor VARCHAR(20) NULL DEFAULT NULL,
     CONSTRAINT fk_disciplinas_escola
         FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS professores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
     nome VARCHAR(255) NOT NULL,
+    cor VARCHAR(20) NULL DEFAULT NULL,
     disciplina_id INT NOT NULL,
     max_aulas_semana INT NOT NULL DEFAULT 10,
     dias_disponiveis TEXT NOT NULL,

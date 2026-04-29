@@ -181,13 +181,15 @@ def duplicar_escola_oculta(escola_id):
                 """INSERT INTO professores (
                        escola_id,
                        nome,
+                       cor,
                        disciplina_id,
                        max_aulas_semana,
                        dias_disponiveis
-                   ) VALUES (%s, %s, %s, %s, %s)""",
+                   ) VALUES (%s, %s, %s, %s, %s, %s)""",
                 (
                     backup_id,
                     professor['nome'],
+                    professor.get('cor') or '#3b82f6',
                     disciplina_id,
                     professor.get('max_aulas_semana') or 10,
                     professor.get('dias_disponiveis') or '',
