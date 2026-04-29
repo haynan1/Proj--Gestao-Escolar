@@ -16,6 +16,7 @@ def listar_vinculos():
                FROM usuarios_escolas ue
                JOIN usuarios u ON u.id = ue.usuario_id
                JOIN escolas e ON e.id = ue.escola_id
+               WHERE e.oculta = 0
                ORDER BY e.nome, u.nome"""
         ).fetchall()
         return [dict(row) for row in rows]
@@ -35,6 +36,7 @@ def listar_vinculos_por_usuario(usuario_id: int):
                FROM usuarios_escolas ue
                JOIN escolas e ON e.id = ue.escola_id
                WHERE ue.usuario_id = %s
+                 AND e.oculta = 0
                ORDER BY e.nome""",
             (usuario_id,),
         ).fetchall()

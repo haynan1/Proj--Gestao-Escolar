@@ -36,6 +36,8 @@ TABLE_STATEMENTS = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NULL,
         nome VARCHAR(255) NOT NULL,
+        oculta TINYINT(1) NOT NULL DEFAULT 0,
+        backup_de_escola_id INT NULL,
         criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_escolas_usuario_nome (user_id, nome),
         CONSTRAINT fk_escolas_usuario
@@ -265,6 +267,24 @@ def _ensure_school_owner_column(cursor):
         cursor.execute(
             "ALTER TABLE escolas ADD CONSTRAINT uq_escolas_usuario_nome UNIQUE (user_id, nome)"
         )
+
+
+def _ensure_school_backup_columns(cursor):
+    if not _column_exists(cursor, 'escolas', 'oculta'):
+        cursor.execute(
+            "ALTER TABLE escolas ADD COLUMN oculta TINYINT(1) NOT NULL DEFAULT 0 AFTER nome"
+        )
+
+    if not _column_exists(cursor, 'escolas', 'backup_de_escola_id'):
+        cursor.execute(
+            "ALTER TABLE escolas ADD COLUMN backup_de_escola_id INT NULL AFTER oculta"
+        )
+
+    if not _index_exists(cursor, 'escolas', 'idx_escolas_oculta'):
+        cursor.execute("CREATE INDEX idx_escolas_oculta ON escolas (oculta)")
+
+    if not _index_exists(cursor, 'escolas', 'idx_escolas_backup_de'):
+        cursor.execute("CREATE INDEX idx_escolas_backup_de ON escolas (backup_de_escola_id)")
 
 
 def _ensure_user_school_links(cursor):
@@ -557,6 +577,7 @@ def create_tables():
             cursor.execute(statement)
         _ensure_user_security_columns(conn)
         _ensure_school_owner_column(conn)
+        _ensure_school_backup_columns(conn)
         _ensure_user_school_links(conn)
         _ensure_turma_period_columns(conn)
         _ensure_bootstrap_admin(conn)

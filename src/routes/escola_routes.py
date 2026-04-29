@@ -2,7 +2,12 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 
 from access_control import user_has_permission
 from auth import login_required
-from models.escola import criar_escola, deletar_escola, listar_escolas_para_usuario
+from models.escola import (
+    criar_escola,
+    deletar_escola,
+    duplicar_escola_oculta,
+    listar_escolas_para_usuario,
+)
 
 escola_bp = Blueprint('escola', __name__)
 
@@ -39,4 +44,16 @@ def deletar(escola_id):
 
     deletar_escola(escola_id)
     flash('Escola removida com sucesso.', 'success')
+    return redirect(url_for('escola.home'))
+
+
+@escola_bp.route('/escola/<int:escola_id>/backup', methods=['POST'])
+@login_required
+def criar_backup(escola_id):
+    if not user_has_permission(g.user, 'admin_access'):
+        flash('Apenas administradores podem criar backups ocultos de escolas.', 'error')
+        return redirect(url_for('escola.home'))
+
+    sucesso, msg, _backup_id = duplicar_escola_oculta(escola_id)
+    flash(msg, 'success' if sucesso else 'error')
     return redirect(url_for('escola.home'))

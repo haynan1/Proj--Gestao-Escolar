@@ -45,7 +45,12 @@
 <div class="container">
     <div class="dashboard-page-header flex items-center justify-between mb-3 mt-2">
         <div>
-            <h1 class="dashboard-header-title">{{ escola.nome }}</h1>
+            <div class="dashboard-title-row">
+                <h1 class="dashboard-header-title">{{ escola.nome }}</h1>
+                {% if escola.oculta %}
+                <span class="backup-hidden-badge">Backup oculto</span>
+                {% endif %}
+            </div>
             <p class="text-muted text-sm mt-1">
                 {% if can_manage_resources %}
                 Gerencie disciplinas, professores e turmas.

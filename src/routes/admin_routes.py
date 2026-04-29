@@ -4,7 +4,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 
 from access_control import ROLE_ADMIN, ROLE_COORDINATOR, ROLE_STAFF, require_permission
 from auth import login_required
-from models.escola import listar_escolas
+from models.escola import deletar_backup_oculto, listar_backups_ocultos, listar_escolas
 from models.user import (
     atualizar_role_usuario,
     buscar_usuario_por_id,
@@ -35,6 +35,24 @@ def usuarios():
         role_options=MANAGED_ROLE_OPTIONS,
         master_user_email=next((usuario['email'] for usuario in usuarios if is_master_user(usuario)), ''),
     )
+
+
+@admin_bp.route('/backups')
+@login_required
+@require_permission('admin_access')
+def backups():
+    return render_template('admin_backups.html', backups=listar_backups_ocultos())
+
+
+@admin_bp.route('/backups/<int:escola_id>/deletar', methods=['POST'])
+@login_required
+@require_permission('admin_access')
+def deletar_backup(escola_id):
+    if deletar_backup_oculto(escola_id):
+        flash('Backup oculto excluido com sucesso.', 'success')
+    else:
+        flash('Backup oculto nao encontrado.', 'error')
+    return redirect(url_for('admin.backups'))
 
 
 @admin_bp.route('/usuarios/criar', methods=['POST'])
