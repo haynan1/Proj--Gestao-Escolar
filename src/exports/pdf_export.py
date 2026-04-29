@@ -162,6 +162,15 @@ def _styles():
             textColor=INK,
             alignment=TA_LEFT,
         ),
+        'matrix_header': ParagraphStyle(
+            'ScheduleMatrixHeader',
+            parent=base['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=6.8,
+            leading=7.5,
+            textColor=colors.white,
+            alignment=TA_CENTER,
+        ),
     }
 
 
@@ -299,6 +308,163 @@ def _legend(turma, aulas, styles):
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     return table
+
+
+def _matrix_cell_style(name, font_size, leading, color=INK, bold=False):
+    return ParagraphStyle(
+        name,
+        fontName='Helvetica-Bold' if bold else 'Helvetica',
+        fontSize=font_size,
+        leading=leading,
+        textColor=color,
+        alignment=TA_LEFT,
+    )
+
+
+def _matrix_text(aula, color_mode, font_size, leading):
+    if not aula:
+        return ''
+
+    cor = _aula_color(aula, color_mode)
+    disciplina_cor = cor or '#0f172a'
+    style = _matrix_cell_style('MatrixCell', font_size, leading)
+    return Paragraph(
+        f"<font color='{disciplina_cor}'><b>{escape(aula['disciplina_nome'])}</b></font>"
+        f"<br/><font color='#64748b'>{escape(aula['professor_nome'])}</font>",
+        style,
+    )
+
+
+def _matrix_table(turmas, idx, styles, color_mode='none'):
+    color_mode = _normalize_color_mode(color_mode)
+    max_periodos = max([len(_periodos_turma(turma)) for turma in turmas] or [5])
+    data_rows = len(DIAS) * max_periodos
+    available_width = landscape(A4)[0] - (1.0 * cm)
+    available_height = landscape(A4)[1] - (2.2 * cm)
+
+    day_col_width = 1.65 * cm
+    period_col_width = 0.58 * cm
+    turma_col_width = (available_width - day_col_width - period_col_width) / max(len(turmas), 1)
+    header_height = 0.52 * cm
+    row_height = max(0.28 * cm, (available_height - header_height) / max(data_rows, 1))
+    font_size = max(4.15, min(6.25, (turma_col_width / cm) * 1.1, (row_height / cm) * 7.7))
+    leading = font_size + 1.0
+
+    table_data = [['Dia', 'P'] + [Paragraph(escape(turma['nome']), styles['matrix_header']) for turma in turmas]]
+    for dia in DIAS:
+        for periodo in range(1, max_periodos + 1):
+            row = [dia if periodo == 1 else '', f'{periodo}º']
+            for turma in turmas:
+                aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
+                row.append(_matrix_text(aula, color_mode, font_size, leading))
+            table_data.append(row)
+
+    table = Table(
+        table_data,
+        colWidths=[day_col_width, period_col_width] + [turma_col_width] * len(turmas),
+        rowHeights=[header_height] + [row_height] * data_rows,
+        repeatRows=1,
+    )
+
+    table_style = [
+        ('GRID', (0, 0), (-1, -1), 0.28, colors.HexColor('#d7dde6')),
+        ('BOX', (0, 0), (-1, -1), 0.55, colors.HexColor('#94a3b8')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 6.8),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2.6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2.6),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.2),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (1, -1), 6.5),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'CENTER'),
+        ('TEXTCOLOR', (1, 1), (1, -1), MUTED),
+        ('BACKGROUND', (1, 1), (1, -1), colors.HexColor('#f8fafc')),
+    ]
+
+    current_row = 1
+    for day_idx, dia in enumerate(DIAS):
+        start_row = current_row
+        end_row = current_row + max_periodos - 1
+        day_bg = colors.HexColor('#eef2f7') if day_idx % 2 == 0 else colors.HexColor('#f8fafc')
+        table_style.extend([
+            ('SPAN', (0, start_row), (0, end_row)),
+            ('BACKGROUND', (0, start_row), (0, end_row), day_bg),
+            ('TEXTCOLOR', (0, start_row), (0, end_row), INK),
+            ('LINEAFTER', (1, start_row), (1, end_row), 0.5, colors.HexColor('#cbd5e1')),
+        ])
+        if dia != DIAS[0]:
+            table_style.append(('LINEABOVE', (0, start_row), (-1, start_row), 0.85, colors.HexColor('#94a3b8')))
+
+        for periodo in range(1, max_periodos + 1):
+            row_idx = current_row + periodo - 1
+            if periodo % 2 == 0:
+                table_style.append(('BACKGROUND', (2, row_idx), (-1, row_idx), colors.HexColor('#fbfdff')))
+            for col_idx, turma in enumerate(turmas, 2):
+                aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
+                if aula:
+                    cor = _aula_color(aula, color_mode)
+                    table_style.append((
+                        'BACKGROUND',
+                        (col_idx, row_idx),
+                        (col_idx, row_idx),
+                        hex_to_light(cor, 0.9) if cor else colors.white,
+                    ))
+        current_row += max_periodos
+
+    table.setStyle(TableStyle(table_style))
+    return table
+
+
+def exportar_pdf_matriz(escola, aulas, turmas, color_mode='none'):
+    """Gera PDF com todas as turmas em uma unica pagina."""
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    tmp.close()
+
+    doc = SimpleDocTemplate(
+        tmp.name,
+        pagesize=landscape(A4),
+        rightMargin=0.5 * cm,
+        leftMargin=0.5 * cm,
+        topMargin=0.45 * cm,
+        bottomMargin=0.45 * cm,
+    )
+
+    styles = _styles()
+    idx = _build_index(aulas)
+    generated_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    title_style = ParagraphStyle(
+        'MatrixTitle',
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=11,
+        textColor=INK,
+        alignment=TA_LEFT,
+    )
+    subtitle_style = ParagraphStyle(
+        'MatrixSubtitle',
+        fontName='Helvetica',
+        fontSize=6.5,
+        leading=8,
+        textColor=MUTED,
+        alignment=TA_LEFT,
+    )
+
+    story = [
+        Paragraph(f"Grade geral de horarios - {escape(escola['nome'])}", title_style),
+        Paragraph(f"Todas as turmas em uma pagina | Atualizado em {generated_at}", subtitle_style),
+        Spacer(1, 0.12 * cm),
+        _matrix_table(turmas, idx, styles, color_mode=color_mode),
+    ]
+
+    doc.build(story)
+    return tmp.name
 
 
 def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina'):

@@ -17,7 +17,7 @@ from flask import (
 from access_control import forbid_without_school_permission, user_has_permission
 from auth import login_required
 from exports.excel_export import exportar_excel
-from exports.pdf_export import exportar_pdf
+from exports.pdf_export import exportar_pdf, exportar_pdf_matriz
 from models.aula import (
     ScheduleConflictError,
     ScheduleValidationError,
@@ -529,3 +529,16 @@ def exportar_pdf_route(escola_id):
     disciplinas = listar_disciplinas(escola['id'])
     filepath = exportar_pdf(escola, aulas, turmas, disciplinas, color_mode=_export_color_mode())
     return _send_temp_file(filepath, 'horario.pdf')
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/exportar/pdf/geral')
+@login_required
+def exportar_pdf_geral_route(escola_id):
+    escola, failure = _guard_school(escola_id, permission='export_school')
+    if failure:
+        return failure
+
+    aulas = listar_aulas(escola['id'])
+    turmas = listar_turmas(escola['id'])
+    filepath = exportar_pdf_matriz(escola, aulas, turmas, color_mode=_export_color_mode())
+    return _send_temp_file(filepath, 'horario-geral.pdf')
