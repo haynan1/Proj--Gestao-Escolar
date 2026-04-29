@@ -274,7 +274,10 @@ body {
 
 .btn-icon {
     width: 32px;
+    min-width: 32px;
     height: 32px;
+    min-height: 32px;
+    flex: 0 0 32px;
     padding: 0;
     justify-content: center;
     border-radius: 6px;
@@ -282,7 +285,10 @@ body {
 
 .btn-svg {
     width: 16px;
+    min-width: 16px;
     height: 16px;
+    min-height: 16px;
+    flex: 0 0 auto;
     display: block;
     fill: none;
     stroke: currentColor;
@@ -524,7 +530,10 @@ body {
     align-items: center;
     justify-content: center;
     width: 44px;
+    min-width: 44px;
     height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg3);
@@ -542,7 +551,11 @@ body {
 
 .color-current-preview {
     width: 30px;
+    min-width: 30px;
     height: 30px;
+    min-height: 30px;
+    flex: 0 0 30px;
+    display: block;
     border-radius: 999px;
     background: #22c55e;
     box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.2);
@@ -575,7 +588,10 @@ body {
 
 .color-swatch {
     width: clamp(23px, 2.1vw, 26px);
+    min-width: 23px;
     height: clamp(23px, 2.1vw, 26px);
+    min-height: 23px;
+    flex: 0 0 auto;
     border: 2px solid rgba(255, 255, 255, 0.28);
     border-radius: 999px;
     cursor: pointer;
@@ -615,14 +631,20 @@ body {
 }
 
 .modal-professor .dashboard-swatches.color-swatch-grid {
-    grid-template-columns: repeat(11, 22px);
+    display: flex;
+    flex-wrap: wrap;
     gap: 9px 7px;
     justify-self: start;
+    width: 100%;
+    max-width: 100%;
 }
 
 .modal-professor .color-swatch {
     width: 22px;
+    min-width: 22px;
     height: 22px;
+    min-height: 22px;
+    flex-basis: 22px;
 }
 
 .modal-professor .color-swatch-empty::after {
@@ -1265,12 +1287,21 @@ tr:hover td {
 }
 
 .modal-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    flex: 0 0 32px;
     background: none;
     border: none;
     color: var(--text-muted);
     cursor: pointer;
     font-size: 1.25rem;
-    padding: 4px;
+    line-height: 1;
+    padding: 0;
     border-radius: 6px;
     transition: color 0.2s;
 }
@@ -1289,7 +1320,7 @@ tr:hover td {
     max-width: calc(100vw - 1rem);
     max-height: calc(100dvh - 0.75rem);
     padding: clamp(1rem, 2vh, 1.45rem);
-    overflow: auto;
+    overflow: hidden;
 }
 
 .modal-professor .modal-header {
@@ -1301,8 +1332,9 @@ tr:hover td {
     display: flex;
     flex-direction: column;
     gap: var(--professor-gap);
+    flex: 1 1 auto;
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .modal-professor .form-group {
@@ -1322,8 +1354,13 @@ tr:hover td {
     grid-template-columns: minmax(380px, 0.95fr) minmax(500px, 1.05fr);
     gap: clamp(0.85rem, 1.6vw, 1.25rem);
     align-items: start;
+    flex: 1 1 auto;
     min-height: 0;
-    overflow: visible;
+    overflow: auto;
+    padding-right: 0.35rem;
+    padding-bottom: 0.35rem;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
 }
 
 .professor-identity-panel {
@@ -1360,9 +1397,9 @@ tr:hover td {
 }
 
 .professor-chip-grid-lg {
-    max-height: var(--professor-chip-max);
-    overflow: auto;
-    padding-right: 0.2rem;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
 }
 
 .professor-chip-grid-compact {
@@ -1379,7 +1416,7 @@ tr:hover td {
 .modal-professor .carga-grid {
     flex: 0 1 auto;
     min-height: 0;
-    max-height: min(70dvh, 620px);
+    max-height: min(78dvh, 760px);
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -1516,7 +1553,7 @@ tr:hover td {
     .professor-main-grid {
         display: grid;
         grid-template-columns: 1fr;
-        overflow: visible;
+        overflow: auto;
         padding-right: 0.35rem;
         scrollbar-gutter: stable;
     }
@@ -1527,10 +1564,15 @@ tr:hover td {
     }
 
     .professor-chip-grid,
-    .professor-chip-grid-lg,
     .professor-chip-grid-compact {
         max-height: clamp(90px, 18dvh, 150px);
         overflow: auto;
+    }
+
+    .professor-chip-grid-lg {
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
     }
 
     .modal-professor .carga-grid {
@@ -1569,13 +1611,17 @@ tr:hover td {
     }
 
     .modal-professor .dashboard-swatches.color-swatch-grid {
-        grid-template-columns: repeat(7, 24px);
+        display: flex;
+        flex-wrap: wrap;
         gap: 7px;
     }
 
     .modal-professor .color-swatch {
         width: 24px;
+        min-width: 24px;
         height: 24px;
+        min-height: 24px;
+        flex-basis: 24px;
     }
 
     .modal-actions-sticky {
