@@ -1587,6 +1587,7 @@ tr:hover td {
         width: calc(100vw - 0.5rem);
         max-width: calc(100vw - 0.5rem);
         max-height: calc(100dvh - 0.5rem);
+        padding: 0.9rem 1rem;
         border-radius: 12px;
     }
 
@@ -1594,8 +1595,40 @@ tr:hover td {
         margin-bottom: 0.75rem;
     }
 
+    .professor-form {
+        gap: 0.75rem;
+    }
+
+    .professor-main-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.85rem;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding-right: 0.15rem;
+        padding-bottom: 0.25rem;
+    }
+
+    .professor-left-stack,
+    .modal-professor .professor-load-panel {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        align-self: stretch;
+    }
+
+    .modal-professor .professor-load-panel {
+        overflow: hidden;
+    }
+
+    .modal-professor .carga-grid {
+        width: 100%;
+        max-width: 100%;
+        max-height: 32dvh;
+        overflow: auto;
+    }
+
     .modal-professor .professor-carga-table {
-        min-width: 390px;
+        min-width: 340px;
     }
 
     .modal-professor .professor-carga-table .carga-col-turma {
@@ -1626,10 +1659,19 @@ tr:hover td {
 
     .modal-actions-sticky {
         flex-direction: column;
+        gap: 0.5rem;
+        padding-top: 0.6rem;
     }
 
     .modal-actions-sticky .btn {
         width: 100%;
+        min-height: 38px;
+    }
+
+    .modal-actions-sticky .btn-primary,
+    .modal-actions-sticky .btn-secondary {
+        flex: 0 0 auto;
+        min-width: 0;
     }
 }
 
