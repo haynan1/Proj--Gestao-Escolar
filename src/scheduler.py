@@ -10,7 +10,7 @@ from utils.conflitos import (
 from models.professor import listar_professores
 from models.turma import listar_turmas
 from models.disciplina import listar_disciplinas
-from models.aula import salvar_aulas
+from models.aula import listar_aulas, salvar_aulas
 
 
 MAX_TENTATIVAS_GRADE = 100
@@ -147,7 +147,8 @@ def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas
             if verificar_conflito_professor(grade, prof['id'], dia, periodo):
                 continue
 
-            if contar_aulas_professor(grade, prof['id']) >= prof['max_aulas_semana']:
+            max_aulas_semana = int(prof.get('max_aulas_semana') or 0)
+            if max_aulas_semana > 0 and contar_aulas_professor(grade, prof['id']) >= max_aulas_semana:
                 continue
 
             grade[turma_id][(dia, periodo)] = {
@@ -163,9 +164,16 @@ def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas
     return colocadas
 
 
-def _montar_aulas_geradas(grade):
+def _copiar_grade(grade):
+    return {turma_id: dict(slots) for turma_id, slots in grade.items()}
+
+
+def _montar_aulas_geradas(grade, turma_ids=None):
+    turma_ids = set(turma_ids) if turma_ids is not None else None
     aulas_geradas = []
     for turma_id, slots in grade.items():
+        if turma_ids is not None and turma_id not in turma_ids:
+            continue
         for (dia, periodo), aula in slots.items():
             aulas_geradas.append({
                 'turma_id': turma_id,
@@ -177,9 +185,26 @@ def _montar_aulas_geradas(grade):
     return aulas_geradas
 
 
-def _gerar_grade_por_demandas(demandas, turmas, semente):
+def _montar_grade_existente(aulas, turmas, turma_id_ignorada=None):
+    turmas_ids = {turma['id'] for turma in turmas}
+    grade = {turma_id: {} for turma_id in turmas_ids}
+
+    for aula in aulas:
+        turma_id = aula['turma_id']
+        if turma_id == turma_id_ignorada or turma_id not in turmas_ids:
+            continue
+
+        grade[turma_id][(aula['dia'], aula['periodo'])] = {
+            'professor_id': aula['professor_id'],
+            'disciplina_id': aula['disciplina_id'],
+        }
+
+    return grade
+
+
+def _gerar_grade_por_demandas(demandas, turmas, semente, grade_base=None):
     rng = random.Random(semente)
-    grade = {t['id']: {} for t in turmas}
+    grade = _copiar_grade(grade_base) if grade_base is not None else {t['id']: {} for t in turmas}
     pendencias = []
     turmas_por_id = {turma['id']: turma for turma in turmas}
 
@@ -226,6 +251,7 @@ def gerar_horario(escola_id, turma_id_especifica=None):
     professores = listar_professores(escola_id)
     todas_turmas = listar_turmas(escola_id)
     disciplinas = listar_disciplinas(escola_id)
+    aulas_existentes = listar_aulas(escola_id) if turma_id_especifica else []
 
     if turma_id_especifica:
         turmas = [t for t in todas_turmas if t['id'] == turma_id_especifica]
@@ -239,7 +265,12 @@ def gerar_horario(escola_id, turma_id_especifica=None):
     if not disciplinas:
         return False, "Cadastre pelo menos uma disciplina antes de gerar o horário.", 0
 
-    grade = {t['id']: {} for t in turmas}
+    grade_base = (
+        _montar_grade_existente(aulas_existentes, todas_turmas, turma_id_especifica)
+        if turma_id_especifica
+        else None
+    )
+    grade = _copiar_grade(grade_base) if grade_base is not None else {t['id']: {} for t in turmas}
     n_disc = len(disciplinas)
 
     tentativas_max = 5000
@@ -266,8 +297,9 @@ def gerar_horario(escola_id, turma_id_especifica=None):
                 demandas,
                 turmas,
                 semente_base + tentativa,
+                grade_base,
             )
-            total_tentativa = sum(len(slots) for slots in grade_tentativa.values())
+            total_tentativa = sum(len(grade_tentativa.get(turma['id'], {})) for turma in turmas)
             if total_tentativa > melhor_total:
                 melhor_grade = grade_tentativa
                 melhores_pendencias = pendencias
@@ -312,7 +344,7 @@ def gerar_horario(escola_id, turma_id_especifica=None):
                     rng,
                 )
 
-    aulas_geradas = _montar_aulas_geradas(grade)
+    aulas_geradas = _montar_aulas_geradas(grade, [turma['id'] for turma in turmas])
 
     if not aulas_geradas:
         return False, "Não foi possível gerar nenhuma aula. Verifique os vínculos entre professores, turmas e disciplinas.", 0

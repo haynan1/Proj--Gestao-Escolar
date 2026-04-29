@@ -3,6 +3,7 @@ import os
 from flask import (
     Blueprint,
     after_this_request,
+    current_app,
     flash,
     g,
     jsonify,
@@ -420,7 +421,19 @@ def gerar(escola_id):
         return failure
 
     turma_id = request.form.get('turma_id', type=int)
-    sucesso, msg, total = gerar_horario(escola['id'], turma_id)
+    try:
+        sucesso, msg, total = gerar_horario(escola['id'], turma_id)
+    except Exception:
+        current_app.logger.exception(
+            'Erro inesperado ao gerar horario da escola %s, turma %s.',
+            escola['id'],
+            turma_id,
+        )
+        sucesso = False
+        msg = (
+            'Nao foi possivel gerar o horario agora. '
+            'Verifique se as cargas, professores e turmas estao consistentes e tente novamente.'
+        )
     flash(msg, 'success' if sucesso else 'error')
     if turma_id:
         return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
