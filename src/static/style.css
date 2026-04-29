@@ -1600,7 +1600,8 @@ tr:hover td {
     }
 
     .professor-main-grid {
-        grid-template-columns: minmax(0, 1fr);
+        display: flex;
+        flex-direction: column;
         gap: 0.85rem;
         overflow-x: hidden;
         overflow-y: auto;
@@ -1608,7 +1609,34 @@ tr:hover td {
         padding-bottom: 0.25rem;
     }
 
-    .professor-left-stack,
+    .professor-left-stack {
+        display: contents;
+    }
+
+    .professor-identity-panel {
+        order: 1;
+    }
+
+    .professor-left-stack > .form-group:nth-of-type(2) {
+        order: 2;
+    }
+
+    .professor-left-stack > .form-group:nth-of-type(3) {
+        order: 3;
+    }
+
+    .modal-professor .professor-load-panel {
+        order: 4;
+    }
+
+    .professor-left-stack > .form-group:nth-of-type(4) {
+        order: 5;
+    }
+
+    .modal-professor .form-group:has(.color-picker-wrap) {
+        display: none;
+    }
+
     .modal-professor .professor-load-panel {
         width: 100%;
         max-width: 100%;
@@ -1617,18 +1645,21 @@ tr:hover td {
     }
 
     .modal-professor .professor-load-panel {
-        overflow: hidden;
+        overflow: visible;
     }
 
     .modal-professor .carga-grid {
         width: 100%;
         max-width: 100%;
-        max-height: 32dvh;
+        max-height: 258px;
         overflow: auto;
+        border-color: rgba(226, 232, 240, 0.95);
+        border-radius: 6px;
     }
 
     .modal-professor .professor-carga-table {
-        min-width: 340px;
+        min-width: 0;
+        width: 100%;
     }
 
     .modal-professor .professor-carga-table .carga-col-turma {
@@ -1636,11 +1667,61 @@ tr:hover td {
     }
 
     .modal-professor .professor-carga-table .carga-col-disciplina {
-        width: 38%;
+        width: 35%;
     }
 
     .modal-professor .professor-carga-table .carga-col-aulas {
-        width: 38%;
+        width: 41%;
+    }
+
+    .modal-professor .professor-carga-table thead {
+        display: none;
+    }
+
+    .modal-professor .professor-carga-table tbody {
+        display: block;
+    }
+
+    .modal-professor .professor-carga-table tr {
+        display: grid;
+        grid-template-columns: minmax(72px, 24%) minmax(116px, 35%) minmax(118px, 1fr);
+        align-items: center;
+        min-height: 55px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .modal-professor .professor-carga-table tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .modal-professor .professor-carga-table tr[hidden] {
+        display: none;
+    }
+
+    .modal-professor .professor-carga-table td {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        height: 100%;
+        border-bottom: 0;
+        padding: 0.45rem 0.75rem;
+        font-weight: 700;
+        color: #ffffff;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .modal-professor .professor-carga-table td::before {
+        display: none;
+    }
+
+    .modal-professor .professor-carga-table td:nth-child(1) {
+        padding-left: 0.75rem;
+    }
+
+    .modal-professor .professor-carga-table td:nth-child(3) {
+        padding-right: 0.75rem;
     }
 
     .modal-professor .dashboard-swatches.color-swatch-grid {
@@ -1658,20 +1739,25 @@ tr:hover td {
     }
 
     .modal-actions-sticky {
-        flex-direction: column;
+        flex-direction: row;
         gap: 0.5rem;
         padding-top: 0.6rem;
     }
 
     .modal-actions-sticky .btn {
-        width: 100%;
         min-height: 38px;
     }
 
-    .modal-actions-sticky .btn-primary,
+    .modal-actions-sticky .btn-primary {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+    }
+
     .modal-actions-sticky .btn-secondary {
         flex: 0 0 auto;
-        min-width: 0;
+        width: auto;
+        min-width: 96px;
     }
 }
 
