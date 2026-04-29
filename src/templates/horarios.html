@@ -83,6 +83,27 @@
             </div>
         </div>
 
+        {% if can_manage_schedule %}
+        <div class="schedule-drag-legend" aria-label="Legenda dos alertas ao arrastar aulas">
+            <span class="schedule-legend-item">
+                <span class="schedule-legend-dot legend-origin"></span>
+                Aula selecionada
+            </span>
+            <span class="schedule-legend-item">
+                <span class="schedule-legend-dot legend-same"></span>
+                Mesmo professor nesta turma
+            </span>
+            <span class="schedule-legend-item">
+                <span class="schedule-legend-dot legend-blocked"></span>
+                Professor arrastado ocupado em outra turma
+            </span>
+            <span class="schedule-legend-item">
+                <span class="schedule-legend-dot legend-swap"></span>
+                Troca invalida: professor do destino ocupado
+            </span>
+        </div>
+        {% endif %}
+
         <div class="grade-container">
             <table class="grade-table">
                 <thead>
@@ -104,7 +125,9 @@
                                 data-periodo="{{ p }}">
                                 {% if aula %}
                                 <div class="aula-card aula-card-dynamic" data-aula-id="{{ aula.id }}"
-                                    data-professor-id="{{ aula.professor_id }}" data-color="{{ aula.disciplina_cor }}">
+                                    data-professor-id="{{ aula.professor_id }}"
+                                    data-professor-nome="{{ aula.professor_nome }}"
+                                    data-color="{{ aula.disciplina_cor }}">
                                     <div class="disc-nome">{{ aula.disciplina_nome }}</div>
                                     <div class="prof-nome text-muted">{{ aula.professor_nome }}</div>
                                 </div>

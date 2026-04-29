@@ -1,5 +1,7 @@
 let draggedCard = null;
 let draggedAulaId = null;
+let draggedOrigin = null;
+const ocupacaoProfessorCache = new Map();
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 
@@ -16,19 +18,87 @@ function criarMarcadorOcupacao(texto) {
 }
 
 
+function limparMarcadoresDeTroca() {
+    document.querySelectorAll('.grade-cell.swap-conflict').forEach((cell) => {
+        cell.classList.remove('swap-conflict');
+        cell.querySelectorAll('.swap-conflict-label').forEach((label) => label.remove());
+    });
+}
+
+
+async function buscarOcupacaoProfessor(profId) {
+    if (!profId) return [];
+    if (ocupacaoProfessorCache.has(String(profId))) {
+        return ocupacaoProfessorCache.get(String(profId));
+    }
+
+    const escolaId = document.body.dataset.escolaId;
+    const resp = await fetch(`/escola/${escolaId}/professor/${profId}/ocupacao`);
+    const ocupacao = await resp.json();
+    ocupacaoProfessorCache.set(String(profId), ocupacao);
+    return ocupacao;
+}
+
+
+function professorTemAulaNoSlot(ocupacao, dia, periodo, ignorarAulaIds = []) {
+    const ignorados = ignorarAulaIds.map(String);
+    return ocupacao.some((slot) => (
+        slot.dia === dia
+        && String(slot.periodo) === String(periodo)
+        && !ignorados.includes(String(slot.aula_id))
+    ));
+}
+
+
+function marcarConflitoTroca(cell, texto) {
+    if (cell.classList.contains('swap-conflict')) return;
+    cell.classList.add('swap-conflict');
+    const label = criarMarcadorOcupacao(texto);
+    label.classList.add('swap-conflict-label');
+    cell.appendChild(label);
+}
+
+
+async function destacarTrocasInvalidas() {
+    if (!draggedOrigin || !draggedAulaId) return;
+
+    limparMarcadoresDeTroca();
+    const cards = Array.from(document.querySelectorAll('.aula-card[data-aula-id]'));
+    const professorIds = [...new Set(cards.map((card) => card.dataset.professorId).filter(Boolean))];
+    await Promise.all(professorIds.map((profId) => buscarOcupacaoProfessor(profId).catch(() => [])));
+
+    cards.forEach((card) => {
+        if (card.dataset.aulaId === draggedAulaId) return;
+
+        const cell = card.closest('.grade-cell');
+        if (!cell) return;
+
+        const ocupacaoDestino = ocupacaoProfessorCache.get(String(card.dataset.professorId)) || [];
+        const trocaInvalida = professorTemAulaNoSlot(
+            ocupacaoDestino,
+            draggedOrigin.dia,
+            draggedOrigin.periodo,
+            [draggedAulaId, card.dataset.aulaId],
+        );
+
+        if (trocaInvalida) {
+            marcarConflitoTroca(cell, 'Troca bloqueada');
+        }
+    });
+}
+
+
 async function destacarConflitos(profId) {
     if (!profId) return;
 
     try {
-        const escolaId = document.body.dataset.escolaId;
-        const resp = await fetch(`/escola/${escolaId}/professor/${profId}/ocupacao`);
-        const ocupacao = await resp.json();
+        const ocupacao = await buscarOcupacaoProfessor(profId);
 
         document.querySelectorAll('.grade-cell').forEach((cell) => {
             cell.classList.remove('conflict-busy');
             cell.classList.remove('professor-busy');
             cell.classList.remove('professor-origin');
-            cell.querySelectorAll('.conflict-label').forEach((label) => label.remove());
+            cell.querySelectorAll('.conflict-label:not(.swap-conflict-label)').forEach((label) => label.remove());
         });
 
         ocupacao.forEach((slot) => {
@@ -44,7 +114,7 @@ async function destacarConflitos(profId) {
             const currentTurmaId = getCurrentTurmaId();
             if (String(slot.turma_id) !== String(currentTurmaId)) {
                 cell.classList.add('conflict-busy');
-                cell.appendChild(criarMarcadorOcupacao(`Ocupado: ${slot.turma_nome}`));
+                cell.appendChild(criarMarcadorOcupacao(`Prof. ocupado: ${slot.turma_nome}`));
             } else {
                 cell.classList.add('professor-busy');
                 cell.appendChild(criarMarcadorOcupacao('Mesmo professor'));
@@ -65,6 +135,7 @@ function limparDestaques() {
         cell.classList.remove('swap-target');
         cell.querySelectorAll('.conflict-label').forEach((label) => label.remove());
     });
+    limparMarcadoresDeTroca();
 }
 
 
@@ -79,6 +150,11 @@ function initDragDrop() {
         card.addEventListener('dragstart', async (e) => {
             draggedCard = card;
             draggedAulaId = card.dataset.aulaId;
+            const originCell = card.closest('.grade-cell');
+            draggedOrigin = originCell ? {
+                dia: originCell.dataset.dia,
+                periodo: originCell.dataset.periodo,
+            } : null;
             card.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', draggedAulaId);
@@ -87,12 +163,14 @@ function initDragDrop() {
             if (profId) {
                 destacarConflitos(profId);
             }
+            destacarTrocasInvalidas();
         });
 
         card.addEventListener('dragend', () => {
             card.classList.remove('dragging');
             draggedCard = null;
             draggedAulaId = null;
+            draggedOrigin = null;
             limparDestaques();
         });
     });
@@ -133,6 +211,12 @@ function initDragDrop() {
                 return;
             }
 
+            if (isSwap && cell.classList.contains('swap-conflict')) {
+                const professorNome = targetCard?.dataset.professorNome || 'O professor da aula de destino';
+                showToast(`${professorNome} ja possui aula no horario de origem.`, 'error');
+                return;
+            }
+
             if (oldCell === cell) {
                 return;
             }
@@ -162,6 +246,7 @@ function initDragDrop() {
                         }
                         cardToMove.classList.remove('dragging');
                     }
+                    ocupacaoProfessorCache.clear();
                     showToast(data.action === 'swap' ? 'Aulas trocadas com sucesso!' : 'Aula movida com sucesso!', 'success');
                 } else {
                     const message = data?.error?.message || data.msg || 'Tente novamente';

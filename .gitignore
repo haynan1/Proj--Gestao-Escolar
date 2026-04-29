@@ -1,14 +1,23 @@
+# Python / ambientes locais
 venv/
 .venv/
 __pycache__/
 *.py[cod]
-*.db
+.pytest_cache/
+.mypy_cache/
+
+# Configuracao e segredos locais
 .env
 .env.*
 !.env.example
-src/database/*.local.sql
-src/database/*.local.sql.gz
+
+# Bancos e dumps locais
+*.db
+src/database/*.sql
+src/database/*.sql.gz
+!src/database/schema_mysql.sql
+!src/database/backup_gestao_escolar.sql
+
+# Sistema / logs
 .DS_Store
 *.log
-.pytest_cache/
-.mypy_cache/
