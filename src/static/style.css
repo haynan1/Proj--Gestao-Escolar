@@ -609,6 +609,26 @@ body {
     background: rgba(15, 23, 42, 0.32);
 }
 
+.modal-professor .color-picker-wrap {
+    grid-template-columns: 54px minmax(0, 1fr);
+    max-width: none;
+}
+
+.modal-professor .dashboard-swatches.color-swatch-grid {
+    grid-template-columns: repeat(11, 22px);
+    gap: 9px 7px;
+    justify-self: start;
+}
+
+.modal-professor .color-swatch {
+    width: 22px;
+    height: 22px;
+}
+
+.modal-professor .color-swatch-empty::after {
+    inset: 5px;
+}
+
 @media (max-width: 420px) {
     .color-swatch-grid,
     .dashboard-swatches.color-swatch-grid {
@@ -1361,32 +1381,56 @@ tr:hover td {
     flex: 1 1 auto;
     min-height: var(--professor-table-min);
     max-height: 100%;
+    width: fit-content;
+    max-width: 100%;
     overflow: auto;
     border: 1px solid rgba(203, 213, 225, 0.74);
     border-radius: 6px;
     scrollbar-gutter: stable;
+    margin-inline: auto;
 }
 
-.modal-professor .carga-grid table {
+.modal-professor .professor-carga-table {
+    width: max-content;
+    min-width: 400px;
     table-layout: fixed;
+}
+
+.modal-professor .professor-carga-table .carga-col-turma {
+    width: 80px;
+}
+
+.modal-professor .professor-carga-table .carga-col-disciplina {
+    width: 80px;
+}
+
+.modal-professor .professor-carga-table .carga-col-aulas {
+    width: 80px;
 }
 
 .modal-professor .carga-grid th,
 .modal-professor .carga-grid td {
-    padding: clamp(0.48rem, 1vh, 0.72rem) clamp(0.65rem, 1.1vw, 0.95rem);
+    padding: clamp(0.48rem, 1vh, 0.72rem) 0.7rem;
 }
 
 .modal-professor .carga-grid th:nth-child(1),
 .modal-professor .carga-grid td:nth-child(1) {
-    width: 24%;
+    padding-left: clamp(0.8rem, 1.2vw, 1rem);
+    white-space: nowrap;
+}
+
+.modal-professor .carga-grid th:nth-child(2),
+.modal-professor .carga-grid td:nth-child(2) {
+    white-space: nowrap;
 }
 
 .modal-professor .carga-grid th:nth-child(3),
 .modal-professor .carga-grid td:nth-child(3) {
-    width: 36%;
+    padding-right: 0.7rem;
 }
 
 .modal-professor .carga-input {
+    width: 100%;
     min-height: 34px;
     padding: 7px 12px;
 }
@@ -1471,6 +1515,16 @@ tr:hover td {
         max-width: calc(100vw - 0.5rem);
         height: calc(100dvh - 0.5rem);
         border-radius: 12px;
+    }
+
+    .modal-professor .dashboard-swatches.color-swatch-grid {
+        grid-template-columns: repeat(7, 24px);
+        gap: 7px;
+    }
+
+    .modal-professor .color-swatch {
+        width: 24px;
+        height: 24px;
     }
 
     .modal-actions-sticky {
