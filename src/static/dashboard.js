@@ -59,6 +59,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Gerenciamento de Modais de Edição via Event Delegation
     document.addEventListener('click', (e) => {
+        const scrollTopButton = e.target.closest('.mobile-modal-scroll-top');
+        if (scrollTopButton) {
+            const modal = scrollTopButton.closest('.modal-professor');
+            const scrollArea = modal?.querySelector('.professor-main-grid');
+            if (scrollArea) {
+                scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            return;
+        }
+
         // Editar Disciplina
         if (e.target.closest('.btn-edit-disc')) {
             const btn = e.target.closest('.btn-edit-disc');

@@ -434,6 +434,10 @@
             <span class="modal-title">Novo Professor</span>
             <button class="modal-close" onclick="closeModal('modal-prof')">x</button>
         </div>
+        <button type="button" class="mobile-modal-scroll-top" aria-label="Voltar ao topo do formulário"
+            title="Voltar ao topo">
+            ↑
+        </button>
         <form method="POST" action="{{ url_for('dashboard.criar_prof', escola_id=escola.id) }}" class="professor-form">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="professor-main-grid">
@@ -545,6 +549,10 @@
             <span class="modal-title">Editar Professor</span>
             <button class="modal-close" onclick="closeModal('modal-prof-edit')">x</button>
         </div>
+        <button type="button" class="mobile-modal-scroll-top" aria-label="Voltar ao topo do formulário"
+            title="Voltar ao topo">
+            ↑
+        </button>
         <form method="POST" id="form-prof-edit" class="professor-form">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="professor-main-grid">
