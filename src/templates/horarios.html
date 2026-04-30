@@ -106,12 +106,14 @@
             class="turma-tab turma-tab-fixed {% if view_mode == 'geral' %}active{% endif %}">
             Todas as turmas
         </a>
+        <div class="turma-tabs-scroll">
         {% for turma in turmas %}
         <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turma_id=turma.id) }}"
             class="turma-tab {% if view_mode != 'geral' and turma.id == turma_selecionada_id %}active{% endif %}">
             {{ turma.nome }}
         </a>
         {% endfor %}
+        </div>
     </div>
 
     {% set turma_atual = turmas | selectattr('id', 'equalto', turma_selecionada_id) | first %}
@@ -165,7 +167,7 @@
                                 <th class="dia-header dia-header-cell">{{ dia }}</th>
                                 {% for p in periodos_geral %}
                                 {% set aula = grade[turma.id][dia][p] %}
-                                <td>
+                                <td data-periodo-label="{{ p }}º Período">
                                     <div class="grade-cell {% if not aula %}empty{% endif %}"
                                         data-turma-id="{{ turma.id }}"
                                         data-turma-nome="{{ turma.nome }}"
@@ -263,7 +265,7 @@
                         <th class="dia-header dia-header-cell">{{ dia }}</th>
                         {% for p in periodos %}
                         {% set aula = grade[turma_selecionada_id][dia][p] %}
-                        <td>
+                        <td data-periodo-label="{{ p }}º Período">
                             <div class="grade-cell {% if not aula %}empty{% endif %}"
                                 data-turma-id="{{ turma_atual.id }}"
                                 data-turma-nome="{{ turma_atual.nome }}"
