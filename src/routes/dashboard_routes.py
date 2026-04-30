@@ -44,6 +44,7 @@ from models.professor import (
     listar_professores,
 )
 from models.turma import atualizar_turma, criar_turma, deletar_turma, listar_turmas
+from models.turno import TURNOS, normalizar_turno
 from scheduler import gerar_horario
 
 
@@ -209,6 +210,20 @@ def _load_accessible_escola(escola_id):
     return buscar_escola(escola_id, user=g.user)
 
 
+def _active_turno():
+    return normalizar_turno(request.values.get('turno') or request.args.get('turno'))
+
+
+def _turno_label(turno_id):
+    turno_id = normalizar_turno(turno_id)
+    return next((turno['nome'] for turno in TURNOS if turno['id'] == turno_id), 'Matutino')
+
+
+def _dashboard_url(endpoint, escola_id, **values):
+    values.setdefault('turno', _active_turno())
+    return url_for(endpoint, escola_id=escola_id, **values)
+
+
 def _guard_school(escola_id, permission='view_school', json_response=False):
     escola = _load_accessible_escola(escola_id)
     if not escola:
@@ -231,9 +246,10 @@ def dashboard(escola_id):
     if failure:
         return failure
 
-    disciplinas = listar_disciplinas(escola_id)
-    professores = listar_professores(escola_id)
-    turmas = listar_turmas(escola_id)
+    turno_atual = _active_turno()
+    disciplinas = listar_disciplinas(escola_id, turno_atual)
+    professores = listar_professores(escola_id, turno_atual)
+    turmas = listar_turmas(escola_id, turno_atual)
     horario_balance = _build_horario_balance(turmas, professores)
     return render_template(
         'dashboard.html',
@@ -241,6 +257,9 @@ def dashboard(escola_id):
         disciplinas=disciplinas,
         professores=professores,
         turmas=turmas,
+        turnos=TURNOS,
+        turno_atual=turno_atual,
+        turno_atual_label=_turno_label(turno_atual),
         horario_balance=horario_balance,
         dias_semana=DIAS_SEMANA,
         cores_professor=CORES_PROFESSOR,
@@ -261,9 +280,9 @@ def criar_disc(escola_id):
     if not nome:
         flash('Nome da disciplina é obrigatório.', 'error')
     else:
-        sucesso, msg = criar_disciplina(escola['id'], nome, cor)
+        sucesso, msg = criar_disciplina(escola['id'], nome, cor, _active_turno())
         flash(msg, 'success' if sucesso else 'error')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/disciplina/<int:disc_id>/editar', methods=['POST'])
@@ -278,7 +297,7 @@ def editar_disc(escola_id, disc_id):
     if nome:
         atualizar_disciplina(disc_id, escola['id'], nome, cor)
         flash('Disciplina atualizada.', 'success')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/disciplina/<int:disc_id>/deletar', methods=['POST'])
@@ -293,7 +312,7 @@ def deletar_disc(escola_id, disc_id):
         flash('Disciplina removida.', 'success')
     except DisciplineInUseError as exc:
         flash(str(exc), 'error')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/criar', methods=['POST'])
@@ -321,9 +340,9 @@ def criar_prof(escola_id):
     elif not turma_ids:
         flash('Selecione pelo menos uma turma para vincular ao professor.', 'error')
     else:
-        sucesso, msg = criar_professor(escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas, cor)
+        sucesso, msg = criar_professor(escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas, cor, _active_turno())
         flash(msg, 'success' if sucesso else 'error')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/editar', methods=['POST'])
@@ -346,13 +365,13 @@ def editar_prof(escola_id, prof_id):
     ]))
     if nome and disciplina_ids and dias and turma_ids:
         try:
-            atualizar_professor(prof_id, escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas, cor)
+            atualizar_professor(prof_id, escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas, cor, _active_turno())
             flash('Professor atualizado.', 'success')
         except ValueError as exc:
             flash(str(exc), 'error')
     else:
         flash('Preencha nome, disciplinas, dias disponiveis e pelo menos uma turma.', 'error')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/deletar', methods=['POST'])
@@ -364,7 +383,7 @@ def deletar_prof(escola_id, prof_id):
 
     deletar_professor(prof_id, escola['id'])
     flash('Professor removido.', 'success')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/turma/criar', methods=['POST'])
@@ -379,9 +398,9 @@ def criar_turm(escola_id):
     if not nome:
         flash('Nome da turma é obrigatório.', 'error')
     else:
-        sucesso, msg = criar_turma(escola['id'], nome, aulas_por_dia)
+        sucesso, msg = criar_turma(escola['id'], nome, aulas_por_dia, _active_turno())
         flash(msg, 'success' if sucesso else 'error')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/turma/<int:turma_id>/editar', methods=['POST'])
@@ -396,7 +415,7 @@ def editar_turm(escola_id, turma_id):
     if nome:
         atualizar_turma(turma_id, escola['id'], nome, aulas_por_dia)
         flash('Turma atualizada.', 'success')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/turma/<int:turma_id>/deletar', methods=['POST'])
@@ -408,7 +427,7 @@ def deletar_turm(escola_id, turma_id):
 
     deletar_turma(turma_id, escola['id'])
     flash('Turma removida.', 'success')
-    return redirect(url_for('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios')
@@ -418,10 +437,11 @@ def horarios(escola_id):
     if failure:
         return failure
 
-    turmas = listar_turmas(escola['id'])
-    aulas = listar_aulas(escola['id'])
-    disciplinas = listar_disciplinas(escola['id'])
-    professores = listar_professores(escola['id'])
+    turno_atual = _active_turno()
+    turmas = listar_turmas(escola['id'], turno_atual)
+    aulas = listar_aulas(escola['id'], turno_atual)
+    disciplinas = listar_disciplinas(escola['id'], turno_atual)
+    professores = listar_professores(escola['id'], turno_atual)
 
     grade = {}
     for turma in turmas:
@@ -457,6 +477,9 @@ def horarios(escola_id):
         turma_selecionada_id=turma_selecionada_id,
         manual_options=_build_manual_options(turmas, professores, aulas),
         view_mode=view_mode,
+        turnos=TURNOS,
+        turno_atual=turno_atual,
+        turno_atual_label=_turno_label(turno_atual),
     )
 
 
@@ -469,7 +492,7 @@ def gerar(escola_id):
 
     turma_id = request.form.get('turma_id', type=int)
     try:
-        sucesso, msg, total = gerar_horario(escola['id'], turma_id)
+        sucesso, msg, total = gerar_horario(escola['id'], turma_id, _active_turno())
     except Exception:
         current_app.logger.exception(
             'Erro inesperado ao gerar horário da escola %s, turma %s.',
@@ -483,8 +506,8 @@ def gerar(escola_id):
         )
     flash(msg, 'success' if sucesso else 'error')
     if turma_id:
-        return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
-    return redirect(url_for('dashboard.horarios', escola_id=escola_id))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/limpar', methods=['POST'])
@@ -501,9 +524,9 @@ def limpar_horarios(escola_id):
             limpar_turma_id = int(alvo)
         except (TypeError, ValueError):
             flash('Selecione uma turma válida para limpar.', 'error')
-            return redirect(url_for('dashboard.horarios', escola_id=escola_id, view='geral'))
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
     try:
-        limpar_aulas(escola['id'], limpar_turma_id)
+        limpar_aulas(escola['id'], limpar_turma_id, _active_turno())
         flash(
             'Horários da turma limpos.' if limpar_turma_id else 'Horários de todas as turmas limpos.',
             'success',
@@ -513,8 +536,8 @@ def limpar_horarios(escola_id):
         flash('Não foi possível limpar os horários agora.', 'error')
 
     if limpar_turma_id:
-        return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=limpar_turma_id))
-    return redirect(url_for('dashboard.horarios', escola_id=escola_id, view='geral'))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=limpar_turma_id))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/manual', methods=['POST'])
@@ -536,6 +559,7 @@ def criar_manual(escola_id):
             int(data.get('disciplina_id')),
             str(data.get('dia')),
             int(data.get('periodo')),
+            _active_turno(),
         )
     except ScheduleConflictError as exc:
         return _json_error(str(exc), code='schedule_conflict')
@@ -584,7 +608,7 @@ def ocupacao_professor(escola_id, prof_id):
     if failure:
         return failure
 
-    aulas = listar_aulas(escola['id'])
+    aulas = listar_aulas(escola['id'], _active_turno())
     ocupacao = []
     for aula in aulas:
         if aula['professor_id'] == prof_id:
@@ -610,10 +634,11 @@ def exportar_xls(escola_id):
     if failure:
         return failure
 
-    aulas = listar_aulas(escola['id'])
-    turmas = listar_turmas(escola['id'])
+    turno_atual = _active_turno()
+    aulas = listar_aulas(escola['id'], turno_atual)
+    turmas = listar_turmas(escola['id'], turno_atual)
     filepath = exportar_excel(escola, aulas, turmas, color_mode=_export_color_mode())
-    return _send_temp_file(filepath, 'horario.xlsx')
+    return _send_temp_file(filepath, f'horario-{turno_atual}.xlsx')
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/exportar/pdf')
@@ -623,11 +648,12 @@ def exportar_pdf_route(escola_id):
     if failure:
         return failure
 
-    aulas = listar_aulas(escola['id'])
-    turmas = listar_turmas(escola['id'])
-    disciplinas = listar_disciplinas(escola['id'])
+    turno_atual = _active_turno()
+    aulas = listar_aulas(escola['id'], turno_atual)
+    turmas = listar_turmas(escola['id'], turno_atual)
+    disciplinas = listar_disciplinas(escola['id'], turno_atual)
     filepath = exportar_pdf(escola, aulas, turmas, disciplinas, color_mode=_export_color_mode())
-    return _send_temp_file(filepath, 'horario.pdf')
+    return _send_temp_file(filepath, f'horario-{turno_atual}.pdf')
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/exportar/pdf/geral')
@@ -637,7 +663,8 @@ def exportar_pdf_geral_route(escola_id):
     if failure:
         return failure
 
-    aulas = listar_aulas(escola['id'])
-    turmas = listar_turmas(escola['id'])
+    turno_atual = _active_turno()
+    aulas = listar_aulas(escola['id'], turno_atual)
+    turmas = listar_turmas(escola['id'], turno_atual)
     filepath = exportar_pdf_matriz(escola, aulas, turmas, color_mode=_export_color_mode())
-    return _send_temp_file(filepath, 'horario-geral.pdf')
+    return _send_temp_file(filepath, f'horario-geral-{turno_atual}.pdf')

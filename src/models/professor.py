@@ -1,6 +1,7 @@
 import re
 
 from database.connection import get_connection
+from models.turno import normalizar_turno
 
 
 CORES_PROFESSOR = [
@@ -61,7 +62,8 @@ def _normalizar_cargas(cargas):
     return normalizadas
 
 
-def _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids):
+def _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids, turno=None):
+    turno = normalizar_turno(turno)
     conn.execute(
         "DELETE FROM professores_turmas WHERE professor_id = %s",
         (professor_id,),
@@ -72,12 +74,13 @@ def _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids):
             """INSERT INTO professores_turmas (professor_id, turma_id)
                SELECT %s, id
                FROM turmas
-               WHERE id = %s AND escola_id = %s""",
-            (professor_id, turma_id, escola_id),
+               WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (professor_id, turma_id, escola_id, turno),
         )
 
 
-def _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids):
+def _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids, turno=None):
+    turno = normalizar_turno(turno)
     conn.execute(
         "DELETE FROM professores_disciplinas WHERE professor_id = %s",
         (professor_id,),
@@ -88,12 +91,13 @@ def _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina
             """INSERT INTO professores_disciplinas (professor_id, disciplina_id)
                SELECT %s, id
                FROM disciplinas
-               WHERE id = %s AND escola_id = %s""",
-            (professor_id, disciplina_id, escola_id),
+               WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (professor_id, disciplina_id, escola_id, turno),
         )
 
 
-def _sincronizar_cargas_professor(conn, professor_id, escola_id, cargas):
+def _sincronizar_cargas_professor(conn, professor_id, escola_id, cargas, turno=None):
+    turno = normalizar_turno(turno)
     conn.execute(
         "DELETE FROM professores_cargas WHERE professor_id = %s",
         (professor_id,),
@@ -110,13 +114,15 @@ def _sincronizar_cargas_professor(conn, professor_id, escola_id, cargas):
                SELECT %s, t.id, d.id, %s
                FROM turmas t
                JOIN disciplinas d ON d.id = %s AND d.escola_id = t.escola_id
-               WHERE t.id = %s AND t.escola_id = %s""",
+               WHERE t.id = %s AND t.escola_id = %s AND t.turno = %s AND d.turno = %s""",
             (
                 professor_id,
                 carga['aulas_semana'],
                 carga['disciplina_id'],
                 carga['turma_id'],
                 escola_id,
+                turno,
+                turno,
             ),
         )
 
@@ -252,7 +258,8 @@ def _anexar_vinculos(professores):
     return _anexar_cargas(_anexar_turmas(_anexar_disciplinas(professores)))
 
 
-def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None):
+def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None, turno=None):
+    turno = normalizar_turno(turno)
     disciplina_ids = _normalizar_ids(disciplina_ids)
     if not disciplina_ids:
         return False, "Selecione pelo menos uma disciplina."
@@ -261,13 +268,13 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
     try:
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
         cursor = conn.execute(
-            """INSERT INTO professores (escola_id, nome, cor, disciplina_id, max_aulas_semana, dias_disponiveis)
-               VALUES (%s, %s, %s, %s, %s, %s)""",
-            (escola_id, nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str),
+            """INSERT INTO professores (escola_id, turno, nome, cor, disciplina_id, max_aulas_semana, dias_disponiveis)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (escola_id, turno, nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str),
         )
-        _sincronizar_disciplinas_professor(conn, cursor.lastrowid, escola_id, disciplina_ids)
-        _sincronizar_turmas_professor(conn, cursor.lastrowid, escola_id, turma_ids)
-        _sincronizar_cargas_professor(conn, cursor.lastrowid, escola_id, cargas)
+        _sincronizar_disciplinas_professor(conn, cursor.lastrowid, escola_id, disciplina_ids, turno)
+        _sincronizar_turmas_professor(conn, cursor.lastrowid, escola_id, turma_ids, turno)
+        _sincronizar_cargas_professor(conn, cursor.lastrowid, escola_id, cargas, turno)
         conn.commit()
         return True, "Professor criado com sucesso."
     except Exception as e:
@@ -277,15 +284,16 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
         conn.close()
 
 
-def listar_professores(escola_id):
+def listar_professores(escola_id, turno=None):
+    turno = normalizar_turno(turno)
     conn = get_connection()
     rows = conn.execute(
         """SELECT p.*, d.nome AS disciplina_nome, d.cor AS disciplina_cor
            FROM professores p
            JOIN disciplinas d ON p.disciplina_id = d.id
-           WHERE p.escola_id = %s
+           WHERE p.escola_id = %s AND p.turno = %s
            ORDER BY p.nome""",
-        (escola_id,),
+        (escola_id, turno),
     ).fetchall()
     conn.close()
 
@@ -324,7 +332,8 @@ def buscar_professor(professor_id, escola_id=None):
     return None
 
 
-def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None):
+def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None, turno=None):
+    turno = normalizar_turno(turno)
     disciplina_ids = _normalizar_ids(disciplina_ids)
     if not disciplina_ids:
         raise ValueError("Selecione pelo menos uma disciplina.")
@@ -339,12 +348,12 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
                    disciplina_id = %s,
                    max_aulas_semana = %s,
                    dias_disponiveis = %s
-               WHERE id = %s AND escola_id = %s""",
-            (nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str, professor_id, escola_id),
+               WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str, professor_id, escola_id, turno),
         )
-        _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids)
-        _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids)
-        _sincronizar_cargas_professor(conn, professor_id, escola_id, cargas)
+        _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids, turno)
+        _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids, turno)
+        _sincronizar_cargas_professor(conn, professor_id, escola_id, cargas, turno)
         conn.commit()
     except Exception:
         conn.rollback()

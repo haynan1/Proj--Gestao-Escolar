@@ -6,6 +6,11 @@ const ocupacaoProfessorCache = new Map();
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 
+function getTurnoQuery() {
+    return `turno=${encodeURIComponent(document.body.dataset.turno || 'matutino')}`;
+}
+
+
 function getCurrentTurmaId() {
     return document.body.dataset.turmaId || '';
 }
@@ -56,7 +61,7 @@ async function buscarOcupacaoProfessor(profId) {
     }
 
     const escolaId = document.body.dataset.escolaId;
-    const resp = await fetch(`/escola/${escolaId}/professor/${profId}/ocupacao`);
+    const resp = await fetch(`/escola/${escolaId}/professor/${profId}/ocupacao?${getTurnoQuery()}`);
     const ocupacao = await resp.json();
     ocupacaoProfessorCache.set(String(profId), ocupacao);
     return ocupacao;
@@ -310,7 +315,7 @@ function initDragDrop() {
 
             try {
                 const escolaId = document.body.dataset.escolaId;
-                const resp = await fetch(`/escola/${escolaId}/mover_aula`, {
+                const resp = await fetch(`/escola/${escolaId}/mover_aula?${getTurnoQuery()}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 from database.connection import get_connection
+from models.turno import normalizar_turno
 
 
 def _normalizar_aulas_por_dia(aulas_por_dia):
@@ -9,13 +10,14 @@ def _normalizar_aulas_por_dia(aulas_por_dia):
     return valor if valor in (5, 6) else 5
 
 
-def criar_turma(escola_id, nome, aulas_por_dia=5):
+def criar_turma(escola_id, nome, aulas_por_dia=5, turno=None):
+    turno = normalizar_turno(turno)
     aulas_por_dia = _normalizar_aulas_por_dia(aulas_por_dia)
     conn = get_connection()
     try:
         conn.execute(
-            "INSERT INTO turmas (escola_id, nome, aulas_por_dia) VALUES (%s, %s, %s)",
-            (escola_id, nome, aulas_por_dia)
+            "INSERT INTO turmas (escola_id, turno, nome, aulas_por_dia) VALUES (%s, %s, %s, %s)",
+            (escola_id, turno, nome, aulas_por_dia)
         )
         conn.commit()
         return True, "Turma criada com sucesso."
@@ -25,10 +27,12 @@ def criar_turma(escola_id, nome, aulas_por_dia=5):
         conn.close()
 
 
-def listar_turmas(escola_id):
+def listar_turmas(escola_id, turno=None):
+    turno = normalizar_turno(turno)
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM turmas WHERE escola_id = %s ORDER BY nome", (escola_id,)
+        "SELECT * FROM turmas WHERE escola_id = %s AND turno = %s ORDER BY nome",
+        (escola_id, turno),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

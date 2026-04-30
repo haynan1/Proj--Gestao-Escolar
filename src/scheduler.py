@@ -11,6 +11,7 @@ from models.professor import listar_professores
 from models.turma import listar_turmas
 from models.disciplina import listar_disciplinas
 from models.aula import listar_aulas, salvar_aulas
+from models.turno import normalizar_turno
 
 
 MAX_TENTATIVAS_GRADE = 100
@@ -243,15 +244,16 @@ def _resumir_pendencias(pendencias, turmas):
     return '; '.join(partes)
 
 
-def gerar_horario(escola_id, turma_id_especifica=None):
+def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
     """
     Gera automaticamente a grade de horários para uma escola ou turma específica.
     Retorna (sucesso: bool, mensagem: str, total_aulas: int)
     """
-    professores = listar_professores(escola_id)
-    todas_turmas = listar_turmas(escola_id)
-    disciplinas = listar_disciplinas(escola_id)
-    aulas_existentes = listar_aulas(escola_id) if turma_id_especifica else []
+    turno = normalizar_turno(turno)
+    professores = listar_professores(escola_id, turno)
+    todas_turmas = listar_turmas(escola_id, turno)
+    disciplinas = listar_disciplinas(escola_id, turno)
+    aulas_existentes = listar_aulas(escola_id, turno) if turma_id_especifica else []
 
     if turma_id_especifica:
         turmas = [t for t in todas_turmas if t['id'] == turma_id_especifica]
@@ -349,5 +351,5 @@ def gerar_horario(escola_id, turma_id_especifica=None):
     if not aulas_geradas:
         return False, "Não foi possível gerar nenhuma aula. Verifique os vínculos entre professores, turmas e disciplinas.", 0
 
-    salvar_aulas(escola_id, aulas_geradas, turma_id_especifica)
+    salvar_aulas(escola_id, aulas_geradas, turma_id_especifica, turno)
     return True, f"Horário gerado com sucesso! {len(aulas_geradas)} aulas distribuídas.", len(aulas_geradas)

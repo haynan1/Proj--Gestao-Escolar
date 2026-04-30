@@ -61,6 +61,7 @@ TABLE_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS disciplinas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
+        turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
         nome VARCHAR(255) NOT NULL,
         cor VARCHAR(20) NULL DEFAULT NULL,
         CONSTRAINT fk_disciplinas_escola
@@ -71,6 +72,7 @@ TABLE_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS professores (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
+        turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
         nome VARCHAR(255) NOT NULL,
         cor VARCHAR(20) NULL DEFAULT NULL,
         disciplina_id INT NOT NULL,
@@ -99,6 +101,7 @@ TABLE_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS turmas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
+        turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
         nome VARCHAR(255) NOT NULL,
         aulas_por_dia INT NOT NULL DEFAULT 5,
         CONSTRAINT fk_turmas_escola
@@ -139,6 +142,7 @@ TABLE_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS aulas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
+        turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
         turma_id INT NOT NULL,
         professor_id INT NOT NULL,
         disciplina_id INT NOT NULL,
@@ -314,6 +318,25 @@ def _ensure_turma_period_columns(cursor):
         cursor.execute(
             "ALTER TABLE turmas ADD COLUMN aulas_por_dia INT NOT NULL DEFAULT 5 AFTER nome"
         )
+
+
+def _ensure_turno_columns(cursor):
+    turno_columns = (
+        ('disciplinas', 'escola_id'),
+        ('turmas', 'escola_id'),
+        ('professores', 'escola_id'),
+        ('aulas', 'escola_id'),
+    )
+    for table_name, after_column in turno_columns:
+        if not _column_exists(cursor, table_name, 'turno'):
+            cursor.execute(
+                f"ALTER TABLE {table_name} "
+                f"ADD COLUMN turno VARCHAR(20) NOT NULL DEFAULT 'matutino' AFTER {after_column}"
+            )
+
+        index_name = f"idx_{table_name}_escola_turno"
+        if not _index_exists(cursor, table_name, index_name):
+            cursor.execute(f"CREATE INDEX {index_name} ON {table_name} (escola_id, turno)")
 
 
 def _ensure_disciplina_color_column(cursor):
@@ -602,6 +625,7 @@ def create_tables():
         _ensure_school_owner_column(conn)
         _ensure_school_backup_columns(conn)
         _ensure_user_school_links(conn)
+        _ensure_turno_columns(conn)
         _ensure_turma_period_columns(conn)
         _ensure_disciplina_color_column(conn)
         _ensure_professor_color_column(conn)

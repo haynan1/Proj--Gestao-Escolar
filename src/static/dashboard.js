@@ -5,6 +5,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     const escolaId = document.body.dataset.escolaId;
+    const turno = document.body.dataset.turno || 'matutino';
+    const turnoQuery = `?turno=${encodeURIComponent(turno)}`;
 
     const syncCargaRows = (form) => {
         const disciplinas = new Set(
@@ -78,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const corInput = document.getElementById('cor-disciplina-edit');
             corInput.value = cor || '';
             corInput.dispatchEvent(new Event('input', { bubbles: true }));
-            document.getElementById('form-disc-edit').action = `/escola/${escolaId}/disciplina/${id}/editar`;
+            document.getElementById('form-disc-edit').action = `/escola/${escolaId}/disciplina/${id}/editar${turnoQuery}`;
             openModal('modal-disc-edit');
         }
 
@@ -115,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.value = cargasMapa[`${input.dataset.turmaId}:${input.dataset.disciplinaId}`] || 0;
             });
 
-            document.getElementById('form-prof-edit').action = `/escola/${escolaId}/professor/${id}/editar`;
+            document.getElementById('form-prof-edit').action = `/escola/${escolaId}/professor/${id}/editar${turnoQuery}`;
             syncCargaRows(form);
             openModal('modal-prof-edit');
         }
@@ -129,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.edit-turma-aulas-dia').forEach(input => {
                 input.checked = input.value === (aulasPorDia || '5');
             });
-            document.getElementById('form-turma-edit').action = `/escola/${escolaId}/turma/${id}/editar`;
+            document.getElementById('form-turma-edit').action = `/escola/${escolaId}/turma/${id}/editar${turnoQuery}`;
             openModal('modal-turma-edit');
         }
     });

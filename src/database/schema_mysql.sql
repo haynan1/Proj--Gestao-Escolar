@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS usuarios_escolas (
 CREATE TABLE IF NOT EXISTS disciplinas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
     nome VARCHAR(255) NOT NULL,
     cor VARCHAR(20) NULL DEFAULT NULL,
     CONSTRAINT fk_disciplinas_escola
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS disciplinas (
 CREATE TABLE IF NOT EXISTS professores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
     nome VARCHAR(255) NOT NULL,
     cor VARCHAR(20) NULL DEFAULT NULL,
     disciplina_id INT NOT NULL,
@@ -77,6 +79,7 @@ CREATE TABLE IF NOT EXISTS professores_disciplinas (
 CREATE TABLE IF NOT EXISTS turmas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
     nome VARCHAR(255) NOT NULL,
     aulas_por_dia INT NOT NULL DEFAULT 5,
     CONSTRAINT fk_turmas_escola
@@ -98,6 +101,7 @@ CREATE TABLE IF NOT EXISTS professores_turmas (
 CREATE TABLE IF NOT EXISTS aulas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
     turma_id INT NOT NULL,
     professor_id INT NOT NULL,
     disciplina_id INT NOT NULL,

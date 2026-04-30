@@ -25,12 +25,12 @@
 </script>
 {% endblock %}
 
-{% block body_attrs %}data-escola-id="{{ escola.id }}"{% endblock %}
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turno="{{ turno_atual }}"{% endblock %}
 
 {% block nav_links %}
 <a href="{{ url_for('escola.home') }}">Início</a>
-<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="active">Dashboard</a>
-<a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}">Horários</a>
+<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}" class="active">Dashboard</a>
+<a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}">Horários</a>
 {% endblock %}
 
 {% set can_manage_resources = has_permission('manage_school_resources') %}
@@ -51,6 +51,7 @@
                 {% if escola.oculta %}
                 <span class="backup-hidden-badge">Backup oculto</span>
                 {% endif %}
+                <span class="turno-badge">Turno: {{ turno_atual_label }}</span>
             </div>
             <p class="text-muted text-sm mt-1">
                 {% if can_manage_resources %}
@@ -60,10 +61,19 @@
                 {% endif %}
             </p>
         </div>
-        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="btn btn-primary">
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}" class="btn btn-primary">
             Gerar e ver horários de aulas
         </a>
     </div>
+
+    <nav class="turno-switcher" aria-label="Selecionar turno">
+        {% for turno in turnos %}
+        <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno.id) }}"
+            class="turno-switcher-link {% if turno.id == turno_atual %}active{% endif %}">
+            {{ turno.nome }}
+        </a>
+        {% endfor %}
+    </nav>
 
     <div class="stats-grid">
         <div class="stat-card">
@@ -178,7 +188,7 @@
                             {{ edit_icon() }}
                         </button>
                         <form method="POST"
-                            action="{{ url_for('dashboard.deletar_disc', escola_id=escola.id, disc_id=d.id) }}"
+                            action="{{ url_for('dashboard.deletar_disc', escola_id=escola.id, disc_id=d.id, turno=turno_atual) }}"
                             onsubmit="return confirm('Remover disciplina {{ d.nome }}?')">
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Remover">X</button>
@@ -228,7 +238,7 @@
                                         {{ edit_icon() }}
                                     </button>
                                     <form method="POST"
-                                        action="{{ url_for('dashboard.deletar_turm', escola_id=escola.id, turma_id=t.id) }}"
+                                        action="{{ url_for('dashboard.deletar_turm', escola_id=escola.id, turma_id=t.id, turno=turno_atual) }}"
                                         onsubmit="return confirm('Remover turma {{ t.nome }}?')">
                                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-danger btn-sm btn-icon"
@@ -334,7 +344,7 @@
                                     {{ edit_icon() }}
                                 </button>
                                 <form method="POST"
-                                    action="{{ url_for('dashboard.deletar_prof', escola_id=escola.id, prof_id=p.id) }}"
+                                    action="{{ url_for('dashboard.deletar_prof', escola_id=escola.id, prof_id=p.id, turno=turno_atual) }}"
                                     onsubmit="return confirm('Remover professor {{ p.nome }}?')">
                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-danger btn-sm btn-icon"
@@ -369,7 +379,7 @@
             <span class="modal-title">Nova Disciplina</span>
             <button class="modal-close" onclick="closeModal('modal-disc')">x</button>
         </div>
-        <form method="POST" action="{{ url_for('dashboard.criar_disc', escola_id=escola.id) }}">
+        <form method="POST" action="{{ url_for('dashboard.criar_disc', escola_id=escola.id, turno=turno_atual) }}">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label class="form-label">Nome</label>
@@ -438,7 +448,7 @@
             title="Voltar ao topo">
             ↑
         </button>
-        <form method="POST" action="{{ url_for('dashboard.criar_prof', escola_id=escola.id) }}" class="professor-form">
+        <form method="POST" action="{{ url_for('dashboard.criar_prof', escola_id=escola.id, turno=turno_atual) }}" class="professor-form">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="professor-main-grid">
                 <div class="professor-left-stack">
@@ -667,7 +677,7 @@
             <span class="modal-title">Nova Turma</span>
             <button class="modal-close" onclick="closeModal('modal-turma')">x</button>
         </div>
-        <form method="POST" action="{{ url_for('dashboard.criar_turm', escola_id=escola.id) }}">
+        <form method="POST" action="{{ url_for('dashboard.criar_turm', escola_id=escola.id, turno=turno_atual) }}">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label class="form-label">Nome da Turma</label>

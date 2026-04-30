@@ -1,4 +1,5 @@
 from database.connection import get_connection
+from models.turno import normalizar_turno
 from utils.conflitos import DIAS, PERIODOS
 
 
@@ -10,19 +11,23 @@ class ScheduleConflictError(ValueError):
     """Raised when a move would create a logical schedule conflict."""
 
 
-def salvar_aulas(escola_id, aulas, turma_id=None):
+def salvar_aulas(escola_id, aulas, turma_id=None, turno=None):
     """Salva uma lista de aulas no banco. Cada aula é um dict com turma_id, professor_id, disciplina_id, dia, periodo."""
+    turno = normalizar_turno(turno)
     conn = get_connection()
     try:
         if turma_id:
-            conn.execute("DELETE FROM aulas WHERE escola_id = %s AND turma_id = %s", (escola_id, turma_id))
+            conn.execute(
+                "DELETE FROM aulas WHERE escola_id = %s AND turno = %s AND turma_id = %s",
+                (escola_id, turno, turma_id),
+            )
         else:
-            conn.execute("DELETE FROM aulas WHERE escola_id = %s", (escola_id,))
+            conn.execute("DELETE FROM aulas WHERE escola_id = %s AND turno = %s", (escola_id, turno))
         for a in aulas:
             conn.execute(
-                """INSERT INTO aulas (escola_id, turma_id, professor_id, disciplina_id, dia, periodo)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (escola_id, a['turma_id'], a['professor_id'], a['disciplina_id'], a['dia'], a['periodo'])
+                """INSERT INTO aulas (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (escola_id, turno, a['turma_id'], a['professor_id'], a['disciplina_id'], a['dia'], a['periodo'])
             )
         conn.commit()
     except Exception:
@@ -32,34 +37,36 @@ def salvar_aulas(escola_id, aulas, turma_id=None):
         conn.close()
 
 
-def listar_aulas(escola_id):
+def listar_aulas(escola_id, turno=None):
+    turno = normalizar_turno(turno)
     conn = get_connection()
     rows = conn.execute(
         """SELECT a.*, t.nome AS turma_nome, p.nome AS professor_nome,
                   p.cor AS professor_cor,
                   d.nome AS disciplina_nome, d.cor AS disciplina_cor
            FROM aulas a
-           JOIN turmas t ON a.turma_id = t.id
-           JOIN professores p ON a.professor_id = p.id
-           JOIN disciplinas d ON a.disciplina_id = d.id
-           WHERE a.escola_id = %s
+           JOIN turmas t ON a.turma_id = t.id AND t.turno = a.turno
+           JOIN professores p ON a.professor_id = p.id AND p.turno = a.turno
+           JOIN disciplinas d ON a.disciplina_id = d.id AND d.turno = a.turno
+           WHERE a.escola_id = %s AND a.turno = %s
            ORDER BY a.turma_id, a.dia, a.periodo""",
-        (escola_id,)
+        (escola_id, turno)
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
-def limpar_aulas(escola_id, turma_id=None):
+def limpar_aulas(escola_id, turma_id=None, turno=None):
+    turno = normalizar_turno(turno)
     conn = get_connection()
     try:
         if turma_id:
             conn.execute(
-                "DELETE FROM aulas WHERE escola_id = %s AND turma_id = %s",
-                (escola_id, turma_id),
+                "DELETE FROM aulas WHERE escola_id = %s AND turno = %s AND turma_id = %s",
+                (escola_id, turno, turma_id),
             )
         else:
-            conn.execute("DELETE FROM aulas WHERE escola_id = %s", (escola_id,))
+            conn.execute("DELETE FROM aulas WHERE escola_id = %s AND turno = %s", (escola_id, turno))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -131,15 +138,18 @@ def _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id,
             raise ScheduleConflictError("A regra de no máximo 2 aulas seguidas da mesma disciplina seria quebrada.")
 
 
-def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, periodo):
+def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, periodo, turno=None):
+    turno = normalizar_turno(turno)
     if dia not in DIAS:
         raise ScheduleValidationError("Dia inválido para a grade horária.")
 
     conn = get_connection()
     try:
         turma = conn.execute(
-            "SELECT id, COALESCE(aulas_por_dia, 5) AS aulas_por_dia FROM turmas WHERE id = %s AND escola_id = %s",
-            (turma_id, escola_id),
+            """SELECT id, COALESCE(aulas_por_dia, 5) AS aulas_por_dia
+               FROM turmas
+               WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (turma_id, escola_id, turno),
         ).fetchone()
         if not turma:
             raise ScheduleValidationError("Turma não encontrada.")
@@ -155,10 +165,13 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
                WHERE p.escola_id = %s
                  AND t.escola_id = %s
                  AND d.escola_id = %s
+                 AND p.turno = %s
+                 AND t.turno = %s
+                 AND d.turno = %s
                  AND pc.professor_id = %s
                  AND pc.turma_id = %s
                  AND pc.disciplina_id = %s""",
-            (escola_id, escola_id, escola_id, professor_id, turma_id, disciplina_id),
+            (escola_id, escola_id, escola_id, turno, turno, turno, professor_id, turma_id, disciplina_id),
         ).fetchone()
         if not carga:
             raise ScheduleValidationError("Este professor não possui aulas cadastradas para esta turma e disciplina.")
@@ -196,9 +209,9 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
             raise ScheduleConflictError("As aulas cadastradas para este professor já foram preenchidas.")
 
         cursor = conn.execute(
-            """INSERT INTO aulas (escola_id, turma_id, professor_id, disciplina_id, dia, periodo)
-               VALUES (%s, %s, %s, %s, %s, %s)""",
-            (escola_id, turma_id, professor_id, disciplina_id, dia, periodo),
+            """INSERT INTO aulas (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo),
         )
         conn.commit()
         return cursor.lastrowid

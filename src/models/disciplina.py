@@ -1,6 +1,7 @@
 import re
 
 from database.connection import get_connection
+from models.turno import normalizar_turno
 
 
 COR_DISCIPLINA_PADRAO = '#22c55e'
@@ -18,12 +19,13 @@ class DisciplineInUseError(ValueError):
     """Raised when trying to delete a discipline linked to teachers."""
 
 
-def criar_disciplina(escola_id, nome, cor):
+def criar_disciplina(escola_id, nome, cor, turno=None):
+    turno = normalizar_turno(turno)
     conn = get_connection()
     try:
         conn.execute(
-            "INSERT INTO disciplinas (escola_id, nome, cor) VALUES (%s, %s, %s)",
-            (escola_id, nome, _normalizar_cor(cor))
+            "INSERT INTO disciplinas (escola_id, turno, nome, cor) VALUES (%s, %s, %s, %s)",
+            (escola_id, turno, nome, _normalizar_cor(cor))
         )
         conn.commit()
         return True, "Disciplina criada com sucesso."
@@ -33,10 +35,12 @@ def criar_disciplina(escola_id, nome, cor):
         conn.close()
 
 
-def listar_disciplinas(escola_id):
+def listar_disciplinas(escola_id, turno=None):
+    turno = normalizar_turno(turno)
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM disciplinas WHERE escola_id = %s ORDER BY nome", (escola_id,)
+        "SELECT * FROM disciplinas WHERE escola_id = %s AND turno = %s ORDER BY nome",
+        (escola_id, turno),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

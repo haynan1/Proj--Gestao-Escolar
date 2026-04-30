@@ -6,12 +6,12 @@
 <link rel="stylesheet" href="{{ static_url('horario-grade.css') }}" />
 {% endblock %}
 
-{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turma-id="{{ turma_selecionada_id }}" data-schedule-view="{{ view_mode }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turno="{{ turno_atual }}" data-turma-id="{{ turma_selecionada_id }}" data-schedule-view="{{ view_mode }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
 
 {% block nav_links %}
 <a href="{{ url_for('escola.home') }}">Início</a>
-<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}">Dashboard</a>
-<a href="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="active">Horários</a>
+<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}">Dashboard</a>
+<a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}" class="active">Horários</a>
 {% endblock %}
 
 {% set can_manage_schedule = has_permission('manage_schedule') %}
@@ -26,19 +26,20 @@
                 {% if escola.oculta %}
                 <span class="backup-hidden-badge">Backup oculto</span>
                 {% endif %}
+                <span class="turno-badge">Turno: {{ turno_atual_label }}</span>
             </div>
             <p class="text-muted text-sm mt-1">{{ escola.nome }}</p>
         </div>
         <div class="export-bar">
             {% if can_manage_schedule %}
-            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id) }}"
-                onsubmit="return confirm('Gerar novo horário para esta turma? O horário atual desta turma será substituído.')">
+            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
+                onsubmit="return confirm('Gerar novo horário para esta turma do turno {{ turno_atual_label }}? O horário atual desta turma será substituído.')">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
                 <button type="submit" class="btn btn-primary">Gerar Horário da Turma</button>
             </form>
-            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id) }}"
-                onsubmit="return confirm('Gerar novo horário para todas as turmas? Todos os horários atuais serão substituídos.')">
+            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
+                onsubmit="return confirm('Gerar novo horário para todas as turmas do turno {{ turno_atual_label }}? Todos os horários atuais deste turno serão substituídos.')">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
             </form>
@@ -50,13 +51,13 @@
                 </button>
                 <div class="schedule-export-menu" role="menu">
                     <span>Exportar Excel com</span>
-                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, color_mode='disciplina') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, turno=turno_atual, color_mode='disciplina') }}" role="menuitem">
                         Cores das disciplinas
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, color_mode='professor') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, turno=turno_atual, color_mode='professor') }}" role="menuitem">
                         Cores dos professores
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, color_mode='none') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, turno=turno_atual, color_mode='none') }}" role="menuitem">
                         Sem cores
                     </a>
                 </div>
@@ -67,23 +68,23 @@
                 </button>
                 <div class="schedule-export-menu" role="menu">
                     <span>PDF por turma</span>
-                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, color_mode='disciplina') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, turno=turno_atual, color_mode='disciplina') }}" role="menuitem">
                         Cores das disciplinas
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, color_mode='professor') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, turno=turno_atual, color_mode='professor') }}" role="menuitem">
                         Cores dos professores
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, color_mode='none') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, turno=turno_atual, color_mode='none') }}" role="menuitem">
                         Sem cores
                     </a>
                     <span class="schedule-export-menu-section">Todas em 1 pagina</span>
-                    <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, color_mode='none') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, turno=turno_atual, color_mode='none') }}" role="menuitem">
                         Sem cores
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, color_mode='disciplina') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, turno=turno_atual, color_mode='disciplina') }}" role="menuitem">
                         Cores das disciplinas
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, color_mode='professor') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, turno=turno_atual, color_mode='professor') }}" role="menuitem">
                         Cores dos professores
                     </a>
                 </div>
@@ -92,23 +93,32 @@
         </div>
     </div>
 
+    <nav class="turno-switcher" aria-label="Selecionar turno">
+        {% for turno in turnos %}
+        <a href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno.id, view='geral') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno.id, turma_id=turma_selecionada_id) }}{% endif %}"
+            class="turno-switcher-link {% if turno.id == turno_atual %}active{% endif %}">
+            {{ turno.nome }}
+        </a>
+        {% endfor %}
+    </nav>
+
     {% if not turmas %}
     <div class="card card-horarios-empty">
         <div class="card-horarios-empty-icon">T</div>
         <p class="text-muted">Nenhuma turma cadastrada.</p>
-        <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id) }}" class="btn btn-primary mt-2">
+        <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}" class="btn btn-primary mt-2">
             Ir ao Dashboard
         </a>
     </div>
     {% else %}
     <div class="turma-tabs">
-        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, view='geral') }}"
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral') }}"
             class="turma-tab turma-tab-fixed {% if view_mode == 'geral' %}active{% endif %}">
             Todas as turmas
         </a>
         <div class="turma-tabs-scroll">
         {% for turma in turmas %}
-        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turma_id=turma.id) }}"
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma.id) }}"
             class="turma-tab {% if view_mode != 'geral' and turma.id == turma_selecionada_id %}active{% endif %}">
             {{ turma.nome }}
         </a>
@@ -124,9 +134,9 @@
                 <div class="icon icon-purple">T</div>
                 Todas as turmas
                 {% if can_manage_schedule %}
-                <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id) }}"
+                <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id, turno=turno_atual) }}"
                     class="schedule-clear-form schedule-clear-form-inline"
-                    onsubmit="return confirm(this.limpar_alvo.value === 'todas' ? 'Limpar os horários de todas as turmas?' : 'Limpar os horários da turma selecionada?')">
+                    onsubmit="return confirm(this.limpar_alvo.value === 'todas' ? 'Limpar os horários de todas as turmas do turno {{ turno_atual_label }}?' : 'Limpar os horários da turma selecionada no turno {{ turno_atual_label }}?')">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <select class="schedule-clear-select" name="limpar_alvo" aria-label="Escolha o que limpar">
                         <option value="todas">Todas as turmas</option>
@@ -392,7 +402,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}`;
+        const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
         const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
@@ -574,7 +584,8 @@
 
             try {
                 const escolaId = document.body.dataset.escolaId;
-                const resp = await fetch(`/escola/${escolaId}/horarios/manual`, {
+                const turno = document.body.dataset.turno || 'matutino';
+                const resp = await fetch(`/escola/${escolaId}/horarios/manual?turno=${encodeURIComponent(turno)}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
