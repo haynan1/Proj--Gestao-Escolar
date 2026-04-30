@@ -169,6 +169,7 @@
 
     body[data-escola-id] #modal-prof .modal-professor,
     body[data-escola-id] #modal-prof-edit .modal-professor {
+        position: relative !important;
         display: flex !important;
         flex-direction: column !important;
         width: min(98vw, 720px) !important;
@@ -208,6 +209,31 @@
         height: 44px !important;
         min-height: 44px !important;
         flex: 0 0 44px !important;
+    }
+
+    body[data-escola-id] #modal-prof .mobile-modal-scroll-top,
+    body[data-escola-id] #modal-prof-edit .mobile-modal-scroll-top {
+        position: absolute !important;
+        right: 0.85rem !important;
+        bottom: calc(5.15rem + env(safe-area-inset-bottom, 0px)) !important;
+        z-index: 8 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: #22c55e !important;
+        color: #0f172a !important;
+        box-shadow: none !important;
+        cursor: pointer !important;
+        font-size: 1.2rem !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
     }
 
     body[data-escola-id] #modal-prof .professor-form,
@@ -578,6 +604,12 @@
         min-width: 0 !important;
         min-height: 44px !important;
         justify-content: center !important;
+    }
+}
+
+@media (min-width: 769px) {
+    .mobile-modal-scroll-top {
+        display: none !important;
     }
 }
 
