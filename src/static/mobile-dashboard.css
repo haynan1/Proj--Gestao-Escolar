@@ -1,0 +1,621 @@
+@media (max-width: 768px) {
+    body[data-escola-id],
+    body[data-escola-id] * {
+        box-sizing: border-box;
+    }
+
+    body[data-escola-id] {
+        overflow-x: hidden;
+    }
+
+    body[data-escola-id] .container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: clip;
+    }
+
+    body[data-escola-id] .professores-panel {
+        overflow: hidden;
+    }
+
+    body[data-escola-id] .professores-panel .card-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.9rem;
+    }
+
+    body[data-escola-id] .professores-panel .card-header .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    body[data-escola-id] .professores-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow: visible;
+    }
+
+    body[data-escola-id] .professores-table,
+    body[data-escola-id] .professores-table tbody,
+    body[data-escola-id] .professores-table tr,
+    body[data-escola-id] .professores-table td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    body[data-escola-id] .professores-table {
+        min-width: 0;
+        table-layout: auto;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    body[data-escola-id] .professores-table thead {
+        display: none;
+    }
+
+    body[data-escola-id] .professores-table tr {
+        padding: 0.85rem;
+        margin-bottom: 0.85rem;
+        overflow: hidden;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+    }
+
+    body[data-escola-id] .professores-table td {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        overflow-wrap: anywhere;
+    }
+
+    body[data-escola-id] .professores-table td:last-child {
+        padding-bottom: 0;
+        border-bottom: 0;
+    }
+
+    body[data-escola-id] .professores-table td::before {
+        content: attr(data-label);
+        color: var(--text-muted);
+        font-size: 0.76rem;
+        font-weight: 800;
+        line-height: 1.2;
+        text-transform: uppercase;
+    }
+
+    body[data-escola-id] .professores-table td[data-label="Nome"]::before,
+    body[data-escola-id] .professores-table td[data-label="Ações"]::before,
+    body[data-escola-id] .professores-table td[data-label="AÃ§Ãµes"]::before {
+        display: none;
+    }
+
+    body[data-escola-id] .professor-identity {
+        align-items: center;
+        gap: 0.65rem;
+        min-height: 32px;
+    }
+
+    body[data-escola-id] .professor-identity .professor-name {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        font-size: 1rem;
+        line-height: 1.25;
+    }
+
+    body[data-escola-id] .professor-badges,
+    body[data-escola-id] .carga-resumo {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+
+    body[data-escola-id] .professor-badges .badge,
+    body[data-escola-id] .carga-resumo span {
+        max-width: 100%;
+        min-height: 32px;
+        border-radius: 8px;
+        line-height: 1.25;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    body[data-escola-id] .professor-turmas {
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    body[data-escola-id] .professores-actions {
+        display: flex;
+        align-items: stretch;
+        justify-content: stretch;
+        gap: 0.65rem;
+        width: 100%;
+    }
+
+    body[data-escola-id] .professores-actions form {
+        display: flex;
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    body[data-escola-id] .professores-actions .btn {
+        flex: 1 1 0;
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    body[data-escola-id]:has(#modal-prof.active),
+    body[data-escola-id]:has(#modal-prof-edit.active) {
+        overflow: hidden;
+    }
+
+    body[data-escola-id] #modal-prof.active,
+    body[data-escola-id] #modal-prof-edit.active {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0.5rem !important;
+        overflow: hidden !important;
+    }
+
+    body[data-escola-id] #modal-prof .modal-professor,
+    body[data-escola-id] #modal-prof-edit .modal-professor {
+        display: flex !important;
+        flex-direction: column !important;
+        width: min(98vw, 720px) !important;
+        max-width: 98vw !important;
+        height: calc(100dvh - 1rem) !important;
+        max-height: calc(100dvh - 1rem) !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        border-radius: 12px !important;
+    }
+
+    body[data-escola-id] #modal-prof .modal-header,
+    body[data-escola-id] #modal-prof-edit .modal-header {
+        display: flex !important;
+        flex: 0 0 auto !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 1rem !important;
+        background: var(--bg2) !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18) !important;
+    }
+
+    body[data-escola-id] #modal-prof .modal-title,
+    body[data-escola-id] #modal-prof-edit .modal-title {
+        min-width: 0 !important;
+        font-size: 1rem !important;
+        line-height: 1.2 !important;
+    }
+
+    body[data-escola-id] #modal-prof .modal-close,
+    body[data-escola-id] #modal-prof-edit .modal-close {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        flex: 0 0 44px !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-form,
+    body[data-escola-id] #modal-prof-edit .professor-form {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        overflow: hidden !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-main-grid,
+    body[data-escola-id] #modal-prof-edit .professor-main-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1rem !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        flex: 1 1 auto !important;
+        padding: 1rem !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        scrollbar-gutter: stable !important;
+        overscroll-behavior: contain !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin !important;
+        scrollbar-color: #64748b rgba(15, 23, 42, 0.2) !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-main-grid::-webkit-scrollbar,
+    body[data-escola-id] #modal-prof-edit .professor-main-grid::-webkit-scrollbar,
+    body[data-escola-id] #modal-prof .professor-chip-grid::-webkit-scrollbar,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid::-webkit-scrollbar,
+    body[data-escola-id] #modal-prof .carga-grid::-webkit-scrollbar,
+    body[data-escola-id] #modal-prof-edit .carga-grid::-webkit-scrollbar {
+        width: 8px !important;
+        height: 8px !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-main-grid::-webkit-scrollbar-track,
+    body[data-escola-id] #modal-prof-edit .professor-main-grid::-webkit-scrollbar-track,
+    body[data-escola-id] #modal-prof .professor-chip-grid::-webkit-scrollbar-track,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid::-webkit-scrollbar-track,
+    body[data-escola-id] #modal-prof .carga-grid::-webkit-scrollbar-track,
+    body[data-escola-id] #modal-prof-edit .carga-grid::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.18) !important;
+        border-radius: 999px !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-main-grid::-webkit-scrollbar-thumb,
+    body[data-escola-id] #modal-prof-edit .professor-main-grid::-webkit-scrollbar-thumb,
+    body[data-escola-id] #modal-prof .professor-chip-grid::-webkit-scrollbar-thumb,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid::-webkit-scrollbar-thumb,
+    body[data-escola-id] #modal-prof .carga-grid::-webkit-scrollbar-thumb,
+    body[data-escola-id] #modal-prof-edit .carga-grid::-webkit-scrollbar-thumb {
+        background: #64748b !important;
+        border-radius: 999px !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-left-stack,
+    body[data-escola-id] #modal-prof-edit .professor-left-stack {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 0 0 auto !important;
+        gap: 0.85rem !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-identity-panel,
+    body[data-escola-id] #modal-prof-edit .professor-identity-panel {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        background: transparent !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-disciplines-group,
+    body[data-escola-id] #modal-prof .professor-classes-group,
+    body[data-escola-id] #modal-prof .professor-days-group,
+    body[data-escola-id] #modal-prof .professor-load-panel,
+    body[data-escola-id] #modal-prof-edit .professor-disciplines-group,
+    body[data-escola-id] #modal-prof-edit .professor-classes-group,
+    body[data-escola-id] #modal-prof-edit .professor-days-group,
+    body[data-escola-id] #modal-prof-edit .professor-load-panel {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 1rem !important;
+        overflow: hidden !important;
+        background: rgba(15, 23, 42, 0.2) !important;
+        border: 1px solid rgba(148, 163, 184, 0.2) !important;
+        border-radius: 12px !important;
+        flex: 0 0 auto !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-identity-panel,
+    body[data-escola-id] #modal-prof-edit .professor-identity-panel {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-name-group,
+    body[data-escola-id] #modal-prof .professor-color-group,
+    body[data-escola-id] #modal-prof-edit .professor-name-group,
+    body[data-escola-id] #modal-prof-edit .professor-color-group {
+        display: block !important;
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    body[data-escola-id] #modal-prof .form-label,
+    body[data-escola-id] #modal-prof-edit .form-label {
+        display: block !important;
+        margin: 0 0 0.75rem !important;
+        color: #bfdbfe !important;
+        font-size: 0.84rem !important;
+        font-weight: 800 !important;
+        line-height: 1.2 !important;
+    }
+
+    body[data-escola-id] #modal-prof .form-control,
+    body[data-escola-id] #modal-prof-edit .form-control {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 44px !important;
+    }
+
+    body[data-escola-id] #modal-prof .color-picker-wrap,
+    body[data-escola-id] #modal-prof-edit .color-picker-wrap {
+        display: grid !important;
+        grid-template-columns: 44px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+    }
+
+    body[data-escola-id] #modal-prof .color-current-control,
+    body[data-escola-id] #modal-prof-edit .color-current-control {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        min-height: 44px !important;
+    }
+
+    body[data-escola-id] #modal-prof .dashboard-swatches.color-swatch-grid,
+    body[data-escola-id] #modal-prof-edit .dashboard-swatches.color-swatch-grid {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 0.45rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        height: 40px !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        padding: 0.1rem 0.05rem 0.3rem !important;
+    }
+
+    body[data-escola-id] #modal-prof .color-swatch,
+    body[data-escola-id] #modal-prof-edit .color-swatch {
+        width: 30px !important;
+        min-width: 30px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        flex: 0 0 30px !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-chip-grid,
+    body[data-escola-id] #modal-prof .professor-chip-grid-lg,
+    body[data-escola-id] #modal-prof .professor-chip-grid-compact,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid-lg,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid-compact {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 0.55rem !important;
+        width: 100% !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+        scrollbar-gutter: auto !important;
+    }
+
+    body[data-escola-id] #modal-prof .dia-chip,
+    body[data-escola-id] #modal-prof-edit .dia-chip {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 46px !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0.65rem 0.8rem !important;
+        border-radius: 8px !important;
+        border-color: rgba(148, 163, 184, 0.24) !important;
+        background: rgba(30, 41, 59, 0.78) !important;
+        font-size: 0.86rem !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    body[data-escola-id] #modal-prof .dia-chip:has(input:checked),
+    body[data-escola-id] #modal-prof-edit .dia-chip:has(input:checked) {
+        background: rgba(34, 197, 94, 0.18) !important;
+        border-color: rgba(34, 197, 94, 0.9) !important;
+        color: #86efac !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-load-panel,
+    body[data-escola-id] #modal-prof-edit .professor-load-panel {
+        flex: 0 0 auto !important;
+        overflow: hidden !important;
+    }
+
+    body[data-escola-id] #modal-prof .carga-grid,
+    body[data-escola-id] #modal-prof-edit .carga-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 360px !important;
+        max-height: 58dvh !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        border-radius: 8px !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin !important;
+        scrollbar-color: #64748b rgba(15, 23, 42, 0.2) !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: auto !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table colgroup,
+    body[data-escola-id] #modal-prof .professor-carga-table thead,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table colgroup,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table thead {
+        display: none !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table tbody,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table tbody {
+        display: grid !important;
+        gap: 0.5rem !important;
+        padding: 0.5rem !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table tr,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table tr {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 88px !important;
+        gap: 0.4rem 0.75rem !important;
+        min-height: 0 !important;
+        padding: 0.75rem !important;
+        border: 1px solid rgba(148, 163, 184, 0.16) !important;
+        border-radius: 8px !important;
+        background: rgba(15, 23, 42, 0.2) !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table tr[hidden],
+    body[data-escola-id] #modal-prof-edit .professor-carga-table tr[hidden] {
+        display: none !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table td,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td {
+        display: block !important;
+        min-width: 0 !important;
+        height: auto !important;
+        padding: 0 !important;
+        border: 0 !important;
+        color: var(--text) !important;
+        line-height: 1.25 !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table td:nth-child(1),
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td:nth-child(1) {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        font-weight: 800 !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table td:nth-child(2),
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td:nth-child(2) {
+        grid-column: 1 !important;
+        grid-row: 2 !important;
+        color: var(--text-muted) !important;
+        font-weight: 600 !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table td:nth-child(3),
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td:nth-child(3) {
+        grid-column: 2 !important;
+        grid-row: 1 / span 2 !important;
+        align-self: center !important;
+    }
+
+    body[data-escola-id] #modal-prof .carga-input,
+    body[data-escola-id] #modal-prof-edit .carga-input {
+        width: 100% !important;
+        max-width: none !important;
+        min-height: 44px !important;
+        text-align: center !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-aulas-hint,
+    body[data-escola-id] #modal-prof-edit .professor-aulas-hint {
+        display: block !important;
+        margin: 0.55rem 0 0 !important;
+        font-size: 0.82rem !important;
+        line-height: 1.35 !important;
+    }
+
+    body[data-escola-id] #modal-prof .modal-actions-sticky,
+    body[data-escola-id] #modal-prof-edit .modal-actions-sticky {
+        display: flex !important;
+        flex: 0 0 auto !important;
+        flex-wrap: wrap !important;
+        gap: 0.65rem !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0.8rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+        border-top: 1px solid rgba(148, 163, 184, 0.18) !important;
+        background: var(--bg2) !important;
+        box-shadow: 0 -12px 24px rgba(15, 23, 42, 0.22) !important;
+    }
+
+    body[data-escola-id] #modal-prof .modal-actions-sticky .btn,
+    body[data-escola-id] #modal-prof-edit .modal-actions-sticky .btn {
+        flex: 1 1 150px !important;
+        width: auto !important;
+        min-width: 0 !important;
+        min-height: 44px !important;
+        justify-content: center !important;
+    }
+}
+
+@media (max-width: 380px) {
+    body[data-escola-id] #modal-prof .professor-chip-grid,
+    body[data-escola-id] #modal-prof .professor-chip-grid-lg,
+    body[data-escola-id] #modal-prof .professor-chip-grid-compact,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid-lg,
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid-compact {
+        grid-template-columns: 1fr !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table tr,
+    body[data-escola-id] #modal-prof-edit .professor-carga-table tr {
+        grid-template-columns: 1fr !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-carga-table td:nth-child(1),
+    body[data-escola-id] #modal-prof .professor-carga-table td:nth-child(2),
+    body[data-escola-id] #modal-prof .professor-carga-table td:nth-child(3),
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td:nth-child(1),
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td:nth-child(2),
+    body[data-escola-id] #modal-prof-edit .professor-carga-table td:nth-child(3) {
+        grid-column: auto !important;
+        grid-row: auto !important;
+    }
+}
+
+@media (min-width: 415px) and (max-width: 768px) {
+    body[data-escola-id] .professores-actions .btn::after {
+        margin-left: 0.35rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+
+    body[data-escola-id] .professores-actions .btn-edit-prof::after {
+        content: "Editar";
+    }
+
+    body[data-escola-id] .professores-actions .btn-danger::after {
+        content: "Excluir";
+    }
+}
