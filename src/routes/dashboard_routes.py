@@ -21,6 +21,8 @@ from exports.pdf_export import exportar_pdf, exportar_pdf_matriz
 from models.aula import (
     ScheduleConflictError,
     ScheduleValidationError,
+    criar_aula_manual,
+    limpar_aulas,
     listar_aulas,
     mover_aula,
 )
@@ -171,6 +173,38 @@ def _calcular_max_aulas_professor(cargas, fallback=10):
     return total if total > 0 else fallback
 
 
+def _build_manual_options(turmas, professores, aulas):
+    aulas_por_chave = {}
+    for aula in aulas:
+        chave = (aula['turma_id'], aula['professor_id'], aula['disciplina_id'])
+        aulas_por_chave[chave] = aulas_por_chave.get(chave, 0) + 1
+
+    opcoes = {str(turma['id']): [] for turma in turmas}
+    for professor in professores:
+        for carga in professor.get('cargas_lista', []):
+            total = int(carga.get('aulas_semana') or 0)
+            chave = (carga['turma_id'], professor['id'], carga['disciplina_id'])
+            usadas = aulas_por_chave.get(chave, 0)
+            faltam = max(0, total - usadas)
+            if faltam <= 0:
+                continue
+
+            opcoes.setdefault(str(carga['turma_id']), []).append({
+                'professor_id': professor['id'],
+                'professor_nome': professor['nome'],
+                'disciplina_id': carga['disciplina_id'],
+                'disciplina_nome': carga['disciplina_nome'],
+                'disciplina_cor': carga.get('disciplina_cor') or '',
+                'faltam': faltam,
+                'total': total,
+                'dias': professor.get('dias_lista', []),
+            })
+
+    for turma_opcoes in opcoes.values():
+        turma_opcoes.sort(key=lambda item: (item['disciplina_nome'], item['professor_nome']))
+    return opcoes
+
+
 def _load_accessible_escola(escola_id):
     return buscar_escola(escola_id, user=g.user)
 
@@ -179,8 +213,8 @@ def _guard_school(escola_id, permission='view_school', json_response=False):
     escola = _load_accessible_escola(escola_id)
     if not escola:
         if json_response:
-            return None, _json_error('Escola nao encontrada.', status_code=404, code='school_not_found')
-        flash('Escola nao encontrada.', 'error')
+            return None, _json_error('Escola não encontrada.', status_code=404, code='school_not_found')
+        flash('Escola não encontrada.', 'error')
         return None, redirect(url_for('escola.home'))
 
     if not user_has_permission(g.user, permission):
@@ -225,7 +259,7 @@ def criar_disc(escola_id):
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '#22c55e').strip()
     if not nome:
-        flash('Nome da disciplina e obrigatorio.', 'error')
+        flash('Nome da disciplina é obrigatório.', 'error')
     else:
         sucesso, msg = criar_disciplina(escola['id'], nome, cor)
         flash(msg, 'success' if sucesso else 'error')
@@ -281,9 +315,9 @@ def criar_prof(escola_id):
         str(carga['turma_id']) for carga in cargas
     ]))
     if not nome or not disciplina_ids:
-        flash('Nome e pelo menos uma disciplina sao obrigatorios.', 'error')
+        flash('Nome e pelo menos uma disciplina são obrigatórios.', 'error')
     elif not dias:
-        flash('Selecione pelo menos um dia disponivel.', 'error')
+        flash('Selecione pelo menos um dia disponível.', 'error')
     elif not turma_ids:
         flash('Selecione pelo menos uma turma para vincular ao professor.', 'error')
     else:
@@ -343,7 +377,7 @@ def criar_turm(escola_id):
     nome = request.form.get('nome', '').strip()
     aulas_por_dia = request.form.get('aulas_por_dia', 5)
     if not nome:
-        flash('Nome da turma e obrigatorio.', 'error')
+        flash('Nome da turma é obrigatório.', 'error')
     else:
         sucesso, msg = criar_turma(escola['id'], nome, aulas_por_dia)
         flash(msg, 'success' if sucesso else 'error')
@@ -406,6 +440,9 @@ def horarios(escola_id):
         turma_selecionada_id = turmas[0]['id']
     turma_selecionada = next((turma for turma in turmas if turma['id'] == turma_selecionada_id), None)
     periodos_turma = list(range(1, int((turma_selecionada or {}).get('aulas_por_dia') or 5) + 1))
+    view_mode = request.args.get('view', 'turma')
+    if view_mode != 'geral':
+        view_mode = 'turma'
 
     return render_template(
         'horarios.html',
@@ -418,6 +455,8 @@ def horarios(escola_id):
         dias=DIAS_SEMANA,
         periodos=periodos_turma,
         turma_selecionada_id=turma_selecionada_id,
+        manual_options=_build_manual_options(turmas, professores, aulas),
+        view_mode=view_mode,
     )
 
 
@@ -433,19 +472,79 @@ def gerar(escola_id):
         sucesso, msg, total = gerar_horario(escola['id'], turma_id)
     except Exception:
         current_app.logger.exception(
-            'Erro inesperado ao gerar horario da escola %s, turma %s.',
+            'Erro inesperado ao gerar horário da escola %s, turma %s.',
             escola['id'],
             turma_id,
         )
         sucesso = False
         msg = (
-            'Nao foi possivel gerar o horario agora. '
-            'Verifique se as cargas, professores e turmas estao consistentes e tente novamente.'
+            'Não foi possível gerar o horário agora. '
+            'Verifique se as aulas, professores e turmas estão consistentes e tente novamente.'
         )
     flash(msg, 'success' if sucesso else 'error')
     if turma_id:
         return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
     return redirect(url_for('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/limpar', methods=['POST'])
+@login_required
+def limpar_horarios(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    alvo = request.form.get('limpar_alvo', 'todas')
+    limpar_turma_id = None
+    if alvo != 'todas':
+        try:
+            limpar_turma_id = int(alvo)
+        except (TypeError, ValueError):
+            flash('Selecione uma turma válida para limpar.', 'error')
+            return redirect(url_for('dashboard.horarios', escola_id=escola_id, view='geral'))
+    try:
+        limpar_aulas(escola['id'], limpar_turma_id)
+        flash(
+            'Horários da turma limpos.' if limpar_turma_id else 'Horários de todas as turmas limpos.',
+            'success',
+        )
+    except Exception:
+        current_app.logger.exception('Erro ao limpar horários da escola %s.', escola['id'])
+        flash('Não foi possível limpar os horários agora.', 'error')
+
+    if limpar_turma_id:
+        return redirect(url_for('dashboard.horarios', escola_id=escola_id, turma_id=limpar_turma_id))
+    return redirect(url_for('dashboard.horarios', escola_id=escola_id, view='geral'))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/manual', methods=['POST'])
+@login_required
+def criar_manual(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule', json_response=True)
+    if failure:
+        return failure
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return _json_error('Corpo da requisição inválido.', code='invalid_payload')
+
+    try:
+        aula_id = criar_aula_manual(
+            escola['id'],
+            int(data.get('turma_id')),
+            int(data.get('professor_id')),
+            int(data.get('disciplina_id')),
+            str(data.get('dia')),
+            int(data.get('periodo')),
+        )
+    except ScheduleConflictError as exc:
+        return _json_error(str(exc), code='schedule_conflict')
+    except ScheduleValidationError as exc:
+        return _json_error(str(exc), code='schedule_validation')
+    except (TypeError, ValueError):
+        return _json_error('Dados obrigatórios inválidos.', code='invalid_payload')
+
+    return jsonify({'status': 'ok', 'aula_id': aula_id})
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/mover_aula', methods=['POST'])
@@ -457,14 +556,14 @@ def mover(escola_id):
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
-        return _json_error('Corpo da requisicao invalido.', code='invalid_payload')
+        return _json_error('Corpo da requisição inválido.', code='invalid_payload')
 
     aula_id = data.get('aula_id')
     novo_dia = data.get('dia')
     novo_periodo = data.get('periodo')
 
     if aula_id is None or novo_dia is None or novo_periodo is None:
-        return _json_error('Dados obrigatorios ausentes.', code='invalid_payload')
+        return _json_error('Dados obrigatórios ausentes.', code='invalid_payload')
 
     try:
         resultado = mover_aula(int(aula_id), str(novo_dia), int(novo_periodo), escola_id=escola['id'])
@@ -473,7 +572,7 @@ def mover(escola_id):
     except ScheduleValidationError as exc:
         return _json_error(str(exc), code='schedule_validation')
     except ValueError:
-        return _json_error('IDs e periodos devem ser numericos.', code='invalid_payload')
+        return _json_error('IDs e períodos devem ser numéricos.', code='invalid_payload')
 
     return jsonify({'status': 'ok', **(resultado or {})})
 

@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ static_url('horario-grade.css') }}" />
 {% endblock %}
 
-{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turma-id="{{ turma_selecionada_id }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turma-id="{{ turma_selecionada_id }}" data-schedule-view="{{ view_mode }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
 
 {% block nav_links %}
 <a href="{{ url_for('escola.home') }}">Início</a>
@@ -102,16 +102,107 @@
     </div>
     {% else %}
     <div class="turma-tabs">
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, view='geral') }}"
+            class="turma-tab turma-tab-fixed {% if view_mode == 'geral' %}active{% endif %}">
+            Todas as turmas
+        </a>
         {% for turma in turmas %}
         <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turma_id=turma.id) }}"
-            class="turma-tab {% if turma.id == turma_selecionada_id %}active{% endif %}">
+            class="turma-tab {% if view_mode != 'geral' and turma.id == turma_selecionada_id %}active{% endif %}">
             {{ turma.nome }}
         </a>
         {% endfor %}
     </div>
 
     {% set turma_atual = turmas | selectattr('id', 'equalto', turma_selecionada_id) | first %}
-    {% if turma_atual %}
+    {% if view_mode == 'geral' %}
+    <div class="card schedule-all-card">
+        <div class="card-header">
+            <div class="card-title">
+                <div class="icon icon-purple">T</div>
+                Todas as turmas
+                {% if can_manage_schedule %}
+                <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id) }}"
+                    class="schedule-clear-form schedule-clear-form-inline"
+                    onsubmit="return confirm(this.limpar_alvo.value === 'todas' ? 'Limpar os horários de todas as turmas?' : 'Limpar os horários da turma selecionada?')">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <select class="schedule-clear-select" name="limpar_alvo" aria-label="Escolha o que limpar">
+                        <option value="todas">Todas as turmas</option>
+                        {% for turma_limpar in turmas %}
+                        <option value="{{ turma_limpar.id }}">{{ turma_limpar.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-danger">Limpar</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="horarios-card-meta">
+                <span class="schedule-period-badge">Modo manual</span>
+            </div>
+        </div>
+
+        <div class="schedule-all-scroll">
+            {% for turma in turmas %}
+            {% set periodos_geral = range(1, (turma.aulas_por_dia or 5) + 1) %}
+            <section class="schedule-class-block">
+                <div class="schedule-class-title">
+                    <strong>{{ turma.nome }}</strong>
+                    <span>{{ turma.aulas_por_dia or 5 }} aulas por dia</span>
+                </div>
+                <div class="grade-container">
+                    <table class="grade-table schedule-compact-table">
+                        <thead>
+                            <tr>
+                                <th style="min-width:90px;">Dia / Período</th>
+                                {% for p in periodos_geral %}
+                                <th>{{ p }}º Período</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dia in dias %}
+                            <tr>
+                                <th class="dia-header dia-header-cell">{{ dia }}</th>
+                                {% for p in periodos_geral %}
+                                {% set aula = grade[turma.id][dia][p] %}
+                                <td>
+                                    <div class="grade-cell {% if not aula %}empty{% endif %}"
+                                        data-turma-id="{{ turma.id }}"
+                                        data-turma-nome="{{ turma.nome }}"
+                                        data-dia="{{ dia }}"
+                                        data-periodo="{{ p }}">
+                                        {% if aula %}
+                                        <div class="aula-card aula-card-dynamic"
+                                            data-aula-id="{{ aula.id }}"
+                                            data-professor-id="{{ aula.professor_id }}"
+                                            data-professor-nome="{{ aula.professor_nome }}"
+                                            data-color="{{ aula.disciplina_cor or '' }}"
+                                            data-disciplina-color="{{ aula.disciplina_cor or '' }}"
+                                            data-professor-color="{{ aula.professor_cor or '' }}">
+                                            <div class="disc-nome">{{ aula.disciplina_nome }}</div>
+                                            <div class="prof-nome text-muted">{{ aula.professor_nome }}</div>
+                                        </div>
+                                        {% elif can_manage_schedule %}
+                                        <button type="button" class="manual-slot-add"
+                                            data-manual-slot
+                                            data-turma-id="{{ turma.id }}"
+                                            data-turma-nome="{{ turma.nome }}"
+                                            data-dia="{{ dia }}"
+                                            data-periodo="{{ p }}">+</button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+    </div>
+    {% elif turma_atual %}
     <div class="card">
         <div class="card-header">
             <div class="card-title">
@@ -132,9 +223,6 @@
                     </button>
                 </div>
                 <span class="schedule-period-badge">{{ turma_atual.aulas_por_dia or 5 }} aulas por dia</span>
-                <span class="text-muted text-sm">
-                    {% if can_manage_schedule %}Arraste as aulas para reorganizar{% else %}Visualização somente leitura{% endif %}
-                </span>
             </div>
         </div>
 
@@ -154,7 +242,7 @@
             </span>
             <span class="schedule-legend-item">
                 <span class="schedule-legend-dot legend-swap"></span>
-                Troca invalida: professor do destino ocupado
+                Troca inválida: professor do destino ocupado
             </span>
         </div>
         {% endif %}
@@ -176,7 +264,10 @@
                         {% for p in periodos %}
                         {% set aula = grade[turma_selecionada_id][dia][p] %}
                         <td>
-                            <div class="grade-cell {% if not aula %}empty{% endif %}" data-dia="{{ dia }}"
+                            <div class="grade-cell {% if not aula %}empty{% endif %}"
+                                data-turma-id="{{ turma_atual.id }}"
+                                data-turma-nome="{{ turma_atual.nome }}"
+                                data-dia="{{ dia }}"
                                 data-periodo="{{ p }}">
                                 {% if aula %}
                                 <div class="aula-card aula-card-dynamic" data-aula-id="{{ aula.id }}"
@@ -258,6 +349,42 @@
     {% endif %}
     {% endif %}
 </div>
+
+{% if can_manage_schedule %}
+<div class="modal-overlay" id="modal-aula-manual">
+    <div class="modal schedule-manual-modal">
+        <div class="modal-header">
+            <span class="modal-title">Adicionar aula manual</span>
+            <button class="modal-close" type="button" onclick="closeModal('modal-aula-manual')">x</button>
+        </div>
+        <form id="manual-aula-form">
+            <input type="hidden" id="manual-turma-id">
+            <input type="hidden" id="manual-dia">
+            <input type="hidden" id="manual-periodo">
+            <div class="manual-slot-context" id="manual-slot-context"></div>
+            <div class="form-group">
+                <label class="form-label" for="manual-aula-search">Professor e disciplina pendente</label>
+                <div class="manual-combobox">
+                    <input class="form-control manual-combobox-search" id="manual-aula-search"
+                        type="search" placeholder="Buscar disciplina ou professor" autocomplete="off">
+                    <input type="hidden" id="manual-aula-value">
+                    <div class="manual-combobox-list" id="manual-aula-list" role="listbox"></div>
+                </div>
+                <p class="text-muted text-sm mt-1" id="manual-aula-help">
+                    A lista mostra apenas aulas ainda não preenchidas para a turma.
+                </p>
+            </div>
+            <div class="manual-option-empty hidden" id="manual-option-empty">
+                Não há aula pendente disponível para este dia. Ajuste os professores no Dashboard ou escolha outro horário.
+            </div>
+            <div class="flex gap-2 modal-actions-sticky">
+                <button type="submit" class="btn btn-primary">Adicionar</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-aula-manual')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -268,6 +395,8 @@
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
         const legends = Array.from(document.querySelectorAll('.schedule-legend-list'));
+        const manualOptions = {{ manual_options | tojson }};
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
         document.querySelectorAll('.dot-dynamic').forEach((dot) => {
             const color = dot.dataset.color;
@@ -345,6 +474,127 @@
         document.addEventListener('click', () => closeExportMenus());
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') closeExportMenus();
+        });
+
+        const manualModal = document.getElementById('modal-aula-manual');
+        const manualForm = document.getElementById('manual-aula-form');
+        const manualSearch = document.getElementById('manual-aula-search');
+        const manualValue = document.getElementById('manual-aula-value');
+        const manualList = document.getElementById('manual-aula-list');
+        const manualEmpty = document.getElementById('manual-option-empty');
+        const manualContext = document.getElementById('manual-slot-context');
+        let manualCurrentOptions = [];
+
+        const formatManualOption = (opcao) => (
+            `${opcao.disciplina_nome} - ${opcao.professor_nome} (${opcao.faltam} faltando)`
+        );
+
+        const selectManualOption = (opcao) => {
+            manualValue.value = `${opcao.professor_id}:${opcao.disciplina_id}`;
+            manualSearch.value = formatManualOption(opcao);
+            manualList.querySelectorAll('.manual-combobox-option').forEach((item) => {
+                item.classList.toggle('active', item.dataset.value === manualValue.value);
+            });
+        };
+
+        const renderManualOptions = (options) => {
+            const query = (manualSearch.value || '').trim().toLowerCase();
+            const visibleOptions = options.filter((opcao) => (
+                `${opcao.disciplina_nome} ${opcao.professor_nome}`.toLowerCase().includes(query)
+            ));
+
+            manualList.innerHTML = '';
+            if (!visibleOptions.length) {
+                const empty = document.createElement('div');
+                empty.className = 'manual-combobox-empty';
+                empty.textContent = 'Nenhuma opção encontrada';
+                manualList.appendChild(empty);
+                return;
+            }
+
+            visibleOptions.forEach((opcao) => {
+                const value = `${opcao.professor_id}:${opcao.disciplina_id}`;
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'manual-combobox-option';
+                item.dataset.value = value;
+                const label = document.createElement('span');
+                label.textContent = `${opcao.disciplina_nome} - ${opcao.professor_nome}`;
+                const counter = document.createElement('strong');
+                counter.textContent = `${opcao.faltam} faltando`;
+                item.append(label, counter);
+                item.addEventListener('click', () => selectManualOption(opcao));
+                manualList.appendChild(item);
+            });
+
+            if (!manualSearch.value && !manualValue.value && visibleOptions[0]) {
+                selectManualOption(visibleOptions[0]);
+            }
+        };
+
+        manualSearch?.addEventListener('input', () => {
+            manualValue.value = '';
+            renderManualOptions(manualCurrentOptions);
+        });
+
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-manual-slot]');
+            if (!button) return;
+
+            const turmaId = String(button.dataset.turmaId || '');
+            const dia = button.dataset.dia || '';
+            const opcoes = (manualOptions[turmaId] || []).filter((opcao) => {
+                const dias = opcao.dias || [];
+                return !dias.length || dias.includes(dia);
+            });
+            document.getElementById('manual-turma-id').value = turmaId;
+            document.getElementById('manual-dia').value = dia;
+            document.getElementById('manual-periodo').value = button.dataset.periodo || '';
+            manualContext.textContent = `${button.dataset.turmaNome} - ${button.dataset.dia}, ${button.dataset.periodo}º Período`;
+
+            const hasOptions = opcoes.length > 0;
+            manualCurrentOptions = opcoes;
+            manualSearch.value = '';
+            manualValue.value = '';
+            manualSearch.disabled = !hasOptions;
+            manualList.innerHTML = '';
+            if (hasOptions) renderManualOptions(opcoes);
+            manualEmpty.classList.toggle('hidden', hasOptions);
+            manualForm.querySelector('button[type="submit"]').disabled = !hasOptions;
+            openModal('modal-aula-manual');
+            if (hasOptions) manualSearch.focus();
+        });
+
+        manualForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const [professorId, disciplinaId] = (manualValue.value || '').split(':');
+            if (!professorId || !disciplinaId) return;
+
+            try {
+                const escolaId = document.body.dataset.escolaId;
+                const resp = await fetch(`/escola/${escolaId}/horarios/manual`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken,
+                    },
+                    body: JSON.stringify({
+                        turma_id: parseInt(document.getElementById('manual-turma-id').value),
+                        professor_id: parseInt(professorId),
+                        disciplina_id: parseInt(disciplinaId),
+                        dia: document.getElementById('manual-dia').value,
+                        periodo: parseInt(document.getElementById('manual-periodo').value),
+                    }),
+                });
+                const data = await resp.json();
+                if (resp.ok && data.status === 'ok') {
+                    window.location.reload();
+                    return;
+                }
+                showToast(data?.error?.message || 'Não foi possível adicionar a aula.', 'error');
+            } catch (error) {
+                showToast('Erro de conexão ao adicionar aula.', 'error');
+            }
         });
 
         setMode(localStorage.getItem(storageKey));
