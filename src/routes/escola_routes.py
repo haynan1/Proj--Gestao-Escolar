@@ -3,6 +3,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 from access_control import user_has_permission
 from auth import login_required
 from models.escola import (
+    atualizar_nome_escola,
     criar_escola,
     deletar_escola,
     duplicar_escola_oculta,
@@ -31,6 +32,19 @@ def criar():
         flash('O nome da escola e obrigatorio.', 'error')
         return redirect(url_for('escola.home'))
     sucesso, msg = criar_escola(g.user['id'], nome)
+    flash(msg, 'success' if sucesso else 'error')
+    return redirect(url_for('escola.home'))
+
+
+@escola_bp.route('/escola/<int:escola_id>/editar-nome', methods=['POST'])
+@login_required
+def editar_nome(escola_id):
+    if not user_has_permission(g.user, 'admin_access'):
+        flash('Apenas administradores podem editar o nome da escola.', 'error')
+        return redirect(url_for('escola.home'))
+
+    nome = request.form.get('nome', '').strip()
+    sucesso, msg = atualizar_nome_escola(escola_id, nome)
     flash(msg, 'success' if sucesso else 'error')
     return redirect(url_for('escola.home'))
 

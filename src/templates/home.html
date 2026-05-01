@@ -67,6 +67,10 @@
                 {% if has_permission('manage_schools') %}
                 <div class="escola-card-admin-actions" aria-label="Acoes administrativas de {{ escola.nome }}">
                     {% if is_admin %}
+                    <button type="button" class="btn btn-secondary btn-sm btn-admin-action"
+                        onclick="openModal('modal-editar-escola-{{ escola.id }}')">
+                        Editar nome
+                    </button>
                     <form method="POST" action="{{ url_for('escola.criar_backup', escola_id=escola.id) }}"
                         onsubmit="return confirm('Criar um backup oculto de {{ escola.nome }}? A escola original nao sera alterada.')">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -86,6 +90,32 @@
         </div>
         {% endfor %}
     </div>
+
+    {% if is_admin %}
+    {% for escola in escolas %}
+    <div class="modal-overlay" id="modal-editar-escola-{{ escola.id }}">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Editar nome da escola</span>
+                <button class="modal-close" type="button" onclick="closeModal('modal-editar-escola-{{ escola.id }}')">x</button>
+            </div>
+            <form method="POST" action="{{ url_for('escola.editar_nome', escola_id=escola.id) }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label class="form-label">Nome da Escola</label>
+                    <input type="text" name="nome" class="form-control" value="{{ escola.nome }}" required autofocus />
+                </div>
+                <p class="text-muted text-sm mt-1">A alteracao aparece para todos os usuarios vinculados a esta escola.</p>
+                <div class="flex gap-2 mt-2">
+                    <button type="submit" class="btn btn-primary w-full">Salvar nome</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="closeModal('modal-editar-escola-{{ escola.id }}')">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
     {% else %}
     <div class="card" style="text-align:center; padding:3rem;">
         <div class="escola-empty-icon" aria-hidden="true">

@@ -40,6 +40,39 @@ def criar_escola(user_id, nome):
         conn.close()
 
 
+def atualizar_nome_escola(escola_id, nome):
+    nome = (nome or '').strip()
+    if not nome:
+        return False, 'O nome da escola e obrigatorio.'
+
+    conn = get_connection()
+    try:
+        escola = conn.execute(
+            "SELECT id, user_id, nome FROM escolas WHERE id = %s AND oculta = 0",
+            (escola_id,),
+        ).fetchone()
+        if not escola:
+            return False, 'Escola nao encontrada.'
+
+        if escola['nome'] == nome:
+            return True, 'Nome da escola mantido.'
+
+        if not _nome_disponivel_para_escola(conn, escola.get('user_id'), nome, escola_id):
+            return False, 'Ja existe uma escola com esse nome para este responsavel.'
+
+        conn.execute(
+            "UPDATE escolas SET nome = %s WHERE id = %s AND oculta = 0",
+            (nome, escola_id),
+        )
+        conn.commit()
+        return True, 'Nome da escola atualizado com sucesso.'
+    except Exception as exc:
+        conn.rollback()
+        return False, str(exc)
+    finally:
+        conn.close()
+
+
 def listar_escolas_para_usuario(user: dict):
     conn = get_connection()
     try:
