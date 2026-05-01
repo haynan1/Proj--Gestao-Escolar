@@ -26,7 +26,6 @@
                 {% if escola.oculta %}
                 <span class="backup-hidden-badge">Backup oculto</span>
                 {% endif %}
-                <span class="turno-badge">Turno: {{ turno_atual_label }}</span>
             </div>
             <p class="text-muted text-sm mt-1">{{ escola.nome }}</p>
         </div>
@@ -243,7 +242,6 @@
                         Sem cor
                     </button>
                 </div>
-                <span class="schedule-period-badge">{{ turma_atual.aulas_por_dia or 5 }} aulas por dia</span>
             </div>
         </div>
 
