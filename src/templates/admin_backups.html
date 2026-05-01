@@ -20,12 +20,19 @@
         <div class="card-header">
             <div>
                 <div class="card-title">Backups ocultos</div>
-                <p class="text-muted text-sm mt-1">Somente administradores podem abrir, editar ou excluir estes dados.</p>
+                <p class="text-muted text-sm mt-1">Restaure uma copia para torna-la visivel nas escolas e liberar vinculos de usuarios.</p>
             </div>
             <span class="admin-master-badge">{{ backups|length }} backup{{ '' if backups|length == 1 else 's' }}</span>
         </div>
 
         {% if backups %}
+        <div class="backup-guidance">
+            <div>
+                <strong>Fluxo recomendado</strong>
+                <span>Revise o backup, restaure para a pagina inicial e conclua os vinculos em Usuarios.</span>
+            </div>
+            <a href="{{ url_for('admin.usuarios') }}" class="btn btn-secondary btn-sm">Gerenciar usuarios</a>
+        </div>
         <div class="table-wrap">
             <table class="admin-backups-table">
                 <thead>
@@ -57,9 +64,14 @@
                         <td>{{ backup.criado_em_formatado or '-' }}</td>
                         <td>
                             <div class="backup-row-actions">
+                                <form method="POST" action="{{ url_for('admin.restaurar_backup', escola_id=backup.id) }}"
+                                    onsubmit="return confirm('Restaurar {{ backup.nome }} para a pagina inicial? Ela ficara visivel para vincular usuarios.')">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-primary btn-sm">Restaurar</button>
+                                </form>
                                 <a href="{{ url_for('dashboard.dashboard', escola_id=backup.id) }}"
-                                    class="btn btn-primary btn-sm">
-                                    Abrir
+                                    class="btn btn-secondary btn-sm">
+                                    Revisar
                                 </a>
                                 <a href="{{ url_for('dashboard.horarios', escola_id=backup.id) }}"
                                     class="btn btn-secondary btn-sm">

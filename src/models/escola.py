@@ -1,8 +1,11 @@
 from datetime import datetime
+import re
 
 from access_control import user_has_permission
 from database.connection import get_connection
 from models.user_link import usuario_tem_vinculo
+
+BACKUP_NAME_RE = re.compile(r'\s+\(backup \d{4}-\d{2}-\d{2} \d{6}\)(?: \d+)?$')
 
 
 def _serialize_escola(row):
@@ -100,11 +103,44 @@ def usuario_pode_acessar_escola(user: dict | None, escola: dict | None) -> bool:
     return usuario_tem_vinculo(user['id'], escola['id'])
 
 
+def _deletar_dados_escola(conn, escola_id):
+    conn.execute("DELETE FROM horarios_temporarios WHERE escola_id = %s", (escola_id,))
+    conn.execute("DELETE FROM aulas WHERE escola_id = %s", (escola_id,))
+    conn.execute(
+        """DELETE pc
+           FROM professores_cargas pc
+           JOIN professores p ON p.id = pc.professor_id
+           WHERE p.escola_id = %s""",
+        (escola_id,),
+    )
+    conn.execute(
+        """DELETE pt
+           FROM professores_turmas pt
+           JOIN professores p ON p.id = pt.professor_id
+           WHERE p.escola_id = %s""",
+        (escola_id,),
+    )
+    conn.execute(
+        """DELETE pd
+           FROM professores_disciplinas pd
+           JOIN professores p ON p.id = pd.professor_id
+           WHERE p.escola_id = %s""",
+        (escola_id,),
+    )
+    conn.execute("DELETE FROM professores WHERE escola_id = %s", (escola_id,))
+    conn.execute("DELETE FROM turmas WHERE escola_id = %s", (escola_id,))
+    conn.execute("DELETE FROM disciplinas WHERE escola_id = %s", (escola_id,))
+
+
 def deletar_escola(escola_id):
     conn = get_connection()
     try:
+        _deletar_dados_escola(conn, escola_id)
         conn.execute("DELETE FROM escolas WHERE id = %s", (escola_id,))
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -124,6 +160,43 @@ def _gerar_nome_backup(conn, escola):
             return nome
         nome = f"{base} {indice}"
     return f"{base} {datetime.now().microsecond}"
+
+
+def _nome_disponivel_para_escola(conn, user_id, nome, escola_id_ignorado=None):
+    params = [user_id, nome]
+    filtro_ignorado = ''
+    if escola_id_ignorado:
+        filtro_ignorado = ' AND id <> %s'
+        params.append(escola_id_ignorado)
+
+    existente = conn.execute(
+        f"""SELECT id
+            FROM escolas
+            WHERE user_id <=> %s
+              AND nome = %s
+              {filtro_ignorado}
+            LIMIT 1""",
+        tuple(params),
+    ).fetchone()
+    return existente is None
+
+
+def _gerar_nome_restaurado(conn, backup):
+    nome_limpo = BACKUP_NAME_RE.sub('', backup['nome']).strip()
+    if nome_limpo and _nome_disponivel_para_escola(conn, backup.get('user_id'), nome_limpo, backup['id']):
+        return nome_limpo
+
+    if _nome_disponivel_para_escola(conn, backup.get('user_id'), backup['nome'], backup['id']):
+        return backup['nome']
+
+    base = nome_limpo or backup['nome']
+    timestamp = datetime.now().strftime('%Y-%m-%d %H%M%S')
+    nome = f"{base} (restaurada {timestamp})"
+    for indice in range(2, 30):
+        if _nome_disponivel_para_escola(conn, backup.get('user_id'), nome, backup['id']):
+            return nome
+        nome = f"{base} (restaurada {timestamp}) {indice}"
+    return f"{base} (restaurada {timestamp}) {datetime.now().microsecond}"
 
 
 def duplicar_escola_oculta(escola_id):
@@ -330,14 +403,61 @@ def listar_backups_ocultos():
         conn.close()
 
 
+def restaurar_backup_oculto(escola_id):
+    conn = get_connection()
+    try:
+        backup = conn.execute(
+            "SELECT * FROM escolas WHERE id = %s AND oculta = 1",
+            (escola_id,),
+        ).fetchone()
+        if not backup:
+            return False, 'Backup oculto nao encontrado.', None
+
+        nome_restaurado = _gerar_nome_restaurado(conn, backup)
+        conn.execute(
+            """UPDATE escolas
+               SET nome = %s,
+                   oculta = 0,
+                   backup_de_escola_id = NULL
+               WHERE id = %s AND oculta = 1""",
+            (nome_restaurado, escola_id),
+        )
+        conn.execute(
+            """INSERT IGNORE INTO usuarios_escolas (usuario_id, escola_id)
+               SELECT user_id, id
+               FROM escolas
+               WHERE id = %s
+                 AND user_id IS NOT NULL""",
+            (escola_id,),
+        )
+        conn.commit()
+        return True, f'Backup restaurado como escola visivel: {nome_restaurado}.', escola_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def deletar_backup_oculto(escola_id):
     conn = get_connection()
     try:
+        backup = conn.execute(
+            "SELECT id FROM escolas WHERE id = %s AND oculta = 1",
+            (escola_id,),
+        ).fetchone()
+        if not backup:
+            return False
+
+        _deletar_dados_escola(conn, escola_id)
         cursor = conn.execute(
             "DELETE FROM escolas WHERE id = %s AND oculta = 1",
             (escola_id,),
         )
         conn.commit()
         return cursor.rowcount > 0
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
