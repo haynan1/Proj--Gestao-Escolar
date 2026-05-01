@@ -43,6 +43,9 @@
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
             </form>
+            <button type="button" class="btn btn-secondary" onclick="openModal('modal-horario-alternativo')">
+                Gerar Alternativo
+            </button>
             {% endif %}
             {% if can_export_schedule %}
             <div class="schedule-export-picker">
@@ -114,7 +117,7 @@
     <div class="turma-tabs">
         <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral') }}"
             class="turma-tab turma-tab-fixed {% if view_mode == 'geral' %}active{% endif %}">
-            Todas as turmas
+            Modo manual
         </a>
         <div class="turma-tabs-scroll">
         {% for turma in turmas %}
@@ -132,7 +135,7 @@
         <div class="card-header">
             <div class="card-title">
                 <div class="icon icon-purple">T</div>
-                Todas as turmas
+                Modo manual
                 {% if can_manage_schedule %}
                 <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id, turno=turno_atual) }}"
                     class="schedule-clear-form schedule-clear-form-inline"
@@ -149,6 +152,12 @@
                 {% endif %}
             </div>
             <div class="horarios-card-meta">
+                {% if can_manage_schedule %}
+                <div class="schedule-trash-zone" data-schedule-trash aria-label="Arraste uma aula aqui para remover">
+                    <span class="schedule-trash-icon" aria-hidden="true"></span>
+                    <span>Arraste aqui para remover</span>
+                </div>
+                {% endif %}
                 <span class="schedule-period-badge">Modo manual</span>
             </div>
         </div>
@@ -275,13 +284,36 @@
                         <th class="dia-header dia-header-cell">{{ dia }}</th>
                         {% for p in periodos %}
                         {% set aula = grade[turma_selecionada_id][dia][p] %}
+                        {% set excecoes_slot = temporarios_por_slot.get(dia ~ ':' ~ p, []) %}
+                        {% set aula_temp = excecoes_slot[-1] if excecoes_slot else none %}
                         <td data-periodo-label="{{ p }}º Período">
-                            <div class="grade-cell {% if not aula %}empty{% endif %}"
+                            <div class="grade-cell {% if not aula and not aula_temp %}empty{% endif %}"
                                 data-turma-id="{{ turma_atual.id }}"
                                 data-turma-nome="{{ turma_atual.nome }}"
                                 data-dia="{{ dia }}"
                                 data-periodo="{{ p }}">
-                                {% if aula %}
+                                {% if aula_temp %}
+                                <div class="aula-card aula-card-dynamic schedule-temporary-card"
+                                    data-professor-id="{{ aula_temp.professor_id or '' }}"
+                                    data-professor-nome="{{ aula_temp.professor_nome or '' }}"
+                                    data-color="{{ aula_temp.disciplina_cor or '' }}"
+                                    data-disciplina-color="{{ aula_temp.disciplina_cor or '' }}"
+                                    data-professor-color="{{ aula_temp.professor_cor or '' }}">
+                                    <div class="schedule-temporary-topline">
+                                        <span>Alternativo</span>
+                                        <small>{{ aula_temp.data_inicio }}{% if aula_temp.data_fim != aula_temp.data_inicio %} ate {{ aula_temp.data_fim }}{% endif %}</small>
+                                    </div>
+                                    <div class="disc-nome">{{ aula_temp.disciplina_nome or aula_temp.titulo }}</div>
+                                    <div class="prof-nome text-muted">{{ aula_temp.professor_nome or aula_temp.titulo }}</div>
+                                    <div class="schedule-temporary-reason">
+                                        <span>Motivo</span>
+                                        <strong>{{ aula_temp.titulo }}</strong>
+                                    </div>
+                                    {% if aula_temp.observacao %}
+                                    <div class="schedule-temporary-rule">{{ aula_temp.observacao }}</div>
+                                    {% endif %}
+                                </div>
+                                {% elif aula %}
                                 <div class="aula-card aula-card-dynamic" data-aula-id="{{ aula.id }}"
                                     data-professor-id="{{ aula.professor_id }}"
                                     data-professor-nome="{{ aula.professor_nome }}"
@@ -300,6 +332,68 @@
                 </tbody>
             </table>
         </div>
+
+        {% if grupos_horarios_temporarios %}
+        <section class="schedule-alternative-panel">
+            <div class="schedule-alternative-panel-header">
+                <div>
+                    <h2>Horarios alternativos</h2>
+                    <p class="text-muted text-sm">Gerados em camada separada do horario oficial.</p>
+                </div>
+            </div>
+            <div class="schedule-alternative-list">
+                {% for grupo in grupos_horarios_temporarios %}
+                <div class="schedule-alternative-item">
+                    <div class="schedule-alternative-info">
+                        <div class="schedule-alternative-titleline">
+                            <span>Alternativo</span>
+                            <strong>{{ grupo.titulo }}</strong>
+                        </div>
+                        <div class="schedule-alternative-meta">
+                            <span>{{ grupo.dia }}</span>
+                            <span>{{ grupo.data_inicio }}{% if grupo.data_fim != grupo.data_inicio %} ate {{ grupo.data_fim }}{% endif %}</span>
+                            <span>{{ grupo.total_turmas }} turma(s)</span>
+                            <span>{{ grupo.total_aulas }} aula(s)</span>
+                        </div>
+                        {% if grupo.observacao %}
+                        <div class="schedule-alternative-rule">{{ grupo.observacao }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="schedule-alternative-actions">
+                        {% if can_export_schedule %}
+                        <a class="btn btn-secondary btn-sm"
+                            href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='disciplina') }}">
+                            Excel
+                        </a>
+                        <a class="btn btn-secondary btn-sm"
+                            href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='disciplina') }}">
+                            PDF
+                        </a>
+                        <a class="btn btn-secondary btn-sm"
+                            href="{{ url_for('dashboard.exportar_temporario_pdf_geral', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='none') }}">
+                            PDF geral
+                        </a>
+                        {% endif %}
+                        {% if can_manage_schedule %}
+                        <form method="POST"
+                            action="{{ url_for('dashboard.deletar_temporario_grupo', escola_id=escola.id, turno=turno_atual) }}"
+                            onsubmit="return confirm('Remover este horario alternativo inteiro?')">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
+                            <input type="hidden" name="titulo" value="{{ grupo.titulo }}">
+                            <input type="hidden" name="data_inicio" value="{{ grupo.data_inicio }}">
+                            <input type="hidden" name="data_fim" value="{{ grupo.data_fim }}">
+                            <input type="hidden" name="dia" value="{{ grupo.dia }}">
+                            <input type="hidden" name="observacao" value="{{ grupo.observacao or '' }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
 
         {% set aulas_turma = aulas | selectattr('turma_id', 'equalto', turma_selecionada_id) | list %}
         {% if aulas_turma %}
@@ -363,6 +457,85 @@
 </div>
 
 {% if can_manage_schedule %}
+<div class="modal-overlay" id="modal-horario-alternativo">
+    <div class="modal schedule-alternative-modal">
+        <div class="modal-header">
+            <span class="modal-title">Gerar horario alternativo</span>
+            <button class="modal-close" type="button" onclick="closeModal('modal-horario-alternativo')">x</button>
+        </div>
+        <form method="POST"
+            action="{{ url_for('dashboard.gerar_temporario', escola_id=escola.id, turno=turno_atual) }}"
+            class="schedule-alternative-form"
+            onsubmit="return confirm('Gerar horario alternativo automatico com estas regras? Temporarios sobrepostos deste periodo serao substituidos.')">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="turma_contexto_id" value="{{ turma_selecionada_id }}">
+            <p class="text-muted text-sm schedule-alternative-help">
+                Sem regras, o sistema copia o dia inteiro do horario oficial para o periodo escolhido.
+            </p>
+            <div class="form-group">
+                <label class="form-label" for="alt-turno">Turno</label>
+                <select class="form-control" id="alt-turno" name="turno" required>
+                    {% for turno in turnos %}
+                    <option value="{{ turno.id }}" {% if turno.id == turno_atual %}selected{% endif %}>{{ turno.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alt-turma">Turma</label>
+                <select class="form-control" id="alt-turma" name="turma_id">
+                    <option value="">Todas as turmas</option>
+                    {% for turma in turmas %}
+                    <option value="{{ turma.id }}" {% if turma.id == turma_selecionada_id %}selected{% endif %}>{{ turma.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alt-data-inicio">Data inicial</label>
+                <input class="form-control" id="alt-data-inicio" name="data_inicio" type="date" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alt-data-fim">Data final</label>
+                <input class="form-control" id="alt-data-fim" name="data_fim" type="date">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alt-dia">Dia da grade</label>
+                <select class="form-control" id="alt-dia" name="dia" required>
+                    {% for dia_opcao in dias %}
+                    <option value="{{ dia_opcao }}">{{ dia_opcao }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alt-professor">Regra: sem professor</label>
+                <select class="form-control" id="alt-professor" name="professor_excluido_id">
+                    <option value="">Nenhum professor excluido</option>
+                    {% for professor in professores %}
+                    <option value="{{ professor.id }}">{{ professor.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="alt-periodo">Regra: pular periodo</label>
+                <select class="form-control" id="alt-periodo" name="periodo_bloqueado">
+                    <option value="">Nenhum periodo bloqueado</option>
+                    {% for p in periodos %}
+                    <option value="{{ p }}">{{ p }} periodo</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group schedule-temporary-notes">
+                <label class="form-label" for="alt-motivo">Motivo</label>
+                <input class="form-control" id="alt-motivo" name="motivo" type="text"
+                    placeholder="Ex.: conselho de classe, ausencia, evento" required>
+            </div>
+            <div class="flex gap-2 modal-actions-sticky">
+                <button type="submit" class="btn btn-primary">Gerar horario</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-horario-alternativo')">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="modal-overlay" id="modal-aula-manual">
     <div class="modal schedule-manual-modal">
         <div class="modal-header">
