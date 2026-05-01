@@ -79,12 +79,26 @@ def deletar_aula(aula_id, escola_id, turno=None):
     turno = normalizar_turno(turno)
     conn = get_connection()
     try:
+        aula = conn.execute(
+            """SELECT a.*, t.nome AS turma_nome, p.nome AS professor_nome,
+                      p.cor AS professor_cor, p.dias_disponiveis,
+                      d.nome AS disciplina_nome, d.cor AS disciplina_cor
+               FROM aulas a
+               JOIN turmas t ON a.turma_id = t.id AND t.turno = a.turno
+               JOIN professores p ON a.professor_id = p.id AND p.turno = a.turno
+               JOIN disciplinas d ON a.disciplina_id = d.id AND d.turno = a.turno
+               WHERE a.id = %s AND a.escola_id = %s AND a.turno = %s""",
+            (aula_id, escola_id, turno),
+        ).fetchone()
+        if not aula:
+            return None
+
         cursor = conn.execute(
             "DELETE FROM aulas WHERE id = %s AND escola_id = %s AND turno = %s",
             (aula_id, escola_id, turno),
         )
         conn.commit()
-        return cursor.rowcount > 0
+        return dict(aula) if cursor.rowcount > 0 else None
     except Exception:
         conn.rollback()
         raise

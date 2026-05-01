@@ -670,6 +670,43 @@
         const manualContext = document.getElementById('manual-slot-context');
         let manualCurrentOptions = [];
 
+        window.registrarAulaPendenteManual = (aula) => {
+            if (!aula?.turma_id || !aula?.professor_id || !aula?.disciplina_id) return;
+
+            const turmaId = String(aula.turma_id);
+            const opcoes = manualOptions[turmaId] || [];
+            manualOptions[turmaId] = opcoes;
+
+            const existente = opcoes.find((opcao) => (
+                String(opcao.professor_id) === String(aula.professor_id)
+                && String(opcao.disciplina_id) === String(aula.disciplina_id)
+            ));
+
+            if (existente) {
+                existente.faltam = Number(existente.faltam || 0) + 1;
+                existente.total = Math.max(Number(existente.total || 0), existente.faltam);
+                return;
+            }
+
+            opcoes.push({
+                professor_id: aula.professor_id,
+                professor_nome: aula.professor_nome,
+                disciplina_id: aula.disciplina_id,
+                disciplina_nome: aula.disciplina_nome,
+                disciplina_cor: aula.disciplina_cor || '',
+                faltam: 1,
+                total: 1,
+                dias: String(aula.dias_disponiveis || '')
+                    .split(',')
+                    .map((dia) => dia.trim())
+                    .filter(Boolean),
+            });
+            opcoes.sort((a, b) => (
+                a.disciplina_nome.localeCompare(b.disciplina_nome)
+                || a.professor_nome.localeCompare(b.professor_nome)
+            ));
+        };
+
         const formatManualOption = (opcao) => (
             `${opcao.disciplina_nome} - ${opcao.professor_nome} (${opcao.faltam} faltando)`
         );
