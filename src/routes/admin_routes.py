@@ -4,7 +4,12 @@ from flask import Blueprint, flash, g, redirect, render_template, request, url_f
 
 from access_control import ROLE_ADMIN, ROLE_COORDINATOR, ROLE_STAFF, require_permission
 from auth import login_required
-from models.escola import deletar_backup_oculto, listar_backups_ocultos, listar_escolas
+from models.escola import (
+    deletar_backup_oculto,
+    listar_backups_ocultos,
+    listar_escolas,
+    restaurar_backup_oculto,
+)
 from models.user import (
     atualizar_role_usuario,
     buscar_usuario_por_id,
@@ -42,6 +47,17 @@ def usuarios():
 @require_permission('admin_access')
 def backups():
     return render_template('admin_backups.html', backups=listar_backups_ocultos())
+
+
+@admin_bp.route('/backups/<int:escola_id>/restaurar', methods=['POST'])
+@login_required
+@require_permission('admin_access')
+def restaurar_backup(escola_id):
+    sucesso, mensagem, escola_restaurada_id = restaurar_backup_oculto(escola_id)
+    flash(mensagem, 'success' if sucesso else 'error')
+    if sucesso and escola_restaurada_id:
+        return redirect(url_for('admin.usuarios'))
+    return redirect(url_for('admin.backups'))
 
 
 @admin_bp.route('/backups/<int:escola_id>/deletar', methods=['POST'])

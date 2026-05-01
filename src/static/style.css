@@ -846,6 +846,33 @@ body {
     gap: 1rem;
 }
 
+.backup-guidance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    background: rgba(96, 165, 250, 0.1);
+    border: 1px solid rgba(96, 165, 250, 0.18);
+}
+
+.backup-guidance div {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.backup-guidance strong {
+    color: var(--text);
+    font-size: 0.88rem;
+}
+
+.backup-guidance span {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
 .admin-backups-table th,
 .admin-backups-table td {
     vertical-align: top;
@@ -876,14 +903,14 @@ body {
 }
 
 .admin-backup-actions-col {
-    width: 260px;
+    width: 340px;
 }
 
 .backup-row-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
-    min-width: 240px;
+    min-width: 320px;
 }
 
 .backup-row-actions .btn {
@@ -1943,6 +1970,16 @@ tr:hover td {
         flex-direction: column;
     }
 
+    .backup-guidance {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .backup-guidance .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
     .backup-row-actions {
         display: grid;
         grid-template-columns: 1fr;
@@ -2193,6 +2230,11 @@ tr:hover td {
     background: #f8fafc;
     border-color: #d8e0ea;
     color: #475569;
+}
+
+[data-theme="light"] .backup-guidance {
+    background: #eff6ff;
+    border-color: #bfdbfe;
 }
 
 [data-theme="light"] .escola-card-icon,
