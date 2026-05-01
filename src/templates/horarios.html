@@ -174,19 +174,19 @@
                     <table class="grade-table schedule-compact-table">
                         <thead>
                             <tr>
-                                <th style="min-width:90px;">Dia / Período</th>
-                                {% for p in periodos_geral %}
-                                <th>{{ p }}º Período</th>
+                                <th style="min-width:90px;">Período / Dia</th>
+                                {% for dia in dias %}
+                                <th>{{ dia }}</th>
                                 {% endfor %}
                             </tr>
                         </thead>
                         <tbody>
-                            {% for dia in dias %}
+                            {% for p in periodos_geral %}
                             <tr>
-                                <th class="dia-header dia-header-cell">{{ dia }}</th>
-                                {% for p in periodos_geral %}
+                                <th class="dia-header dia-header-cell">{{ p }}º Período</th>
+                                {% for dia in dias %}
                                 {% set aula = grade[turma.id][dia][p] %}
-                                <td data-periodo-label="{{ p }}º Período">
+                                <td data-periodo-label="{{ dia }}">
                                     <div class="grade-cell {% if not aula %}empty{% endif %}"
                                         data-turma-id="{{ turma.id }}"
                                         data-turma-nome="{{ turma.nome }}"
@@ -272,21 +272,21 @@
             <table class="grade-table">
                 <thead>
                     <tr>
-                        <th style="min-width:90px;">Dia / Período</th>
-                        {% for p in periodos %}
-                        <th>{{ p }}º Período</th>
+                        <th style="min-width:90px;">Período / Dia</th>
+                        {% for dia in dias %}
+                        <th>{{ dia }}</th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
-                    {% for dia in dias %}
+                    {% for p in periodos %}
                     <tr>
-                        <th class="dia-header dia-header-cell">{{ dia }}</th>
-                        {% for p in periodos %}
+                        <th class="dia-header dia-header-cell">{{ p }}º Período</th>
+                        {% for dia in dias %}
                         {% set aula = grade[turma_selecionada_id][dia][p] %}
                         {% set excecoes_slot = temporarios_por_slot.get(dia ~ ':' ~ p, []) %}
                         {% set aula_temp = excecoes_slot[-1] if excecoes_slot else none %}
-                        <td data-periodo-label="{{ p }}º Período">
+                        <td data-periodo-label="{{ dia }}">
                             <div class="grade-cell {% if not aula and not aula_temp %}empty{% endif %}"
                                 data-turma-id="{{ turma_atual.id }}"
                                 data-turma-nome="{{ turma_atual.nome }}"
