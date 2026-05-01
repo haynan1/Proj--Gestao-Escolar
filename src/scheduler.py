@@ -115,7 +115,16 @@ def _ordenar_demandas(demandas, turmas, rng):
     return ordenadas
 
 
-def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas_max, rng):
+def _slot_bloqueado(slots_bloqueados, turma_id, dia, periodo):
+    if not slots_bloqueados:
+        return False
+    return (
+        (turma_id, dia, periodo) in slots_bloqueados
+        or (None, dia, periodo) in slots_bloqueados
+    )
+
+
+def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas_max, rng, slots_bloqueados=None):
     turma_id = turma['id']
     periodos = _periodos_turma(turma)
     disc_id = disc['id']
@@ -131,6 +140,9 @@ def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas
         if tentativas > tentativas_max:
             break
         tentativas += 1
+
+        if _slot_bloqueado(slots_bloqueados, turma_id, dia, periodo):
+            continue
 
         if verificar_conflito_turma(grade, turma_id, dia, periodo):
             continue
@@ -203,7 +215,7 @@ def _montar_grade_existente(aulas, turmas, turma_id_ignorada=None):
     return grade
 
 
-def _gerar_grade_por_demandas(demandas, turmas, semente, grade_base=None):
+def _gerar_grade_por_demandas(demandas, turmas, semente, grade_base=None, slots_bloqueados=None):
     rng = random.Random(semente)
     grade = _copiar_grade(grade_base) if grade_base is not None else {t['id']: {} for t in turmas}
     pendencias = []
@@ -218,6 +230,7 @@ def _gerar_grade_por_demandas(demandas, turmas, semente, grade_base=None):
             [demanda['professor']],
             5000,
             rng,
+            slots_bloqueados,
         )
         if colocadas < demanda['qtd']:
             pendencias.append({
@@ -244,13 +257,23 @@ def _resumir_pendencias(pendencias, turmas):
     return '; '.join(partes)
 
 
-def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
+def montar_horario_gerado(
+    escola_id,
+    turma_id_especifica=None,
+    turno=None,
+    professor_ids_excluidos=None,
+    slots_bloqueados=None,
+    permitir_grade_incompleta=False,
+):
     """
-    Gera automaticamente a grade de horários para uma escola ou turma específica.
-    Retorna (sucesso: bool, mensagem: str, total_aulas: int)
+    Monta automaticamente a grade de horários para uma escola ou turma específica.
+    Retorna (sucesso: bool, mensagem: str, aulas_geradas: list[dict])
     """
     turno = normalizar_turno(turno)
     professores = listar_professores(escola_id, turno)
+    professor_ids_excluidos = {int(pid) for pid in (professor_ids_excluidos or []) if pid}
+    if professor_ids_excluidos:
+        professores = [professor for professor in professores if professor['id'] not in professor_ids_excluidos]
     todas_turmas = listar_turmas(escola_id, turno)
     disciplinas = listar_disciplinas(escola_id, turno)
     aulas_existentes = listar_aulas(escola_id, turno) if turma_id_especifica else []
@@ -261,11 +284,11 @@ def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
         turmas = todas_turmas
 
     if not professores:
-        return False, "Cadastre pelo menos um professor antes de gerar o horário.", 0
+        return False, "Cadastre pelo menos um professor antes de gerar o horário.", []
     if not turmas:
-        return False, "Cadastre pelo menos uma turma antes de gerar o horário.", 0
+        return False, "Cadastre pelo menos uma turma antes de gerar o horário.", []
     if not disciplinas:
-        return False, "Cadastre pelo menos uma disciplina antes de gerar o horário.", 0
+        return False, "Cadastre pelo menos uma disciplina antes de gerar o horário.", []
 
     grade_base = (
         _montar_grade_existente(aulas_existentes, todas_turmas, turma_id_especifica)
@@ -280,12 +303,12 @@ def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
 
     if demandas:
         erros_capacidade = _validar_capacidade_demandas(demandas, turmas)
-        if erros_capacidade:
+        if erros_capacidade and not permitir_grade_incompleta:
             return (
                 False,
                 "Não foi possível gerar uma grade completa. Ajuste as cargas: "
                 + '; '.join(erros_capacidade),
-                0,
+                [],
             )
 
         total_esperado = sum(demanda['qtd'] for demanda in demandas)
@@ -300,6 +323,7 @@ def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
                 turmas,
                 semente_base + tentativa,
                 grade_base,
+                slots_bloqueados,
             )
             total_tentativa = sum(len(grade_tentativa.get(turma['id'], {})) for turma in turmas)
             if total_tentativa > melhor_total:
@@ -309,13 +333,13 @@ def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
             if total_tentativa == total_esperado:
                 break
 
-        if melhor_total < total_esperado:
+        if melhor_total < total_esperado and not permitir_grade_incompleta:
             return (
                 False,
                 "Não foi possível gerar uma grade completa. "
                 f"Melhor tentativa: {melhor_total} de {total_esperado} aulas. "
                 f"Pendências: {_resumir_pendencias(melhores_pendencias, turmas)}.",
-                0,
+                [],
             )
 
         grade = melhor_grade
@@ -344,12 +368,25 @@ def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
                     profs_disponiveis,
                     tentativas_max,
                     rng,
+                    slots_bloqueados,
                 )
 
     aulas_geradas = _montar_aulas_geradas(grade, [turma['id'] for turma in turmas])
 
     if not aulas_geradas:
-        return False, "Não foi possível gerar nenhuma aula. Verifique os vínculos entre professores, turmas e disciplinas.", 0
+        return False, "Não foi possível gerar nenhuma aula. Verifique os vínculos entre professores, turmas e disciplinas.", []
+
+    return True, f"Horário gerado com sucesso! {len(aulas_geradas)} aulas distribuídas.", aulas_geradas
+
+
+def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
+    """
+    Gera automaticamente a grade de horários para uma escola ou turma específica.
+    Retorna (sucesso: bool, mensagem: str, total_aulas: int)
+    """
+    sucesso, mensagem, aulas_geradas = montar_horario_gerado(escola_id, turma_id_especifica, turno)
+    if not sucesso:
+        return False, mensagem, 0
 
     salvar_aulas(escola_id, aulas_geradas, turma_id_especifica, turno)
-    return True, f"Horário gerado com sucesso! {len(aulas_geradas)} aulas distribuídas.", len(aulas_geradas)
+    return True, mensagem, len(aulas_geradas)

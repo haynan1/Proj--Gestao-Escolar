@@ -22,6 +22,7 @@ from models.aula import (
     ScheduleConflictError,
     ScheduleValidationError,
     criar_aula_manual,
+    deletar_aula,
     limpar_aulas,
     listar_aulas,
     mover_aula,
@@ -35,6 +36,15 @@ from models.disciplina import (
     listar_disciplinas,
 )
 from models.escola import buscar_escola
+from models.horario_temporario import (
+    HorarioTemporarioValidationError,
+    criar_horarios_temporarios_lote,
+    criar_horario_temporario,
+    deletar_horarios_temporarios_grupo,
+    deletar_horario_temporario,
+    listar_grupos_horarios_temporarios,
+    listar_horarios_temporarios,
+)
 from models.professor import (
     CORES_PROFESSOR,
     COR_PROFESSOR_PADRAO,
@@ -45,7 +55,7 @@ from models.professor import (
 )
 from models.turma import atualizar_turma, criar_turma, deletar_turma, listar_turmas
 from models.turno import TURNOS, normalizar_turno
-from scheduler import gerar_horario
+from scheduler import gerar_horario, montar_horario_gerado
 
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -222,6 +232,126 @@ def _turno_label(turno_id):
 def _dashboard_url(endpoint, escola_id, **values):
     values.setdefault('turno', _active_turno())
     return url_for(endpoint, escola_id=escola_id, **values)
+
+
+def _aula_payload(aula):
+    return {
+        'turma_id': aula['turma_id'],
+        'professor_id': aula['professor_id'],
+        'disciplina_id': aula['disciplina_id'],
+        'dia': aula['dia'],
+        'periodo': aula['periodo'],
+    }
+
+
+def _montar_aulas_alternativas_do_dia(
+    escola_id,
+    turno,
+    dia,
+    turma_id=None,
+    professor_excluido_id=None,
+    periodo_bloqueado=None,
+):
+    aulas_oficiais = listar_aulas(escola_id, turno)
+    if turma_id:
+        aulas_oficiais = [aula for aula in aulas_oficiais if aula['turma_id'] == turma_id]
+
+    aulas_dia = [
+        _aula_payload(aula)
+        for aula in aulas_oficiais
+        if aula['dia'] == dia
+    ]
+    if not aulas_dia:
+        return None
+
+    precisa_substituir = set()
+    aulas_mantidas = []
+    for aula in aulas_dia:
+        slot = (aula['turma_id'], aula['periodo'])
+        if periodo_bloqueado and aula['periodo'] == periodo_bloqueado:
+            aulas_mantidas.append({
+                'turma_id': aula['turma_id'],
+                'professor_id': None,
+                'disciplina_id': None,
+                'dia': aula['dia'],
+                'periodo': aula['periodo'],
+            })
+            continue
+        if professor_excluido_id and aula['professor_id'] == professor_excluido_id:
+            precisa_substituir.add(slot)
+            continue
+        aulas_mantidas.append(aula)
+
+    if not precisa_substituir:
+        return aulas_mantidas
+
+    slots_bloqueados = set()
+    if periodo_bloqueado:
+        if turma_id:
+            slots_bloqueados.add((turma_id, dia, periodo_bloqueado))
+        else:
+            slots_bloqueados.add((None, dia, periodo_bloqueado))
+
+    substitutas = {}
+    turmas_para_regerar = [turma_id] if turma_id else sorted({slot[0] for slot in precisa_substituir})
+    for turma_regerar_id in turmas_para_regerar:
+        sucesso, _, aulas_geradas = montar_horario_gerado(
+            escola_id,
+            turma_regerar_id,
+            turno,
+            professor_ids_excluidos=[professor_excluido_id] if professor_excluido_id else None,
+            slots_bloqueados=slots_bloqueados,
+            permitir_grade_incompleta=True,
+        )
+        if not sucesso:
+            continue
+        for aula in aulas_geradas:
+            if aula.get('dia') != dia:
+                continue
+            slot = (aula['turma_id'], aula['periodo'])
+            if slot in precisa_substituir and slot not in substitutas:
+                substitutas[slot] = aula
+
+    sem_substituta = [
+        {
+            'turma_id': turma_id_slot,
+            'professor_id': None,
+            'disciplina_id': None,
+            'dia': dia,
+            'periodo': periodo,
+        }
+        for turma_id_slot, periodo in sorted(precisa_substituir)
+        if (turma_id_slot, periodo) not in substitutas
+    ]
+
+    return aulas_mantidas + list(substitutas.values()) + sem_substituta
+
+
+def _normalizar_aulas_temporarias_para_export(aulas_temporarias):
+    aulas = []
+    for aula in aulas_temporarias:
+        titulo = aula.get('titulo') or 'Horario alternativo'
+        aulas.append({
+            **aula,
+            'disciplina_nome': aula.get('disciplina_nome') or titulo,
+            'professor_nome': aula.get('professor_nome') or (aula.get('observacao') or 'Sem professor definido'),
+            'disciplina_cor': aula.get('disciplina_cor') or '#eab308',
+            'professor_cor': aula.get('professor_cor') or '#eab308',
+        })
+    return aulas
+
+
+def _filtrar_horarios_temporarios_grupo(escola_id, turno, titulo, data_inicio, data_fim, dia, observacao=None):
+    aulas = listar_horarios_temporarios(escola_id, turno)
+    observacao = (observacao or '').strip() or None
+    return [
+        aula for aula in aulas
+        if str(aula.get('titulo')) == str(titulo)
+        and str(aula.get('data_inicio')) == str(data_inicio)
+        and str(aula.get('data_fim')) == str(data_fim or data_inicio)
+        and str(aula.get('dia')) == str(dia)
+        and ((aula.get('observacao') or None) == observacao)
+    ]
 
 
 def _guard_school(escola_id, permission='view_school', json_response=False):
@@ -460,6 +590,16 @@ def horarios(escola_id):
         turma_selecionada_id = turmas[0]['id']
     turma_selecionada = next((turma for turma in turmas if turma['id'] == turma_selecionada_id), None)
     periodos_turma = list(range(1, int((turma_selecionada or {}).get('aulas_por_dia') or 5) + 1))
+    horarios_temporarios = listar_horarios_temporarios(
+        escola['id'],
+        turno_atual,
+        turma_selecionada_id if turma_selecionada else None,
+    )
+    grupos_horarios_temporarios = listar_grupos_horarios_temporarios(escola['id'], turno_atual)
+    temporarios_por_slot = {}
+    for horario_temp in horarios_temporarios:
+        chave = f"{horario_temp['dia']}:{horario_temp['periodo']}"
+        temporarios_por_slot.setdefault(chave, []).append(horario_temp)
     view_mode = request.args.get('view', 'turma')
     if view_mode != 'geral':
         view_mode = 'turma'
@@ -472,6 +612,9 @@ def horarios(escola_id):
         aulas=aulas,
         disciplinas=disciplinas,
         professores=professores,
+        horarios_temporarios=horarios_temporarios,
+        grupos_horarios_temporarios=grupos_horarios_temporarios,
+        temporarios_por_slot=temporarios_por_slot,
         dias=DIAS_SEMANA,
         periodos=periodos_turma,
         turma_selecionada_id=turma_selecionada_id,
@@ -508,6 +651,89 @@ def gerar(escola_id):
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario/gerar', methods=['POST'])
+@login_required
+def gerar_temporario(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    turma_id_contexto = request.form.get('turma_contexto_id', type=int)
+    turma_id = request.form.get('turma_id', type=int)
+    data_inicio = request.form.get('data_inicio')
+    data_fim = request.form.get('data_fim') or data_inicio
+    dia = request.form.get('dia')
+    titulo = request.form.get('motivo') or 'Horario alternativo'
+    professor_excluido_id = request.form.get('professor_excluido_id', type=int)
+    periodo_bloqueado = request.form.get('periodo_bloqueado', type=int)
+    observacao_partes = []
+    if professor_excluido_id:
+        professor = next(
+            (prof for prof in listar_professores(escola['id'], turno_atual) if prof['id'] == professor_excluido_id),
+            None,
+        )
+        observacao_partes.append(f"Sem {professor['nome'] if professor else 'professor selecionado'}")
+    if periodo_bloqueado:
+        observacao_partes.append(f"Pulando {periodo_bloqueado} periodo")
+    observacao = '; '.join(observacao_partes) or None
+
+    try:
+        aulas_geradas = _montar_aulas_alternativas_do_dia(
+            escola['id'],
+            turno_atual,
+            dia,
+            turma_id,
+            professor_excluido_id,
+            periodo_bloqueado,
+        )
+        if aulas_geradas is None:
+            sucesso, msg, aulas_geradas = montar_horario_gerado(
+                escola['id'],
+                turma_id,
+                turno_atual,
+                professor_ids_excluidos=[professor_excluido_id] if professor_excluido_id else None,
+                slots_bloqueados={(turma_id if turma_id else None, dia, periodo_bloqueado)} if periodo_bloqueado else None,
+                permitir_grade_incompleta=bool(professor_excluido_id or periodo_bloqueado),
+            )
+        else:
+            sucesso = bool(aulas_geradas)
+            msg = "Horario alternativo montado com base no horario oficial."
+
+        if not sucesso:
+            flash(msg, 'error')
+        else:
+            total = criar_horarios_temporarios_lote(
+                escola['id'],
+                turno_atual,
+                data_inicio,
+                data_fim,
+                dia,
+                titulo,
+                aulas_geradas,
+                observacao,
+            )
+            flash(
+                f'Horario alternativo gerado para {dia}: {total} aulas temporarias criadas.',
+                'success',
+            )
+    except HorarioTemporarioValidationError as exc:
+        flash(str(exc), 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao gerar horario temporario da escola %s.', escola['id'])
+        flash(
+            'Nao foi possivel gerar o horario alternativo agora. '
+            'Verifique se as aulas, professores e turmas estao consistentes e tente novamente.',
+            'error',
+        )
+
+    if turma_id:
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    if turma_id_contexto and turno_atual == request.args.get('turno'):
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/limpar', methods=['POST'])
@@ -569,6 +795,110 @@ def criar_manual(escola_id):
         return _json_error('Dados obrigatórios inválidos.', code='invalid_payload')
 
     return jsonify({'status': 'ok', 'aula_id': aula_id})
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/aula/<int:aula_id>/deletar', methods=['POST'])
+@login_required
+def deletar_aula_manual(escola_id, aula_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule', json_response=True)
+    if failure:
+        return failure
+
+    try:
+        removida = deletar_aula(aula_id, escola_id=escola['id'], turno=_active_turno())
+    except Exception:
+        current_app.logger.exception('Erro ao remover aula %s da escola %s.', aula_id, escola['id'])
+        return _json_error('Nao foi possivel remover a aula agora.', code='delete_failed')
+
+    if not removida:
+        return _json_error('Aula nao encontrada.', status_code=404, code='not_found')
+
+    return jsonify({'status': 'ok'})
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario', methods=['POST'])
+@login_required
+def criar_temporario(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turma_id = request.form.get('turma_id', type=int)
+    try:
+        criar_horario_temporario(
+            escola['id'],
+            _active_turno(),
+            turma_id,
+            request.form.get('data_inicio'),
+            request.form.get('data_fim') or request.form.get('data_inicio'),
+            request.form.get('dia'),
+            request.form.get('periodo', type=int),
+            request.form.get('titulo'),
+            request.form.get('professor_id', type=int),
+            request.form.get('disciplina_id', type=int),
+            request.form.get('observacao'),
+        )
+        flash('Horario temporario criado sem alterar o horario oficial.', 'success')
+    except HorarioTemporarioValidationError as exc:
+        flash(str(exc), 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao criar horario temporario da escola %s.', escola['id'])
+        flash('Nao foi possivel criar o horario temporario agora.', 'error')
+
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario/<int:horario_id>/deletar', methods=['POST'])
+@login_required
+def deletar_temporario(escola_id, horario_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turma_id = request.form.get('turma_id', type=int)
+    try:
+        removido = deletar_horario_temporario(horario_id, escola['id'], _active_turno())
+        flash('Horario temporario removido.' if removido else 'Horario temporario nao encontrado.', 'success' if removido else 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao remover horario temporario %s da escola %s.', horario_id, escola['id'])
+        flash('Nao foi possivel remover o horario temporario agora.', 'error')
+
+    if turma_id:
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario/grupo/deletar', methods=['POST'])
+@login_required
+def deletar_temporario_grupo(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    try:
+        removidos = deletar_horarios_temporarios_grupo(
+            escola['id'],
+            _active_turno(),
+            request.form.get('titulo'),
+            request.form.get('data_inicio'),
+            request.form.get('data_fim') or request.form.get('data_inicio'),
+            request.form.get('dia'),
+            request.form.get('observacao'),
+        )
+        flash(
+            f'Horario alternativo removido: {removidos} aula(s).' if removidos else 'Horario alternativo nao encontrado.',
+            'success' if removidos else 'error',
+        )
+    except HorarioTemporarioValidationError as exc:
+        flash(str(exc), 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao remover grupo de horario temporario da escola %s.', escola['id'])
+        flash('Nao foi possivel remover o horario alternativo agora.', 'error')
+
+    turma_id = request.form.get('turma_id', type=int)
+    if turma_id:
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/mover_aula', methods=['POST'])
@@ -668,3 +998,76 @@ def exportar_pdf_geral_route(escola_id):
     turmas = listar_turmas(escola['id'], turno_atual)
     filepath = exportar_pdf_matriz(escola, aulas, turmas, color_mode=_export_color_mode())
     return _send_temp_file(filepath, f'horario-geral-{turno_atual}.pdf')
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/exportar/temporario/excel')
+@login_required
+def exportar_temporario_xls(escola_id):
+    escola, failure = _guard_school(escola_id, permission='export_school')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    aulas = _normalizar_aulas_temporarias_para_export(_filtrar_horarios_temporarios_grupo(
+        escola['id'],
+        turno_atual,
+        request.args.get('titulo'),
+        request.args.get('data_inicio'),
+        request.args.get('data_fim') or request.args.get('data_inicio'),
+        request.args.get('dia'),
+        request.args.get('observacao'),
+    ))
+    turmas = listar_turmas(escola['id'], turno_atual)
+    turma_ids = {aula['turma_id'] for aula in aulas}
+    turmas = [turma for turma in turmas if turma['id'] in turma_ids]
+    filepath = exportar_excel(escola, aulas, turmas, color_mode=_export_color_mode())
+    return _send_temp_file(filepath, f'horario-alternativo-{turno_atual}.xlsx')
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/exportar/temporario/pdf')
+@login_required
+def exportar_temporario_pdf(escola_id):
+    escola, failure = _guard_school(escola_id, permission='export_school')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    aulas = _normalizar_aulas_temporarias_para_export(_filtrar_horarios_temporarios_grupo(
+        escola['id'],
+        turno_atual,
+        request.args.get('titulo'),
+        request.args.get('data_inicio'),
+        request.args.get('data_fim') or request.args.get('data_inicio'),
+        request.args.get('dia'),
+        request.args.get('observacao'),
+    ))
+    turmas = listar_turmas(escola['id'], turno_atual)
+    turma_ids = {aula['turma_id'] for aula in aulas}
+    turmas = [turma for turma in turmas if turma['id'] in turma_ids]
+    disciplinas = listar_disciplinas(escola['id'], turno_atual)
+    filepath = exportar_pdf(escola, aulas, turmas, disciplinas, color_mode=_export_color_mode())
+    return _send_temp_file(filepath, f'horario-alternativo-{turno_atual}.pdf')
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/exportar/temporario/pdf/geral')
+@login_required
+def exportar_temporario_pdf_geral(escola_id):
+    escola, failure = _guard_school(escola_id, permission='export_school')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    aulas = _normalizar_aulas_temporarias_para_export(_filtrar_horarios_temporarios_grupo(
+        escola['id'],
+        turno_atual,
+        request.args.get('titulo'),
+        request.args.get('data_inicio'),
+        request.args.get('data_fim') or request.args.get('data_inicio'),
+        request.args.get('dia'),
+        request.args.get('observacao'),
+    ))
+    turmas = listar_turmas(escola['id'], turno_atual)
+    turma_ids = {aula['turma_id'] for aula in aulas}
+    turmas = [turma for turma in turmas if turma['id'] in turma_ids]
+    filepath = exportar_pdf_matriz(escola, aulas, turmas, color_mode=_export_color_mode())
+    return _send_temp_file(filepath, f'horario-alternativo-geral-{turno_atual}.pdf')
