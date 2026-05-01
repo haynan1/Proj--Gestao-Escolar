@@ -209,10 +209,67 @@ function garantirBotaoManual(cell) {
 }
 
 
+function initTrashDrop() {
+    const trashZone = document.querySelector('[data-schedule-trash]');
+    if (!trashZone) return;
+
+    trashZone.addEventListener('dragover', (e) => {
+        if (!draggedAulaId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        trashZone.classList.add('drag-over');
+    });
+
+    trashZone.addEventListener('dragleave', () => {
+        trashZone.classList.remove('drag-over');
+    });
+
+    trashZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        trashZone.classList.remove('drag-over');
+
+        const aulaId = e.dataTransfer.getData('text/plain') || draggedAulaId;
+        const cardToDelete = draggedCard || document.querySelector(`.aula-card[data-aula-id="${aulaId}"]`);
+        const oldCell = cardToDelete?.closest('.grade-cell');
+        if (!aulaId) return;
+
+        try {
+            const escolaId = document.body.dataset.escolaId;
+            const resp = await fetch(`/escola/${escolaId}/horarios/aula/${aulaId}/deletar?${getTurnoQuery()}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': csrfToken,
+                },
+            });
+            const data = await resp.json();
+            if (resp.ok && data.status === 'ok') {
+                cardToDelete?.remove();
+                if (oldCell && !oldCell.querySelector('.aula-card')) {
+                    oldCell.classList.add('empty');
+                    garantirBotaoManual(oldCell);
+                }
+                ocupacaoProfessorCache.clear();
+                showToast('Aula removida com sucesso!', 'success');
+                return;
+            }
+
+            showToast(data?.error?.message || 'Nao foi possivel remover a aula.', 'error');
+        } catch (err) {
+            showToast('Erro de conexao ao remover aula.', 'error');
+            console.error(err);
+        } finally {
+            limparDestaques();
+        }
+    });
+}
+
+
 function initDragDrop() {
     if (document.body.dataset.canManageSchedule !== 'true') {
         return;
     }
+
+    initTrashDrop();
 
     document.querySelectorAll('.aula-card[data-aula-id]').forEach((card) => {
         card.setAttribute('draggable', 'true');

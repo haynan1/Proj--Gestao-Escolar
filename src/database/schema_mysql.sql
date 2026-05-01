@@ -118,3 +118,29 @@ CREATE TABLE IF NOT EXISTS aulas (
     CONSTRAINT fk_aulas_disciplina
         FOREIGN KEY (disciplina_id) REFERENCES disciplinas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS horarios_temporarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
+    turma_id INT NOT NULL,
+    data_inicio DATE NOT NULL,
+    data_fim DATE NOT NULL,
+    dia VARCHAR(20) NOT NULL,
+    periodo INT NOT NULL,
+    titulo VARCHAR(255) NOT NULL,
+    professor_id INT NULL,
+    disciplina_id INT NULL,
+    observacao TEXT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_horarios_temp_escola_turno (escola_id, turno),
+    KEY idx_horarios_temp_turma_datas (turma_id, data_inicio, data_fim),
+    CONSTRAINT fk_horarios_temp_escola
+        FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_horarios_temp_turma
+        FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_horarios_temp_professor
+        FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE SET NULL,
+    CONSTRAINT fk_horarios_temp_disciplina
+        FOREIGN KEY (disciplina_id) REFERENCES disciplinas(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

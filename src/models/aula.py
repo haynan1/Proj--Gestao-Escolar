@@ -75,6 +75,23 @@ def limpar_aulas(escola_id, turma_id=None, turno=None):
         conn.close()
 
 
+def deletar_aula(aula_id, escola_id, turno=None):
+    turno = normalizar_turno(turno)
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "DELETE FROM aulas WHERE id = %s AND escola_id = %s AND turno = %s",
+            (aula_id, escola_id, turno),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def _dias_disponiveis_professor(row):
     if not row:
         return []
