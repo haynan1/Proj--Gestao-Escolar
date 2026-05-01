@@ -805,15 +805,15 @@ def deletar_aula_manual(escola_id, aula_id):
         return failure
 
     try:
-        removida = deletar_aula(aula_id, escola_id=escola['id'], turno=_active_turno())
+        aula_removida = deletar_aula(aula_id, escola_id=escola['id'], turno=_active_turno())
     except Exception:
         current_app.logger.exception('Erro ao remover aula %s da escola %s.', aula_id, escola['id'])
         return _json_error('Nao foi possivel remover a aula agora.', code='delete_failed')
 
-    if not removida:
+    if not aula_removida:
         return _json_error('Aula nao encontrada.', status_code=404, code='not_found')
 
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', 'aula': aula_removida})
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario', methods=['POST'])

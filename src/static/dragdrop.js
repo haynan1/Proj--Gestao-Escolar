@@ -243,6 +243,9 @@ function initTrashDrop() {
             });
             const data = await resp.json();
             if (resp.ok && data.status === 'ok') {
+                if (typeof window.registrarAulaPendenteManual === 'function') {
+                    window.registrarAulaPendenteManual(data.aula);
+                }
                 cardToDelete?.remove();
                 if (oldCell && !oldCell.querySelector('.aula-card')) {
                     oldCell.classList.add('empty');
