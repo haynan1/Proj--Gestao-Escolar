@@ -46,7 +46,7 @@
 
 .reports-summary {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 0.85rem;
     margin: 1rem 0;
 }
@@ -94,6 +94,14 @@
 
 .report-stat-info strong {
     color: #38bdf8;
+}
+
+.report-stat-temporary {
+    border-color: rgba(234, 179, 8, 0.24);
+}
+
+.report-stat-temporary strong {
+    color: #fbbf24;
 }
 
 .reports-grid {
@@ -249,6 +257,75 @@
     color: #38bdf8;
 }
 
+.report-type-pill.temporary {
+    width: fit-content;
+    border-radius: 6px;
+    background: rgba(234, 179, 8, 0.14);
+    color: #fde68a;
+}
+
+.reports-temporary-layers {
+    margin-top: 1rem;
+}
+
+.reports-layer-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.reports-layer-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-left: 4px solid rgba(234, 179, 8, 0.72);
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.42);
+}
+
+.reports-layer-main {
+    display: grid;
+    gap: 0.28rem;
+    min-width: 0;
+}
+
+.reports-layer-main strong {
+    color: var(--text);
+    font-size: 0.98rem;
+}
+
+.reports-layer-main small,
+.reports-layer-main p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.reports-layer-metrics,
+.reports-layer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.reports-layer-metrics span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 0.55rem;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.22);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
 .reports-professor-name {
     display: inline-flex;
     align-items: center;
@@ -306,8 +383,19 @@
 
 [data-theme="light"] .report-stat-card,
 [data-theme="light"] .reports-panel,
-[data-theme="light"] .reports-teacher-row {
+[data-theme="light"] .reports-teacher-row,
+[data-theme="light"] .reports-layer-card {
     background: #ffffff;
+}
+
+[data-theme="light"] .report-type-pill.temporary {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+[data-theme="light"] .reports-layer-metrics span {
+    background: #f8fafc;
+    border-color: #e2e8f0;
 }
 
 [data-theme="light"] .reports-month-actions input {
@@ -321,6 +409,16 @@
 
     .reports-grid {
         grid-template-columns: 1fr;
+    }
+
+    .reports-layer-card {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .reports-layer-metrics,
+    .reports-layer-actions {
+        justify-content: flex-start;
     }
 }
 

@@ -23,7 +23,9 @@
     <div class="horarios-header">
         <div>
             <div class="dashboard-title-row">
-                <h1 class="horarios-title">Grade de Horários</h1>
+                <h1 class="horarios-title">
+                    Horários · {{ turno_atual_label }}{% if view_mode != 'geral' and turma_selecionada %} · {{ turma_selecionada.nome }}{% endif %}
+                </h1>
                 {% if escola.oculta %}
                 <span class="backup-hidden-badge">Backup oculto</span>
                 {% endif %}
@@ -43,9 +45,45 @@
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
             </form>
-            <button type="button" class="btn btn-secondary" onclick="openModal('modal-horario-alternativo')">
-                Gerar horário alternativo
-            </button>
+            <div class="schedule-alt-picker">
+                <button type="button" class="btn btn-secondary" data-alt-menu-trigger aria-expanded="false">
+                    Gerar horário alternativo
+                </button>
+                <div class="schedule-alt-menu" role="menu" aria-label="Opções de horário alternativo">
+                    <span class="schedule-alt-menu-title">Visualização da grade</span>
+                    <div class="schedule-view-toggle schedule-alt-view-toggle" aria-label="Alternar visualização da grade">
+                        <a class="{% if visualizacao_horario == 'oficial' %}active{% endif %}"
+                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='oficial') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='oficial') }}{% endif %}">
+                            Oficial
+                        </a>
+                        <a class="{% if visualizacao_horario == 'alternativo' %}active{% endif %}"
+                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='alternativo') }}{% endif %}">
+                            Alternativos
+                        </a>
+                    </div>
+                    <form method="GET" action="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="schedule-view-date-form schedule-alt-date-form" role="menuitem">
+                        <input type="hidden" name="turno" value="{{ turno_atual }}">
+                        <input type="hidden" name="visualizacao" value="{{ visualizacao_horario }}">
+                        {% if view_mode == 'geral' %}
+                        <input type="hidden" name="view" value="geral">
+                        {% elif turma_selecionada_id %}
+                        <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
+                        {% endif %}
+                        <label for="schedule-data-visualizada">
+                            Data visualizada
+                            <small>Somente dias letivos</small>
+                        </label>
+                        <input id="schedule-data-visualizada" name="data" type="date" value="{{ data_visualizada }}">
+                        <button type="submit" class="btn btn-secondary btn-sm">Ver</button>
+                    </form>
+                    <div class="schedule-alt-menu-info" role="note">
+                        Camadas temporárias não apagam o horário oficial.
+                    </div>
+                    <button type="button" class="btn btn-primary schedule-alt-create" onclick="openModal('modal-horario-alternativo')">
+                        Criar nova camada
+                    </button>
+                </div>
+            </div>
             {% endif %}
             {% if can_export_schedule %}
             <div class="schedule-export-picker">
@@ -128,7 +166,7 @@
 
     <nav class="turno-switcher" aria-label="Selecionar turno">
         {% for turno in turnos %}
-        <a href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno.id, view='geral') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno.id, turma_id=turma_selecionada_id) }}{% endif %}"
+        <a href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno.id, view='geral', data=data_visualizada, visualizacao=visualizacao_horario) }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno.id, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao=visualizacao_horario) }}{% endif %}"
             class="turno-switcher-link {% if turno.id == turno_atual %}active{% endif %}">
             {{ turno.nome }}
         </a>
@@ -145,13 +183,13 @@
     </div>
     {% else %}
     <div class="turma-tabs">
-        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral') }}"
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao=visualizacao_horario) }}"
             class="turma-tab turma-tab-fixed {% if view_mode == 'geral' %}active{% endif %}">
             Modo manual
         </a>
         <div class="turma-tabs-scroll">
         {% for turma in turmas %}
-        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma.id) }}"
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma.id, data=data_visualizada, visualizacao=visualizacao_horario) }}"
             class="turma-tab {% if view_mode != 'geral' and turma.id == turma_selecionada_id %}active{% endif %}">
             {{ turma.nome }}
         </a>
@@ -216,13 +254,38 @@
                                 <th class="dia-header dia-header-cell">{{ p }}º Período</th>
                                 {% for dia in dias %}
                                 {% set aula = grade[turma.id][dia][p] %}
+                                {% set temp_slot_geral = temporarios_por_turma_slot.get(turma.id ~ ':' ~ dia ~ ':' ~ p, []) %}
+                                {% set aula_temp_geral = temp_slot_geral[0] if temp_slot_geral else none %}
                                 <td data-periodo-label="{{ dia }}">
-                                    <div class="grade-cell {% if not aula %}empty{% endif %}"
+                                    <div class="grade-cell {% if not aula and not aula_temp_geral %}empty{% endif %}"
                                         data-turma-id="{{ turma.id }}"
                                         data-turma-nome="{{ turma.nome }}"
                                         data-dia="{{ dia }}"
                                         data-periodo="{{ p }}">
-                                        {% if aula %}
+                                        {% if aula_temp_geral %}
+                                        <div class="aula-card schedule-temporary-card"
+                                            data-professor-id="{{ aula_temp_geral.professor_id or '' }}"
+                                            data-professor-nome="{{ aula_temp_geral.professor_nome or '' }}"
+                                            data-color="{{ aula_temp_geral.disciplina_cor or '' }}"
+                                            data-disciplina-color="{{ aula_temp_geral.disciplina_cor or '' }}"
+                                            data-professor-color="{{ aula_temp_geral.professor_cor or '' }}"
+                                            title="{{ aula_temp_geral.titulo }}{% if aula_temp_geral.observacao %} - {{ aula_temp_geral.observacao }}{% endif %}">
+                                            <div class="schedule-temporary-topline">
+                                                <span>Alterado</span>
+                                            </div>
+                                            <div class="disc-nome">
+                                                {% if aula_temp_geral.disciplina_nome %}
+                                                {{ aula_temp_geral.disciplina_nome }}
+                                                {% elif aula_temp_geral.observacao and 'Pulando' in aula_temp_geral.observacao %}
+                                                Período bloqueado
+                                                {% else %}
+                                                Sem substituto
+                                                {% endif %}
+                                            </div>
+                                            <div class="prof-nome text-muted">{{ aula_temp_geral.professor_nome or 'Sem aula definida' }}</div>
+                                            <div class="schedule-temporary-layer">Camada temporária</div>
+                                        </div>
+                                        {% elif aula %}
                                         <div class="aula-card aula-card-dynamic"
                                             data-aula-id="{{ aula.id }}"
                                             data-professor-id="{{ aula.professor_id }}"
@@ -314,7 +377,7 @@
                         {% for dia in dias %}
                         {% set aula = grade[turma_selecionada_id][dia][p] %}
                         {% set excecoes_slot = temporarios_por_slot.get(dia ~ ':' ~ p, []) %}
-                        {% set aula_temp = excecoes_slot[-1] if excecoes_slot else none %}
+                        {% set aula_temp = excecoes_slot[0] if excecoes_slot else none %}
                         <td data-periodo-label="{{ dia }}">
                             <div class="grade-cell {% if not aula and not aula_temp %}empty{% endif %}"
                                 data-turma-id="{{ turma_atual.id }}"
@@ -322,25 +385,29 @@
                                 data-dia="{{ dia }}"
                                 data-periodo="{{ p }}">
                                 {% if aula_temp %}
-                                <div class="aula-card aula-card-dynamic schedule-temporary-card"
+                                <div class="aula-card schedule-temporary-card"
                                     data-professor-id="{{ aula_temp.professor_id or '' }}"
                                     data-professor-nome="{{ aula_temp.professor_nome or '' }}"
                                     data-color="{{ aula_temp.disciplina_cor or '' }}"
                                     data-disciplina-color="{{ aula_temp.disciplina_cor or '' }}"
-                                    data-professor-color="{{ aula_temp.professor_cor or '' }}">
+                                    data-professor-color="{{ aula_temp.professor_cor or '' }}"
+                                    title="{{ aula_temp.titulo }}{% if aula_temp.observacao %} - {{ aula_temp.observacao }}{% endif %}">
                                     <div class="schedule-temporary-topline">
-                                        <span>Alternativo</span>
-                                        <small>{{ aula_temp.data_inicio }}{% if aula_temp.data_fim != aula_temp.data_inicio %} até {{ aula_temp.data_fim }}{% endif %}</small>
+                                        <span>Alterado</span>
                                     </div>
-                                    <div class="disc-nome">{{ aula_temp.disciplina_nome or aula_temp.titulo }}</div>
-                                    <div class="prof-nome text-muted">{{ aula_temp.professor_nome or aula_temp.titulo }}</div>
-                                    <div class="schedule-temporary-reason">
-                                        <span>Motivo</span>
-                                        <strong>{{ aula_temp.titulo }}</strong>
-                                    </div>
-                                    {% if aula_temp.observacao %}
-                                    <div class="schedule-temporary-rule">{{ aula_temp.observacao }}</div>
+                                    {% if aula_temp.disciplina_nome %}
+                                    <div class="disc-nome">{{ aula_temp.disciplina_nome }}</div>
+                                    {% elif aula_temp.observacao and 'Pulando' in aula_temp.observacao %}
+                                    <div class="disc-nome">Período bloqueado</div>
+                                    {% else %}
+                                    <div class="disc-nome">Sem substituto</div>
                                     {% endif %}
+                                    {% if aula_temp.professor_nome %}
+                                    <div class="prof-nome text-muted">{{ aula_temp.professor_nome }}</div>
+                                    {% else %}
+                                    <div class="prof-nome text-muted">Sem aula definida</div>
+                                    {% endif %}
+                                    <div class="schedule-temporary-layer">Camada temporária</div>
                                 </div>
                                 {% elif aula %}
                                 <div class="aula-card aula-card-dynamic" data-aula-id="{{ aula.id }}"
@@ -361,54 +428,6 @@
                 </tbody>
             </table>
         </div>
-
-        {% if grupos_horarios_temporarios %}
-        <section class="schedule-alternative-panel">
-            <div class="schedule-alternative-panel-header">
-                <div>
-                    <h2>Horários alternativos</h2>
-                    <p class="text-muted text-sm">Camadas temporárias que não apagam o horário oficial.</p>
-                </div>
-            </div>
-            <div class="schedule-alternative-list">
-                {% for grupo in grupos_horarios_temporarios %}
-                <div class="schedule-alternative-item">
-                    <div class="schedule-alternative-info">
-                        <div class="schedule-alternative-titleline">
-                            <span>Alternativo</span>
-                            <strong>{{ grupo.titulo }}</strong>
-                        </div>
-                        <div class="schedule-alternative-meta">
-                            <span>{{ grupo.dia }}</span>
-                            <span>{{ grupo.data_inicio }}{% if grupo.data_fim != grupo.data_inicio %} até {{ grupo.data_fim }}{% endif %}</span>
-                            <span>{{ grupo.total_turmas }} turma(s)</span>
-                            <span>{{ grupo.total_aulas }} aula(s)</span>
-                        </div>
-                        {% if grupo.observacao %}
-                        <div class="schedule-alternative-rule">{{ grupo.observacao }}</div>
-                        {% endif %}
-                    </div>
-                    {% if can_manage_schedule %}
-                    <div class="schedule-alternative-actions">
-                        <form method="POST"
-                            action="{{ url_for('dashboard.deletar_temporario_grupo', escola_id=escola.id, turno=turno_atual) }}"
-                            onsubmit="return confirm('Remover este horário alternativo inteiro?')">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
-                            <input type="hidden" name="titulo" value="{{ grupo.titulo }}">
-                            <input type="hidden" name="data_inicio" value="{{ grupo.data_inicio }}">
-                            <input type="hidden" name="data_fim" value="{{ grupo.data_fim }}">
-                            <input type="hidden" name="dia" value="{{ grupo.dia }}">
-                            <input type="hidden" name="observacao" value="{{ grupo.observacao or '' }}">
-                            <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
-                        </form>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-        {% endif %}
 
         {% set aulas_turma = aulas | selectattr('turma_id', 'equalto', turma_selecionada_id) | list %}
         {% if aulas_turma %}
@@ -476,16 +495,16 @@
     <div class="modal schedule-alternative-modal">
         <div class="modal-header">
             <span class="modal-title">Gerar horário alternativo</span>
-            <button class="modal-close" type="button" onclick="closeModal('modal-horario-alternativo')">x</button>
+            <button class="modal-close" type="button" onclick="closeModal('modal-horario-alternativo')" aria-label="Fechar modal de horário alternativo">x</button>
         </div>
         <form method="POST"
             action="{{ url_for('dashboard.gerar_temporario', escola_id=escola.id, turno=turno_atual) }}"
             class="schedule-alternative-form"
-            onsubmit="return confirm('Gerar horário alternativo com estas regras? Alternativos sobrepostos neste período serão substituídos, sem apagar o horário oficial.')">
+            onsubmit="return confirm('Gerar camada temporária apenas para os períodos afetados? Camadas sobrepostas nesses períodos serão substituídas, sem apagar o horário oficial.')">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="turma_contexto_id" value="{{ turma_selecionada_id }}">
             <p class="text-muted text-sm schedule-alternative-help">
-                Cria uma camada temporária sobre o horário oficial, válida apenas na data escolhida ou em um intervalo.
+                Cria uma camada somente nos períodos afetados pelo professor ausente ou pelo bloqueio. As outras aulas continuam oficiais.
             </p>
             <div class="form-group">
                 <label class="form-label" for="alt-turno">Turno</label>
@@ -511,7 +530,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="alt-data-inicio">Data do horário alternativo</label>
-                <input class="form-control" id="alt-data-inicio" name="data_inicio" type="date" required>
+                <input class="form-control" id="alt-data-inicio" name="data_inicio" type="date" value="{{ data_visualizada }}" required>
             </div>
             <label class="schedule-date-range-toggle">
                 <input type="checkbox" id="alt-usar-data-fim">
@@ -522,7 +541,7 @@
                 <input class="form-control" id="alt-data-fim" name="data_fim" type="date">
             </div>
             <div class="form-group">
-                <label class="form-label" for="alt-dia">Dia da grade oficial a copiar</label>
+                <label class="form-label" for="alt-dia">Dia da grade oficial a verificar</label>
                 <select class="form-control" id="alt-dia" name="dia" required>
                     {% for dia_opcao in dias %}
                     <option value="{{ dia_opcao }}">{{ dia_opcao }}</option>
@@ -530,9 +549,9 @@
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label" for="alt-professor">Excluir professor neste alternativo</label>
+                <label class="form-label" for="alt-professor">Professor ausente</label>
                 <select class="form-control" id="alt-professor" name="professor_excluido_id">
-                    <option value="">Nenhum professor excluído</option>
+                    <option value="">Nenhum professor ausente</option>
                     {% for turno_id, professores_do_turno in professores_por_turno.items() %}
                     {% for professor in professores_do_turno %}
                     <option value="{{ professor.id }}" data-turno="{{ turno_id }}">{{ professor.nome }}</option>
@@ -604,6 +623,7 @@
         const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
         const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
+        const altMenuTriggers = Array.from(document.querySelectorAll('[data-alt-menu-trigger]'));
         const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
         const legends = Array.from(document.querySelectorAll('.schedule-legend-list'));
         const manualOptions = {{ manual_options | tojson }};
@@ -660,11 +680,16 @@
             localStorage.setItem(storageKey, selectedMode);
         };
 
-        const closeExportMenus = (exceptPicker = null) => {
+        const closeScheduleMenus = (exceptPicker = null) => {
             document.querySelectorAll('.schedule-export-picker.open').forEach((picker) => {
                 if (picker === exceptPicker) return;
                 picker.classList.remove('open');
                 picker.querySelector('[data-export-menu-trigger]')?.setAttribute('aria-expanded', 'false');
+            });
+            document.querySelectorAll('.schedule-alt-picker.open').forEach((picker) => {
+                if (picker === exceptPicker) return;
+                picker.classList.remove('open');
+                picker.querySelector('[data-alt-menu-trigger]')?.setAttribute('aria-expanded', 'false');
             });
         };
 
@@ -677,14 +702,27 @@
                 event.stopPropagation();
                 const picker = button.closest('.schedule-export-picker');
                 const open = !picker.classList.contains('open');
-                closeExportMenus(picker);
+                closeScheduleMenus(picker);
                 picker.classList.toggle('open', open);
                 button.setAttribute('aria-expanded', open ? 'true' : 'false');
             });
         });
-        document.addEventListener('click', () => closeExportMenus());
+        altMenuTriggers.forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const picker = button.closest('.schedule-alt-picker');
+                const open = !picker.classList.contains('open');
+                closeScheduleMenus(picker);
+                picker.classList.toggle('open', open);
+                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        });
+        document.querySelectorAll('.schedule-export-menu, .schedule-alt-menu').forEach((menu) => {
+            menu.addEventListener('click', (event) => event.stopPropagation());
+        });
+        document.addEventListener('click', () => closeScheduleMenus());
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeExportMenus();
+            if (event.key === 'Escape') closeScheduleMenus();
         });
 
         const altTurno = document.getElementById('alt-turno');
@@ -733,6 +771,31 @@
         if (altDataInicio && !altDataInicio.value) altDataInicio.value = todayAsInputValue();
         syncAlternativeTurnoOptions();
         syncAlternativeDateRange();
+
+        document.querySelector('.schedule-view-date-form')?.addEventListener('submit', (event) => {
+            const dateValue = document.getElementById('schedule-data-visualizada')?.value;
+            if (!dateValue) return;
+            const [year, month, day] = dateValue.split('-').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
+            const weekDay = selectedDate.getDay();
+            if (weekDay === 0 || weekDay === 6) {
+                event.preventDefault();
+                showToast('Sábados e domingos não recebem alterações de horário.', 'warning');
+            }
+        });
+
+        document.querySelector('.schedule-alternative-form')?.addEventListener('submit', (event) => {
+            const values = [altDataInicio?.value, altDataFim?.disabled ? '' : altDataFim?.value].filter(Boolean);
+            const hasWeekend = values.some((dateValue) => {
+                const [year, month, day] = dateValue.split('-').map(Number);
+                const selectedDate = new Date(year, month - 1, day);
+                return [0, 6].includes(selectedDate.getDay());
+            });
+            if (hasWeekend) {
+                event.preventDefault();
+                showToast('Não é permitido criar alteração para sábado ou domingo.', 'warning');
+            }
+        });
 
         const manualModal = document.getElementById('modal-aula-manual');
         const manualForm = document.getElementById('manual-aula-form');
