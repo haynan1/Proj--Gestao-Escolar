@@ -492,6 +492,30 @@
         scrollbar-color: #64748b rgba(15, 23, 42, 0.2) !important;
     }
 
+    body[data-escola-id] #modal-prof-edit .professor-load-header {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-load-header,
+    body[data-escola-id] #modal-prof-edit .professor-load-actions {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+
+    body[data-escola-id] #modal-prof .professor-load-total,
+    body[data-escola-id] #modal-prof-edit .professor-load-total {
+        width: 100% !important;
+    }
+
+    body[data-escola-id] #modal-prof-edit .professor-zero-toggle {
+        width: 100% !important;
+        min-height: 40px !important;
+        justify-content: center !important;
+    }
+
     body[data-escola-id] #modal-prof .professor-carga-table,
     body[data-escola-id] #modal-prof-edit .professor-carga-table {
         display: block !important;

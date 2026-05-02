@@ -51,7 +51,6 @@
                 {% if escola.oculta %}
                 <span class="backup-hidden-badge">Backup oculto</span>
                 {% endif %}
-                <span class="turno-badge">Turno: {{ turno_atual_label }}</span>
             </div>
             <p class="text-muted text-sm mt-1">
                 {% if can_manage_resources %}
@@ -510,7 +509,10 @@
                 </div>
             </div>
             <div class="form-group professor-load-panel">
-                <label class="form-label">Aulas por turma e disciplina</label>
+                <div class="professor-load-header">
+                    <label class="form-label">Aulas por turma e disciplina</label>
+                    <span class="professor-load-total" data-carga-total>0 aulas/sem</span>
+                </div>
                 <div class="carga-grid">
                     <table class="professor-carga-table">
                         <colgroup>
@@ -563,7 +565,7 @@
             title="Voltar ao topo">
             ↑
         </button>
-        <form method="POST" id="form-prof-edit" class="professor-form">
+        <form method="POST" id="form-prof-edit" class="professor-form" data-show-zero-cargas="false">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="professor-main-grid">
                 <div class="professor-left-stack">
@@ -626,7 +628,16 @@
                 </div>
             </div>
             <div class="form-group professor-load-panel">
-                <label class="form-label">Aulas por turma e disciplina</label>
+                <div class="professor-load-header">
+                    <label class="form-label">Aulas por turma e disciplina</label>
+                    <div class="professor-load-actions">
+                        <span class="professor-load-total" data-carga-total>0 aulas/sem</span>
+                        <button type="button" class="btn btn-secondary btn-sm professor-zero-toggle"
+                            data-carga-zero-toggle aria-pressed="false">
+                            Mostrar zeradas
+                        </button>
+                    </div>
+                </div>
                 <div class="carga-grid">
                     <table class="professor-carga-table">
                         <colgroup>
@@ -658,8 +669,11 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    <div class="carga-empty-state" data-carga-empty>
+                        Nenhuma carga preenchida. Use "Mostrar zeradas" para escolher turma, disciplina e quantidade.
+                    </div>
                 </div>
-                <p class="professor-aulas-hint">Use 0 para combinações que não se aplicam.</p>
+                <p class="professor-aulas-hint">A lista mostra as cargas preenchidas. Use "Mostrar zeradas" para adicionar novas combinações.</p>
             </div>
             </div>
             <div class="flex gap-2 modal-actions-sticky">

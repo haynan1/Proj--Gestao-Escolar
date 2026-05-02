@@ -15,16 +15,45 @@ document.addEventListener('DOMContentLoaded', () => {
         const turmas = new Set(
             Array.from(form.querySelectorAll('input[name="turma_ids"]:checked')).map(cb => cb.value)
         );
+        const hasZeroToggle = Boolean(form.querySelector('[data-carga-zero-toggle]'));
+        const showZeroCargas = !hasZeroToggle || form.dataset.showZeroCargas === 'true';
+        let visibleRows = 0;
+        let eligibleZeroRows = 0;
+        let totalAulas = 0;
 
         form.querySelectorAll('.carga-row').forEach(row => {
-            const visible = disciplinas.has(row.dataset.disciplinaId) && turmas.has(row.dataset.turmaId);
-            row.hidden = !visible;
+            const selected = disciplinas.has(row.dataset.disciplinaId) && turmas.has(row.dataset.turmaId);
             const input = row.querySelector('.carga-input');
+            const cargaValue = parseInt(input?.value || '0', 10);
+            const hasCarga = cargaValue > 0;
+            const isEditing = input && document.activeElement === input;
+            const visible = selected && (showZeroCargas || hasCarga || isEditing);
+            row.hidden = !visible;
+            if (visible) visibleRows += 1;
+            if (selected && !hasCarga) eligibleZeroRows += 1;
+            if (selected && cargaValue > 0) totalAulas += cargaValue;
             if (input) {
-                input.disabled = !visible;
-                if (!visible) input.value = 0;
+                input.disabled = !selected;
+                if (!selected) input.value = 0;
             }
         });
+
+        const totalLabel = form.querySelector('[data-carga-total]');
+        if (totalLabel) {
+            totalLabel.textContent = `${totalAulas} ${totalAulas === 1 ? 'aula/sem' : 'aulas/sem'}`;
+        }
+
+        const toggle = form.querySelector('[data-carga-zero-toggle]');
+        if (toggle) {
+            toggle.textContent = showZeroCargas ? 'Ocultar zeradas' : 'Mostrar zeradas';
+            toggle.setAttribute('aria-pressed', showZeroCargas ? 'true' : 'false');
+            toggle.disabled = !showZeroCargas && eligibleZeroRows === 0;
+        }
+
+        const emptyState = form.querySelector('[data-carga-empty]');
+        if (emptyState) {
+            emptyState.hidden = visibleRows > 0;
+        }
     };
 
     const syncChecksFromCargas = (form) => {
@@ -51,6 +80,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.target.matches('input[name="disciplina_ids"], input[name="turma_ids"]')) {
                 syncCargaRows(form);
             }
+            if (event.target.matches('.carga-input')) {
+                syncCargaRows(form);
+            }
+        });
+        form.addEventListener('input', (event) => {
+            if (event.target.matches('.carga-input')) {
+                syncCargaRows(form);
+            }
         });
         form.addEventListener('submit', () => {
             syncChecksFromCargas(form);
@@ -67,6 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const scrollArea = modal?.querySelector('.professor-main-grid');
             if (scrollArea) {
                 scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            return;
+        }
+
+        const zeroToggle = e.target.closest('[data-carga-zero-toggle]');
+        if (zeroToggle) {
+            const form = zeroToggle.closest('form');
+            if (form) {
+                form.dataset.showZeroCargas = form.dataset.showZeroCargas === 'true' ? 'false' : 'true';
+                syncCargaRows(form);
             }
             return;
         }
@@ -118,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             document.getElementById('form-prof-edit').action = `/escola/${escolaId}/professor/${id}/editar${turnoQuery}`;
+            form.dataset.showZeroCargas = 'false';
             syncCargaRows(form);
             openModal('modal-prof-edit');
         }
