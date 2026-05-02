@@ -64,6 +64,11 @@
             <strong>{{ resumo.professores_envolvidos }}</strong>
             <small>Com registro no mês</small>
         </div>
+        <div class="report-stat-card report-stat-temporary">
+            <span>Camadas temporárias</span>
+            <strong>{{ resumo_camadas.total }}</strong>
+            <small>{{ resumo_camadas.aulas }} aula(s) impactada(s)</small>
+        </div>
     </section>
 
     <div class="reports-grid">
@@ -147,6 +152,51 @@
             {% endif %}
         </section>
     </div>
+
+    <section class="reports-panel reports-temporary-layers">
+        <div class="reports-section-heading">
+            <div>
+                <h2>Camadas temporárias de horário</h2>
+                <p>Horários alternativos com validade no mês selecionado.</p>
+            </div>
+        </div>
+
+        {% if camadas_temporarias %}
+        <div class="reports-layer-list">
+            {% for camada in camadas_temporarias %}
+            <article class="reports-layer-card">
+                <div class="reports-layer-main">
+                    <span class="report-type-pill temporary">Alternativo</span>
+                    <strong>{{ camada.titulo }}</strong>
+                    <small>
+                        {{ camada.data_inicio_formatada }}{% if camada.data_fim != camada.data_inicio %} até {{ camada.data_fim_formatada }}{% endif %}
+                        · {{ camada.dia }}
+                    </small>
+                    {% if camada.observacao %}
+                    <p>{{ camada.observacao }}</p>
+                    {% endif %}
+                </div>
+                <div class="reports-layer-metrics">
+                    <span>{{ camada.total_turmas }} turma(s)</span>
+                    <span>{{ camada.total_aulas }} aula(s)</span>
+                </div>
+                <div class="reports-layer-actions">
+                    <a class="btn btn-secondary btn-sm"
+                        href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, view='geral') }}">
+                        Ver grade
+                    </a>
+                    <a class="btn btn-secondary btn-sm"
+                        href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=camada.titulo, data_inicio=camada.data_inicio, data_fim=camada.data_fim, dia=camada.dia, observacao=camada.observacao or '', color_mode='disciplina') }}">
+                        PDF
+                    </a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="reports-empty compact">Nenhuma camada temporária com validade neste mês.</div>
+        {% endif %}
+    </section>
 
     <section class="reports-panel reports-history">
         <div class="reports-section-heading">

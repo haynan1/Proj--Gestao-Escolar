@@ -1,5 +1,5 @@
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from flask import (
     Blueprint,
@@ -275,6 +275,26 @@ def _data_atual():
     return date.today().isoformat()
 
 
+def _parse_date_or_today(value):
+    try:
+        return datetime.strptime(str(value), '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return date.today()
+
+
+def _is_weekend(value):
+    return value.weekday() >= 5
+
+
+def _date_range_has_weekend(data_inicio, data_fim):
+    cursor = data_inicio
+    while cursor <= data_fim:
+        if _is_weekend(cursor):
+            return True
+        cursor = cursor + timedelta(days=1)
+    return False
+
+
 def _month_label(month_value):
     meses = {
         1: 'Janeiro',
@@ -343,11 +363,11 @@ def _montar_aulas_alternativas_do_dia(
         return None
 
     precisa_substituir = set()
-    aulas_mantidas = []
+    aulas_bloqueadas = []
     for aula in aulas_dia:
         slot = (aula['turma_id'], aula['periodo'])
         if periodo_bloqueado and aula['periodo'] == periodo_bloqueado:
-            aulas_mantidas.append({
+            aulas_bloqueadas.append({
                 'turma_id': aula['turma_id'],
                 'professor_id': None,
                 'disciplina_id': None,
@@ -358,10 +378,9 @@ def _montar_aulas_alternativas_do_dia(
         if professor_excluido_id and aula['professor_id'] == professor_excluido_id:
             precisa_substituir.add(slot)
             continue
-        aulas_mantidas.append(aula)
 
     if not precisa_substituir:
-        return aulas_mantidas
+        return aulas_bloqueadas
 
     slots_bloqueados = set()
     if periodo_bloqueado:
@@ -402,7 +421,7 @@ def _montar_aulas_alternativas_do_dia(
         if (turma_id_slot, periodo) not in substitutas
     ]
 
-    return aulas_mantidas + list(substitutas.values()) + sem_substituta
+    return aulas_bloqueadas + list(substitutas.values()) + sem_substituta
 
 
 def _normalizar_aulas_temporarias_para_export(aulas_temporarias):
@@ -481,6 +500,106 @@ def _filtrar_horarios_temporarios_grupo(escola_id, turno, titulo, data_inicio, d
     ]
 
 
+def _agrupar_horarios_temporarios(aulas_temporarias):
+    grupos = {}
+    for aula in aulas_temporarias:
+        chave = (
+            aula.get('titulo'),
+            aula.get('data_inicio'),
+            aula.get('data_fim'),
+            aula.get('dia'),
+            aula.get('observacao'),
+        )
+        grupo = grupos.setdefault(chave, {
+            'titulo': aula.get('titulo'),
+            'data_inicio': aula.get('data_inicio'),
+            'data_fim': aula.get('data_fim'),
+            'dia': aula.get('dia'),
+            'observacao': aula.get('observacao'),
+            'total_aulas': 0,
+            'turma_ids': set(),
+            'criado_em': aula.get('criado_em'),
+        })
+        grupo['total_aulas'] += 1
+        if aula.get('turma_id'):
+            grupo['turma_ids'].add(int(aula['turma_id']))
+        if aula.get('criado_em') and (not grupo.get('criado_em') or aula.get('criado_em') < grupo.get('criado_em')):
+            grupo['criado_em'] = aula.get('criado_em')
+
+    resultado = []
+    for grupo in grupos.values():
+        grupo['total_turmas'] = len(grupo.pop('turma_ids'))
+        resultado.append(grupo)
+
+    return sorted(
+        resultado,
+        key=lambda grupo: (
+            str(grupo.get('data_inicio') or ''),
+            str(grupo.get('data_fim') or ''),
+            str(grupo.get('dia') or ''),
+            str(grupo.get('titulo') or ''),
+        ),
+        reverse=True,
+    )
+
+
+def _horario_temporario_ativo_na_data(registro, data_referencia):
+    data_inicio = _parse_date_or_today(registro.get('data_inicio'))
+    data_fim = _parse_date_or_today(registro.get('data_fim') or registro.get('data_inicio'))
+    return data_inicio <= data_referencia <= data_fim
+
+
+def _grupo_temporario_intersecta_intervalo(registro, inicio_intervalo, fim_intervalo):
+    data_inicio = _parse_date_or_today(registro.get('data_inicio'))
+    data_fim = _parse_date_or_today(registro.get('data_fim') or registro.get('data_inicio'))
+    return data_inicio < fim_intervalo and data_fim >= inicio_intervalo
+
+
+def _month_bounds(month_value):
+    try:
+        inicio = datetime.strptime(str(month_value), '%Y-%m').date().replace(day=1)
+    except (TypeError, ValueError):
+        inicio = date.today().replace(day=1)
+
+    if inicio.month == 12:
+        fim = inicio.replace(year=inicio.year + 1, month=1, day=1)
+    else:
+        fim = inicio.replace(month=inicio.month + 1, day=1)
+    return inicio, fim
+
+
+def _resumir_ocorrencia_ativa(grupos_ativos):
+    if not grupos_ativos:
+        return None
+
+    if len(grupos_ativos) == 1:
+        resumo = dict(grupos_ativos[0])
+        resumo['total_camadas'] = 1
+        return resumo
+
+    primeiro = grupos_ativos[0]
+    turmas_por_grupo = {
+        (
+            grupo.get('titulo'),
+            str(grupo.get('data_inicio')),
+            str(grupo.get('data_fim')),
+            grupo.get('dia'),
+            grupo.get('observacao') or '',
+        ): int(grupo.get('total_turmas') or 0)
+        for grupo in grupos_ativos
+    }
+    return {
+        'titulo': f'{len(grupos_ativos)} camadas temporárias',
+        'dia': primeiro.get('dia'),
+        'data_inicio': primeiro.get('data_inicio'),
+        'data_fim': primeiro.get('data_fim'),
+        'total_aulas': sum(int(grupo.get('total_aulas') or 0) for grupo in grupos_ativos),
+        'total_turmas': sum(turmas_por_grupo.values()),
+        'observacao': None,
+        'total_camadas': len(grupos_ativos),
+    }
+
+
 def _guard_school(escola_id, permission='view_school', json_response=False):
     escola = _load_accessible_escola(escola_id)
     if not escola:
@@ -543,6 +662,19 @@ def relatorios(escola_id):
         flash('Mês inválido. Exibindo o mês atual.', 'error')
     for registro in registros:
         registro['data_formatada'] = _format_date_br(registro.get('data_ocorrencia'))
+    inicio_mes, fim_mes = _month_bounds(mes)
+    camadas_temporarias = [
+        grupo for grupo in listar_grupos_horarios_temporarios(escola['id'], turno_atual)
+        if _grupo_temporario_intersecta_intervalo(grupo, inicio_mes, fim_mes)
+    ]
+    resumo_camadas = {
+        'total': len(camadas_temporarias),
+        'aulas': sum(int(grupo.get('total_aulas') or 0) for grupo in camadas_temporarias),
+        'turmas': sum(int(grupo.get('total_turmas') or 0) for grupo in camadas_temporarias),
+    }
+    for grupo in camadas_temporarias:
+        grupo['data_inicio_formatada'] = _format_date_br(grupo.get('data_inicio'))
+        grupo['data_fim_formatada'] = _format_date_br(grupo.get('data_fim'))
 
     return render_template(
         'relatorios.html',
@@ -550,6 +682,8 @@ def relatorios(escola_id):
         professores=professores,
         registros=registros,
         resumo=_build_relatorios_summary(registros, professores),
+        camadas_temporarias=camadas_temporarias,
+        resumo_camadas=resumo_camadas,
         tipos_ocorrencia=TIPOS_OCORRENCIA,
         turnos=TURNOS,
         turno_atual=turno_atual,
@@ -777,6 +911,14 @@ def horarios(escola_id):
         return failure
 
     turno_atual = _active_turno()
+    data_visualizada = _parse_date_or_today(request.args.get('data'))
+    data_visualizada_iso = data_visualizada.isoformat()
+    view_mode = request.args.get('view', 'turma')
+    if view_mode != 'geral':
+        view_mode = 'turma'
+    visualizacao_horario = request.args.get('visualizacao', 'alternativo')
+    if visualizacao_horario not in {'oficial', 'alternativo'}:
+        visualizacao_horario = 'alternativo'
     turmas = listar_turmas(escola['id'], turno_atual)
     aulas = listar_aulas(escola['id'], turno_atual)
     disciplinas = listar_disciplinas(escola['id'], turno_atual)
@@ -810,16 +952,32 @@ def horarios(escola_id):
     horarios_temporarios = listar_horarios_temporarios(
         escola['id'],
         turno_atual,
-        turma_selecionada_id if turma_selecionada else None,
+        turma_selecionada_id if turma_selecionada and view_mode != 'geral' else None,
     )
+    horarios_temporarios_ativos = [
+        horario for horario in horarios_temporarios
+        if visualizacao_horario == 'alternativo'
+        and _horario_temporario_ativo_na_data(horario, data_visualizada)
+    ]
     grupos_horarios_temporarios = listar_grupos_horarios_temporarios(escola['id'], turno_atual)
+    if view_mode != 'geral':
+        grupos_horarios_temporarios = _agrupar_horarios_temporarios(horarios_temporarios)
+    for grupo in grupos_horarios_temporarios:
+        grupo['ativo_na_data'] = _horario_temporario_ativo_na_data(grupo, data_visualizada)
+        grupo['data_inicio_formatada'] = _format_date_br(grupo.get('data_inicio'))
+        grupo['data_fim_formatada'] = _format_date_br(grupo.get('data_fim'))
+    grupos_ativos = [
+        grupo for grupo in grupos_horarios_temporarios
+        if grupo.get('ativo_na_data')
+    ]
+    ocorrencia_ativa = _resumir_ocorrencia_ativa(grupos_ativos) if visualizacao_horario == 'alternativo' else None
     temporarios_por_slot = {}
-    for horario_temp in horarios_temporarios:
+    temporarios_por_turma_slot = {}
+    for horario_temp in horarios_temporarios_ativos:
         chave = f"{horario_temp['dia']}:{horario_temp['periodo']}"
         temporarios_por_slot.setdefault(chave, []).append(horario_temp)
-    view_mode = request.args.get('view', 'turma')
-    if view_mode != 'geral':
-        view_mode = 'turma'
+        chave_turma = f"{horario_temp['turma_id']}:{horario_temp['dia']}:{horario_temp['periodo']}"
+        temporarios_por_turma_slot.setdefault(chave_turma, []).append(horario_temp)
 
     return render_template(
         'horarios.html',
@@ -829,9 +987,12 @@ def horarios(escola_id):
         aulas=aulas,
         disciplinas=disciplinas,
         professores=professores,
-        horarios_temporarios=horarios_temporarios,
+        turma_selecionada=turma_selecionada,
+        horarios_temporarios=horarios_temporarios_ativos,
         grupos_horarios_temporarios=grupos_horarios_temporarios,
+        ocorrencia_ativa=ocorrencia_ativa,
         temporarios_por_slot=temporarios_por_slot,
+        temporarios_por_turma_slot=temporarios_por_turma_slot,
         turmas_por_turno=turmas_por_turno,
         professores_por_turno=professores_por_turno,
         dias=DIAS_SEMANA,
@@ -840,9 +1001,12 @@ def horarios(escola_id):
         turma_selecionada_id=turma_selecionada_id,
         manual_options=_build_manual_options(turmas, professores, aulas),
         view_mode=view_mode,
+        visualizacao_horario=visualizacao_horario,
         turnos=TURNOS,
         turno_atual=turno_atual,
         turno_atual_label=_turno_label(turno_atual),
+        data_visualizada=data_visualizada_iso,
+        data_visualizada_formatada=_format_date_br(data_visualizada),
     )
 
 
@@ -889,6 +1053,25 @@ def gerar_temporario(escola_id):
     titulo = request.form.get('motivo') or 'Horário alternativo'
     professor_excluido_id = request.form.get('professor_excluido_id', type=int)
     periodo_bloqueado = request.form.get('periodo_bloqueado', type=int)
+    redirect_values = {'data': data_inicio, 'visualizacao': 'alternativo'}
+    data_inicio_parsed = _parse_date_or_today(data_inicio)
+    data_fim_parsed = _parse_date_or_today(data_fim)
+    if _date_range_has_weekend(data_inicio_parsed, data_fim_parsed):
+        flash('Nao e permitido criar camadas temporarias para sabado ou domingo.', 'error')
+        if turma_id:
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
+        if turma_id_contexto and turno_atual == request.args.get('turno'):
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto, **redirect_values))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
+
+    if not professor_excluido_id and not periodo_bloqueado:
+        flash('Selecione um professor ausente ou um periodo bloqueado para criar uma camada temporaria.', 'error')
+        if turma_id:
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
+        if turma_id_contexto and turno_atual == request.args.get('turno'):
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto, **redirect_values))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
+
     observacao_partes = []
     if professor_excluido_id:
         professor = next(
@@ -910,17 +1093,19 @@ def gerar_temporario(escola_id):
             periodo_bloqueado,
         )
         if aulas_geradas is None:
-            sucesso, msg, aulas_geradas = montar_horario_gerado(
-                escola['id'],
-                turma_id,
-                turno_atual,
-                professor_ids_excluidos=[professor_excluido_id] if professor_excluido_id else None,
-                slots_bloqueados={(turma_id if turma_id else None, dia, periodo_bloqueado)} if periodo_bloqueado else None,
-                permitir_grade_incompleta=bool(professor_excluido_id or periodo_bloqueado),
-            )
+            sucesso = False
+            msg = 'Nao ha aulas oficiais nesse dia da grade para aplicar a camada temporaria.'
+            aulas_geradas = []
         else:
             sucesso = bool(aulas_geradas)
+            if not sucesso:
+                msg = 'Nenhuma aula foi afetada. Verifique se o professor selecionado da aula nessa turma/dia ou escolha um periodo bloqueado.'
             msg = "Horário alternativo montado com base no horário oficial."
+
+        if sucesso:
+            msg = 'Camada temporaria montada apenas nos periodos afetados.'
+        elif aulas_geradas == []:
+            msg = 'Nenhuma aula foi afetada. Verifique se o professor selecionado da aula nessa turma/dia ou escolha um periodo bloqueado.'
 
         if not sucesso:
             flash(msg, 'error')
@@ -950,10 +1135,10 @@ def gerar_temporario(escola_id):
         )
 
     if turma_id:
-        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
     if turma_id_contexto and turno_atual == request.args.get('turno'):
-        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto))
-    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto, **redirect_values))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/limpar', methods=['POST'])
@@ -1065,7 +1250,8 @@ def criar_temporario(escola_id):
         current_app.logger.exception('Erro ao criar horario temporario da escola %s.', escola['id'])
         flash('Não foi possível criar o horário temporário agora.', 'error')
 
-    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    data_visualizada = request.form.get('data_inicio') or request.form.get('data_visualizada')
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario/<int:horario_id>/deletar', methods=['POST'])
@@ -1083,9 +1269,11 @@ def deletar_temporario(escola_id, horario_id):
         current_app.logger.exception('Erro ao remover horario temporario %s da escola %s.', horario_id, escola['id'])
         flash('Não foi possível remover o horário temporário agora.', 'error')
 
+    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
+    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
     if turma_id:
-        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
-    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada, visualizacao=visualizacao))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, data=data_visualizada, visualizacao=visualizacao))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario/grupo/deletar', methods=['POST'])
@@ -1116,9 +1304,14 @@ def deletar_temporario_grupo(escola_id):
         flash('Não foi possível remover o horário alternativo agora.', 'error')
 
     turma_id = request.form.get('turma_id', type=int)
+    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
+    view_mode = request.form.get('view') or request.args.get('view')
+    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
     if turma_id:
-        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
-    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada, visualizacao=visualizacao))
+    if view_mode == 'geral':
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', data=data_visualizada, visualizacao=visualizacao))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, data=data_visualizada, visualizacao=visualizacao))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/mover_aula', methods=['POST'])

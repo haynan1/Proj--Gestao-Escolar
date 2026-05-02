@@ -291,16 +291,26 @@ def criar_horarios_temporarios_lote(
                 raise HorarioTemporarioValidationError("Periodo invalido para uma das turmas.")
 
         if substituir:
-            conn.execute(
-                f"""DELETE FROM horarios_temporarios
-                    WHERE escola_id = %s
-                      AND turno = %s
-                      AND dia = %s
-                      AND turma_id IN ({placeholders})
-                      AND data_inicio <= %s
-                      AND data_fim >= %s""",
-                tuple([escola_id, turno, dia] + turma_ids + [data_fim, data_inicio]),
-            )
+            for aula in aulas_dia:
+                conn.execute(
+                    """DELETE FROM horarios_temporarios
+                       WHERE escola_id = %s
+                         AND turno = %s
+                         AND dia = %s
+                         AND turma_id = %s
+                         AND periodo = %s
+                         AND data_inicio <= %s
+                         AND data_fim >= %s""",
+                    (
+                        escola_id,
+                        turno,
+                        dia,
+                        int(aula["turma_id"]),
+                        int(aula["periodo"]),
+                        data_fim,
+                        data_inicio,
+                    ),
+                )
 
         if not substituir:
             conflito_turma = conn.execute(
