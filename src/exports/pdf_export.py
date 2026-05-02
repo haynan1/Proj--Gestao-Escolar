@@ -83,6 +83,19 @@ def _aula_color(aula, color_mode):
     return None
 
 
+def _schedule_cell(aula, styles, color_mode):
+    if not aula:
+        return Paragraph('—', styles['empty'])
+
+    cor = _aula_color(aula, color_mode)
+    disciplina_cor = cor or '#0f172a'
+    texto = (
+        f"<font color='{disciplina_cor}'><b>{escape(aula['disciplina_nome'])}</b></font>"
+        f"<br/><font color='#475569'>{escape(aula['professor_nome'])}</font>"
+    )
+    return Paragraph(texto, styles['cell'])
+
+
 def _draw_page(canvas, doc):
     width, height = landscape(A4)
     canvas.saveState()
@@ -256,6 +269,65 @@ def _schedule_table(turma, idx, styles, color_mode='disciplina'):
 
     for row_idx, dia in enumerate(DIAS, 1):
         for col_idx, periodo in enumerate(periodos, 1):
+            aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
+            if aula:
+                cor = _aula_color(aula, color_mode)
+                table_style.append((
+                    'BACKGROUND',
+                    (col_idx, row_idx),
+                    (col_idx, row_idx),
+                    hex_to_light(cor) if cor else colors.white,
+                ))
+            else:
+                table_style.append(('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx), EMPTY_BG))
+
+    table.setStyle(TableStyle(table_style))
+    return table
+
+
+def _schedule_table_transposed(turma, idx, styles, color_mode='disciplina'):
+    color_mode = _normalize_color_mode(color_mode)
+    periodos = _periodos_turma(turma)
+    header_row = ['Período / Dia'] + DIAS
+    table_data = [header_row]
+
+    for periodo in periodos:
+        row = [f'{periodo}º Período']
+        for dia in DIAS:
+            aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
+            row.append(_schedule_cell(aula, styles, color_mode))
+        table_data.append(row)
+
+    table = Table(
+        table_data,
+        colWidths=[3.2 * cm] + [(22.2 / len(DIAS)) * cm] * len(DIAS),
+        rowHeights=[1.05 * cm] + [2.15 * cm] * len(periodos),
+        repeatRows=1,
+    )
+
+    table_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8.5),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, 1), (0, -1), colors.HexColor('#e2e8f0')),
+        ('TEXTCOLOR', (0, 1), (0, -1), INK),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (0, -1), 8.5),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('BACKGROUND', (1, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.45, LINE),
+        ('BOX', (0, 0), (-1, -1), 0.8, NAVY),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]
+
+    for row_idx, periodo in enumerate(periodos, 1):
+        for col_idx, dia in enumerate(DIAS, 1):
             aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
             if aula:
                 cor = _aula_color(aula, color_mode)
@@ -467,7 +539,7 @@ def exportar_pdf_matriz(escola, aulas, turmas, color_mode='none'):
     return tmp.name
 
 
-def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina'):
+def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina', transpor_grade=False):
     """Gera PDF com a grade de horários por turma."""
     tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
     tmp.close()
@@ -492,7 +564,11 @@ def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina'):
         story.append(KeepTogether([
             _header(escola, turma, styles),
             Spacer(1, 0.4 * cm),
-            _schedule_table(turma, idx, styles, color_mode=color_mode),
+            (
+                _schedule_table_transposed(turma, idx, styles, color_mode=color_mode)
+                if transpor_grade
+                else _schedule_table(turma, idx, styles, color_mode=color_mode)
+            ),
         ]))
 
     doc.build(story, onFirstPage=_draw_page, onLaterPages=_draw_page)

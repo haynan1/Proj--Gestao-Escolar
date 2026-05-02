@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios - {{ escola.nome }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ static_url('relatorios.css') }}" />
+{% endblock %}
+
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turno="{{ turno_atual }}"{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('escola.home') }}">Início</a>
+<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}">Dashboard</a>
+<a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}">Horários</a>
+<a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual, mes=mes) }}" class="active">Relatórios</a>
+{% endblock %}
+
+{% set can_manage_reports = has_permission('manage_school_resources') %}
+
+{% block content %}
+<div class="container reports-page">
+    <div class="reports-header">
+        <div>
+            <h1 class="reports-title">Relatórios</h1>
+            <p class="text-muted text-sm mt-1">{{ escola.nome }} · {{ turno_atual_label }}</p>
+        </div>
+        <form method="GET" action="{{ url_for('dashboard.relatorios', escola_id=escola.id) }}" class="reports-month-filter">
+            <input type="hidden" name="turno" value="{{ turno_atual }}">
+            <label for="mes">Mês do relatório</label>
+            <div class="reports-month-actions">
+                <input type="month" id="mes" name="mes" value="{{ mes }}">
+                <button type="submit" class="btn btn-secondary">Gerar</button>
+            </div>
+        </form>
+    </div>
+
+    <nav class="turno-switcher" aria-label="Selecionar turno">
+        {% for turno in turnos %}
+        <a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno.id, mes=mes) }}"
+            class="turno-switcher-link {% if turno.id == turno_atual %}active{% endif %}">
+            {{ turno.nome }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="reports-summary" aria-label="Resumo mensal">
+        <div class="report-stat-card">
+            <span>Registros</span>
+            <strong>{{ resumo.total }}</strong>
+            <small>{{ mes_label }}</small>
+        </div>
+        <div class="report-stat-card report-stat-warning">
+            <span>Faltas</span>
+            <strong>{{ resumo.faltas }}</strong>
+            <small>Professores ausentes</small>
+        </div>
+        <div class="report-stat-card report-stat-info">
+            <span>Ocorrências</span>
+            <strong>{{ resumo.ocorrencias }}</strong>
+            <small>Registros pedagógicos ou administrativos</small>
+        </div>
+        <div class="report-stat-card">
+            <span>Professores</span>
+            <strong>{{ resumo.professores_envolvidos }}</strong>
+            <small>Com registro no mês</small>
+        </div>
+    </section>
+
+    <div class="reports-grid">
+        <section class="reports-panel reports-form-panel">
+            <div class="reports-section-heading">
+                <div>
+                    <h2>Novo registro</h2>
+                    <p>Use para faltas e ocorrências de professores.</p>
+                </div>
+            </div>
+
+            {% if can_manage_reports %}
+            <form method="POST" action="{{ url_for('dashboard.criar_relatorio_professor_route', escola_id=escola.id) }}" class="reports-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="turno" value="{{ turno_atual }}">
+                <input type="hidden" name="mes" value="{{ mes }}">
+
+                <div class="form-group">
+                    <label class="form-label" for="professor_id">Professor</label>
+                    <select id="professor_id" name="professor_id" class="form-control" required>
+                        <option value="">Selecione</option>
+                        {% for professor in professores %}
+                        <option value="{{ professor.id }}">{{ professor.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="reports-inline-fields">
+                    <div class="form-group">
+                        <label class="form-label" for="data_ocorrencia">Data</label>
+                        <input id="data_ocorrencia" name="data_ocorrencia" type="date" class="form-control" value="{{ hoje }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tipo">Tipo</label>
+                        <select id="tipo" name="tipo" class="form-control" required>
+                            {% for tipo_id, tipo_nome in tipos_ocorrencia.items() %}
+                            <option value="{{ tipo_id }}">{{ tipo_nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="descricao">Descrição</label>
+                    <textarea id="descricao" name="descricao" class="form-control reports-textarea"
+                        placeholder="Ex.: falta sem aviso, atraso, substituição, observação administrativa..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary reports-submit">Salvar registro</button>
+            </form>
+            {% else %}
+            <div class="reports-empty compact">
+                Seu perfil pode visualizar relatórios, mas não pode criar registros.
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="reports-panel">
+            <div class="reports-section-heading">
+                <div>
+                    <h2>Resumo por professor</h2>
+                    <p>Quem concentrou registros no mês selecionado.</p>
+                </div>
+            </div>
+
+            {% if resumo.por_professor %}
+            <div class="reports-teacher-list">
+                {% for item in resumo.por_professor %}
+                <div class="reports-teacher-row">
+                    <span class="reports-teacher-dot" style="background: {{ item.cor or '#22c55e' }}"></span>
+                    <div>
+                        <strong>{{ item.nome }}</strong>
+                        <small>{{ item.faltas }} falta(s) · {{ item.ocorrencias }} ocorrência(s)</small>
+                    </div>
+                    <b>{{ item.total }}</b>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="reports-empty compact">Nenhum professor com registro neste mês.</div>
+            {% endif %}
+        </section>
+    </div>
+
+    <section class="reports-panel reports-history">
+        <div class="reports-section-heading">
+            <div>
+                <h2>Registros de {{ mes_label }}</h2>
+                <p>Histórico mensal de faltas e ocorrências dos professores.</p>
+            </div>
+        </div>
+
+        {% if registros %}
+        <div class="reports-table-wrap">
+            <table class="reports-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Professor</th>
+                        <th>Descrição</th>
+                        {% if can_manage_reports %}
+                        <th></th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for registro in registros %}
+                    <tr>
+                        <td data-label="Data">{{ registro.data_formatada }}</td>
+                        <td data-label="Tipo">
+                            <span class="report-type-pill {{ 'absence' if registro.tipo == 'falta' else 'note' }}">
+                                {{ tipos_ocorrencia.get(registro.tipo, registro.tipo) }}
+                            </span>
+                        </td>
+                        <td data-label="Professor">
+                            <span class="reports-professor-name">
+                                <i style="background: {{ registro.professor_cor or '#22c55e' }}"></i>
+                                {{ registro.professor_nome }}
+                            </span>
+                        </td>
+                        <td data-label="Descrição">{{ registro.descricao }}</td>
+                        {% if can_manage_reports %}
+                        <td class="reports-actions-cell">
+                            <form method="POST"
+                                action="{{ url_for('dashboard.deletar_relatorio_professor_route', escola_id=escola.id, relatorio_id=registro.id) }}"
+                                onsubmit="return confirm('Remover este registro do relatório?')">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="turno" value="{{ turno_atual }}">
+                                <input type="hidden" name="mes" value="{{ mes }}">
+                                <button type="submit" class="btn-icon-danger" title="Remover registro" aria-label="Remover registro">×</button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="reports-empty">
+            <strong>Nenhum registro neste mês.</strong>
+            <span>Quando uma falta ou ocorrência for registrada, ela aparecerá aqui.</span>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

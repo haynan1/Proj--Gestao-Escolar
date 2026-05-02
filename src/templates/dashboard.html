@@ -31,6 +31,7 @@
 <a href="{{ url_for('escola.home') }}">Início</a>
 <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}" class="active">Dashboard</a>
 <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}">Horários</a>
+<a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">Relatórios</a>
 {% endblock %}
 
 {% set can_manage_resources = has_permission('manage_school_resources') %}

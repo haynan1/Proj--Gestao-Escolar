@@ -256,9 +256,9 @@ function initTrashDrop() {
                 return;
             }
 
-            showToast(data?.error?.message || 'Nao foi possivel remover a aula.', 'error');
+            showToast(data?.error?.message || 'Não foi possível remover a aula.', 'error');
         } catch (err) {
-            showToast('Erro de conexao ao remover aula.', 'error');
+            showToast('Erro de conexão ao remover aula.', 'error');
             console.error(err);
         } finally {
             limparDestaques();
