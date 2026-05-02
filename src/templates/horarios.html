@@ -82,6 +82,63 @@
                     <button type="button" class="btn btn-primary schedule-alt-create" onclick="openModal('modal-horario-alternativo')">
                         Criar nova camada
                     </button>
+                    <a class="btn btn-secondary schedule-alt-create"
+                        href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">
+                        Ver relatórios
+                    </a>
+                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Camadas cadastradas</span>
+                    {% if grupos_horarios_temporarios %}
+                    <div class="schedule-layer-manager" role="list">
+                        {% for grupo in grupos_horarios_temporarios %}
+                        <article class="schedule-layer-manager-item" role="listitem">
+                            <div class="schedule-layer-manager-main">
+                                <strong>{{ grupo.titulo }}</strong>
+                                <small>
+                                    {{ grupo.data_inicio_formatada }}{% if grupo.data_fim != grupo.data_inicio %} até {{ grupo.data_fim_formatada }}{% endif %}
+                                    · {{ grupo.dia }} · {{ grupo.total_turmas }} turma(s) · {{ grupo.total_aulas }} aula(s)
+                                </small>
+                                {% if grupo.observacao %}
+                                <span>{{ grupo.observacao }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="schedule-layer-manager-actions">
+                                <a class="btn btn-secondary btn-sm"
+                                    href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=grupo.data_inicio, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=grupo.data_inicio, visualizacao='alternativo') }}{% endif %}">
+                                    Ver
+                                </a>
+                                <button type="button" class="btn btn-secondary btn-sm"
+                                    data-layer-edit
+                                    data-title="{{ grupo.titulo }}"
+                                    data-start="{{ grupo.data_inicio }}"
+                                    data-end="{{ grupo.data_fim }}"
+                                    data-day="{{ grupo.dia }}">
+                                    Editar
+                                </button>
+                                <form method="POST"
+                                    action="{{ url_for('dashboard.deletar_temporario_grupo', escola_id=escola.id, turno=turno_atual) }}"
+                                    onsubmit="return confirm('Excluir esta camada temporária? O horário oficial será preservado.')">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    {% if view_mode != 'geral' %}
+                                    <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
+                                    {% endif %}
+                                    <input type="hidden" name="data_visualizada" value="{{ data_visualizada }}">
+                                    <input type="hidden" name="visualizacao" value="{{ visualizacao_horario }}">
+                                    <input type="hidden" name="titulo" value="{{ grupo.titulo }}">
+                                    <input type="hidden" name="data_inicio" value="{{ grupo.data_inicio }}">
+                                    <input type="hidden" name="data_fim" value="{{ grupo.data_fim }}">
+                                    <input type="hidden" name="dia" value="{{ grupo.dia }}">
+                                    <input type="hidden" name="observacao" value="{{ grupo.observacao or '' }}">
+                                    <button type="submit" class="btn btn-danger btn-sm" aria-label="Excluir camada {{ grupo.titulo }}">Excluir</button>
+                                </form>
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="schedule-alt-menu-info" role="note">
+                        Nenhuma camada temporária cadastrada para este contexto.
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -101,9 +158,9 @@
                     <a href="{{ url_for('dashboard.exportar_xls', escola_id=escola.id, turno=turno_atual, color_mode='none') }}" role="menuitem">
                         Sem cores
                     </a>
-                    {% if grupos_horarios_temporarios %}
-                    <span class="schedule-export-menu-section">Horários alternativos</span>
-                    {% for grupo in grupos_horarios_temporarios %}
+                    {% if grupos_horarios_temporarios_ativos %}
+                    <span class="schedule-export-menu-section">Alternativos ativos em {{ data_visualizada_formatada }}</span>
+                    {% for grupo in grupos_horarios_temporarios_ativos %}
                     <span class="schedule-export-menu-subtitle">{{ grupo.titulo }} - {{ grupo.dia }}</span>
                     <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='disciplina') }}" role="menuitem">
                         Alternativo · cores das disciplinas
@@ -115,6 +172,8 @@
                         Alternativo · sem cores
                     </a>
                     {% endfor %}
+                    {% else %}
+                    <span class="schedule-export-menu-section">Nenhum alternativo ativo em {{ data_visualizada_formatada }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -143,9 +202,9 @@
                     <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, turno=turno_atual, color_mode='professor') }}" role="menuitem">
                         Cores dos professores
                     </a>
-                    {% if grupos_horarios_temporarios %}
-                    <span class="schedule-export-menu-section">Horários alternativos por turma</span>
-                    {% for grupo in grupos_horarios_temporarios %}
+                    {% if grupos_horarios_temporarios_ativos %}
+                    <span class="schedule-export-menu-section">Alternativos ativos em {{ data_visualizada_formatada }}</span>
+                    {% for grupo in grupos_horarios_temporarios_ativos %}
                     <span class="schedule-export-menu-subtitle">{{ grupo.titulo }} - {{ grupo.dia }}</span>
                     <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='disciplina') }}" role="menuitem">
                         Alternativo · cores das disciplinas
@@ -157,6 +216,8 @@
                         Alternativo · sem cores
                     </a>
                     {% endfor %}
+                    {% else %}
+                    <span class="schedule-export-menu-section">Nenhum alternativo ativo em {{ data_visualizada_formatada }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -541,12 +602,16 @@
                 <input class="form-control" id="alt-data-fim" name="data_fim" type="date">
             </div>
             <div class="form-group">
-                <label class="form-label" for="alt-dia">Dia da grade oficial a verificar</label>
-                <select class="form-control" id="alt-dia" name="dia" required>
+                <span class="form-label">Dias da grade oficial a verificar</span>
+                <div class="schedule-day-checks" id="alt-dias">
                     {% for dia_opcao in dias %}
-                    <option value="{{ dia_opcao }}">{{ dia_opcao }}</option>
+                    <label>
+                        <input type="checkbox" name="dias" value="{{ dia_opcao }}">
+                        <span>{{ dia_opcao }}</span>
+                    </label>
                     {% endfor %}
-                </select>
+                </div>
+                <p class="text-muted text-sm mt-1">Selecione um ou mais dias. Cada dia vira uma camada controlada separadamente.</p>
             </div>
             <div class="form-group">
                 <label class="form-label" for="alt-professor">Professor ausente</label>
@@ -732,6 +797,8 @@
         const altDateRangeToggle = document.getElementById('alt-usar-data-fim');
         const altDataFimGroup = document.getElementById('alt-data-fim-group');
         const altDataFim = document.getElementById('alt-data-fim');
+        const altDayChecks = Array.from(document.querySelectorAll('input[name="dias"]'));
+        const altMotivo = document.getElementById('alt-motivo');
 
         const todayAsInputValue = () => {
             const today = new Date();
@@ -772,11 +839,49 @@
         syncAlternativeTurnoOptions();
         syncAlternativeDateRange();
 
+        const parseInputDate = (dateValue) => {
+            if (!dateValue) return null;
+            const [year, month, day] = dateValue.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        };
+
+        const rangeHasWeekend = (startValue, endValue = startValue) => {
+            const startDate = parseInputDate(startValue);
+            const endDate = parseInputDate(endValue || startValue);
+            if (!startDate || !endDate) return false;
+            const current = new Date(startDate.getTime());
+            while (current <= endDate) {
+                if ([0, 6].includes(current.getDay())) return true;
+                current.setDate(current.getDate() + 1);
+            }
+            return false;
+        };
+
+        document.querySelectorAll('[data-layer-edit]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (altMotivo) altMotivo.value = button.dataset.title || '';
+                if (altDataInicio) altDataInicio.value = button.dataset.start || altDataInicio.value;
+                if (altDataFim && button.dataset.end && button.dataset.end !== button.dataset.start) {
+                    if (altDateRangeToggle) altDateRangeToggle.checked = true;
+                    altDataFim.value = button.dataset.end;
+                } else {
+                    if (altDateRangeToggle) altDateRangeToggle.checked = false;
+                    if (altDataFim) altDataFim.value = '';
+                }
+                altDayChecks.forEach((check) => {
+                    check.checked = check.value === button.dataset.day;
+                });
+                syncAlternativeDateRange();
+                closeScheduleMenus();
+                openModal('modal-horario-alternativo');
+                showToast('Revise professor ausente ou periodo bloqueado antes de salvar a edicao.', 'info');
+            });
+        });
+
         document.querySelector('.schedule-view-date-form')?.addEventListener('submit', (event) => {
             const dateValue = document.getElementById('schedule-data-visualizada')?.value;
             if (!dateValue) return;
-            const [year, month, day] = dateValue.split('-').map(Number);
-            const selectedDate = new Date(year, month - 1, day);
+            const selectedDate = parseInputDate(dateValue);
             const weekDay = selectedDate.getDay();
             if (weekDay === 0 || weekDay === 6) {
                 event.preventDefault();
@@ -785,13 +890,12 @@
         });
 
         document.querySelector('.schedule-alternative-form')?.addEventListener('submit', (event) => {
-            const values = [altDataInicio?.value, altDataFim?.disabled ? '' : altDataFim?.value].filter(Boolean);
-            const hasWeekend = values.some((dateValue) => {
-                const [year, month, day] = dateValue.split('-').map(Number);
-                const selectedDate = new Date(year, month - 1, day);
-                return [0, 6].includes(selectedDate.getDay());
-            });
-            if (hasWeekend) {
+            if (!altDayChecks.some((check) => check.checked)) {
+                event.preventDefault();
+                showToast('Selecione pelo menos um dia da grade oficial.', 'warning');
+                return;
+            }
+            if (rangeHasWeekend(altDataInicio?.value, altDataFim?.disabled ? altDataInicio?.value : altDataFim?.value)) {
                 event.preventDefault();
                 showToast('Não é permitido criar alteração para sábado ou domingo.', 'warning');
             }

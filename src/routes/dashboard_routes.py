@@ -919,6 +919,7 @@ def horarios(escola_id):
     visualizacao_horario = request.args.get('visualizacao', 'alternativo')
     if visualizacao_horario not in {'oficial', 'alternativo'}:
         visualizacao_horario = 'alternativo'
+    dia_visualizado = DIAS_SEMANA[data_visualizada.weekday()] if data_visualizada.weekday() < len(DIAS_SEMANA) else None
     turmas = listar_turmas(escola['id'], turno_atual)
     aulas = listar_aulas(escola['id'], turno_atual)
     disciplinas = listar_disciplinas(escola['id'], turno_atual)
@@ -958,6 +959,8 @@ def horarios(escola_id):
         horario for horario in horarios_temporarios
         if visualizacao_horario == 'alternativo'
         and _horario_temporario_ativo_na_data(horario, data_visualizada)
+        and dia_visualizado
+        and horario.get('dia') == dia_visualizado
     ]
     grupos_horarios_temporarios = listar_grupos_horarios_temporarios(escola['id'], turno_atual)
     if view_mode != 'geral':
@@ -969,6 +972,8 @@ def horarios(escola_id):
     grupos_ativos = [
         grupo for grupo in grupos_horarios_temporarios
         if grupo.get('ativo_na_data')
+        and dia_visualizado
+        and grupo.get('dia') == dia_visualizado
     ]
     ocorrencia_ativa = _resumir_ocorrencia_ativa(grupos_ativos) if visualizacao_horario == 'alternativo' else None
     temporarios_por_slot = {}
@@ -990,6 +995,7 @@ def horarios(escola_id):
         turma_selecionada=turma_selecionada,
         horarios_temporarios=horarios_temporarios_ativos,
         grupos_horarios_temporarios=grupos_horarios_temporarios,
+        grupos_horarios_temporarios_ativos=grupos_ativos,
         ocorrencia_ativa=ocorrencia_ativa,
         temporarios_por_slot=temporarios_por_slot,
         temporarios_por_turma_slot=temporarios_por_turma_slot,
@@ -1049,7 +1055,10 @@ def gerar_temporario(escola_id):
     turma_id = request.form.get('turma_id', type=int)
     data_inicio = request.form.get('data_inicio')
     data_fim = request.form.get('data_fim') or data_inicio
-    dia = request.form.get('dia')
+    dias_selecionados = [dia for dia in request.form.getlist('dias') if dia in DIAS_SEMANA]
+    dia_unico = request.form.get('dia')
+    if not dias_selecionados and dia_unico in DIAS_SEMANA:
+        dias_selecionados = [dia_unico]
     titulo = request.form.get('motivo') or 'Horário alternativo'
     professor_excluido_id = request.form.get('professor_excluido_id', type=int)
     periodo_bloqueado = request.form.get('periodo_bloqueado', type=int)
@@ -1072,6 +1081,14 @@ def gerar_temporario(escola_id):
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto, **redirect_values))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
 
+    if not dias_selecionados:
+        flash('Selecione pelo menos um dia da grade oficial.', 'error')
+        if turma_id:
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
+        if turma_id_contexto and turno_atual == request.args.get('turno'):
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id_contexto, **redirect_values))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
+
     observacao_partes = []
     if professor_excluido_id:
         professor = next(
@@ -1084,52 +1101,58 @@ def gerar_temporario(escola_id):
     observacao = '; '.join(observacao_partes) or None
 
     try:
-        aulas_geradas = _montar_aulas_alternativas_do_dia(
-            escola['id'],
-            turno_atual,
-            dia,
-            turma_id,
-            professor_excluido_id,
-            periodo_bloqueado,
-        )
-        if aulas_geradas is None:
-            sucesso = False
-            msg = 'Nao ha aulas oficiais nesse dia da grade para aplicar a camada temporaria.'
-            aulas_geradas = []
-        else:
-            sucesso = bool(aulas_geradas)
-            if not sucesso:
-                msg = 'Nenhuma aula foi afetada. Verifique se o professor selecionado da aula nessa turma/dia ou escolha um periodo bloqueado.'
-            msg = "Horário alternativo montado com base no horário oficial."
-
-        if sucesso:
-            msg = 'Camada temporaria montada apenas nos periodos afetados.'
-        elif aulas_geradas == []:
-            msg = 'Nenhuma aula foi afetada. Verifique se o professor selecionado da aula nessa turma/dia ou escolha um periodo bloqueado.'
-
-        if not sucesso:
-            flash(msg, 'error')
-        else:
-            total = criar_horarios_temporarios_lote(
+        total_geral = 0
+        dias_criados = []
+        dias_sem_aulas = []
+        dias_sem_impacto = []
+        for dia_item in dias_selecionados:
+            aulas_geradas_item = _montar_aulas_alternativas_do_dia(
+                escola['id'],
+                turno_atual,
+                dia_item,
+                turma_id,
+                professor_excluido_id,
+                periodo_bloqueado,
+            )
+            if aulas_geradas_item is None:
+                dias_sem_aulas.append(dia_item)
+                continue
+            if not aulas_geradas_item:
+                dias_sem_impacto.append(dia_item)
+                continue
+            total_item = criar_horarios_temporarios_lote(
                 escola['id'],
                 turno_atual,
                 data_inicio,
                 data_fim,
-                dia,
+                dia_item,
                 titulo,
-                aulas_geradas,
+                aulas_geradas_item,
                 observacao,
             )
+            total_geral += total_item
+            dias_criados.append(dia_item)
+
+        if dias_criados:
             flash(
-                f'Horário alternativo gerado para {dia}: {total} aulas temporárias criadas.',
+                f'Camada temporaria criada para {", ".join(dias_criados)}: {total_geral} aula(s) temporaria(s).',
                 'success',
             )
+        if dias_sem_aulas:
+            flash(f'Sem aulas oficiais em: {", ".join(dias_sem_aulas)}.', 'warning')
+        if dias_sem_impacto:
+            flash(
+                f'Nenhuma aula foi afetada em: {", ".join(dias_sem_impacto)}. Verifique professor, turma ou periodo.',
+                'warning',
+            )
+        if not dias_criados:
+            flash('Nenhuma camada temporaria foi criada.', 'error')
     except HorarioTemporarioValidationError as exc:
         flash(str(exc), 'error')
     except Exception:
         current_app.logger.exception('Erro ao gerar horario temporario da escola %s.', escola['id'])
         flash(
-            'Não foi possível gerar o horário alternativo agora. '
+            'Nao foi possivel gerar o horario alternativo agora. '
             'Verifique se as aulas, professores e turmas estao consistentes e tente novamente.',
             'error',
         )
