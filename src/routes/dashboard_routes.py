@@ -18,7 +18,7 @@ from flask import (
 from access_control import forbid_without_school_permission, user_has_permission
 from auth import login_required
 from exports.excel_export import exportar_excel
-from exports.pdf_export import exportar_pdf, exportar_pdf_matriz
+from exports.pdf_export import exportar_pdf, exportar_pdf_matriz, exportar_relatorio_mensal_pdf
 from models.aula import (
     ScheduleConflictError,
     ScheduleValidationError,
@@ -228,17 +228,21 @@ def _build_manual_options(turmas, professores, aulas):
 def _build_relatorios_summary(relatorios, professores):
     faltas = [item for item in relatorios if item.get('tipo') == 'falta']
     ocorrencias = [item for item in relatorios if item.get('tipo') == 'ocorrencia']
-    professores_ids = {item.get('professor_id') for item in relatorios}
     por_professor = []
 
     professores_por_id = {professor['id']: professor for professor in professores}
-    for professor_id in professores_ids:
+    grupos = {}
+    for item in relatorios:
+        chave = item.get('professor_id') or f"snapshot:{item.get('professor_nome') or 'Professor removido'}"
+        grupos.setdefault(chave, []).append(item)
+
+    for chave, registros in grupos.items():
+        professor_id = registros[0].get('professor_id')
         professor = professores_por_id.get(professor_id)
-        registros = [item for item in relatorios if item.get('professor_id') == professor_id]
         por_professor.append({
             'id': professor_id,
-            'nome': professor['nome'] if professor else 'Professor removido',
-            'cor': (professor or {}).get('cor'),
+            'nome': professor['nome'] if professor else (registros[0].get('professor_nome') or 'Professor removido'),
+            'cor': (professor or {}).get('cor') or registros[0].get('professor_cor'),
             'total': len(registros),
             'faltas': len([item for item in registros if item.get('tipo') == 'falta']),
             'ocorrencias': len([item for item in registros if item.get('tipo') == 'ocorrencia']),
@@ -249,7 +253,7 @@ def _build_relatorios_summary(relatorios, professores):
         'total': len(relatorios),
         'faltas': len(faltas),
         'ocorrencias': len(ocorrencias),
-        'professores_envolvidos': len(professores_ids),
+        'professores_envolvidos': len(grupos),
         'por_professor': por_professor,
     }
 
@@ -584,6 +588,14 @@ def _month_bounds(month_value):
     return inicio, fim
 
 
+def _default_report_date_for_month(month_value):
+    inicio, fim = _month_bounds(month_value)
+    hoje = date.today()
+    if inicio <= hoje < fim:
+        return hoje
+    return inicio
+
+
 def _resumir_ocorrencia_ativa(grupos_ativos):
     if not grupos_ativos:
         return None
@@ -679,6 +691,7 @@ def relatorios(escola_id):
     for registro in registros:
         registro['data_formatada'] = _format_date_br(registro.get('data_ocorrencia'))
     inicio_mes, fim_mes = _month_bounds(mes)
+    data_registro_padrao = _default_report_date_for_month(mes)
     camadas_temporarias = [
         grupo for grupo in listar_grupos_horarios_temporarios(escola['id'], turno_atual)
         if _grupo_temporario_intersecta_intervalo(grupo, inicio_mes, fim_mes)
@@ -706,6 +719,9 @@ def relatorios(escola_id):
         turno_atual_label=_turno_label(turno_atual),
         mes=mes,
         mes_label=_month_label(mes),
+        inicio_mes=inicio_mes.isoformat(),
+        fim_mes=(fim_mes - timedelta(days=1)).isoformat(),
+        data_registro_padrao=data_registro_padrao.isoformat(),
         hoje=_data_atual(),
     )
 
@@ -713,7 +729,7 @@ def relatorios(escola_id):
 @dashboard_bp.route('/escola/<int:escola_id>/relatorios/professores', methods=['POST'])
 @login_required
 def criar_relatorio_professor_route(escola_id):
-    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
+    escola, failure = _guard_school(escola_id, permission='manage_reports')
     if failure:
         return failure
 
@@ -727,8 +743,11 @@ def criar_relatorio_professor_route(escola_id):
             request.form.get('data_ocorrencia'),
             request.form.get('tipo'),
             request.form.get('descricao'),
+            g.user.get('id'),
         )
         flash('Registro adicionado ao relatório.', 'success')
+        data_ocorrencia = _parse_date_or_today(request.form.get('data_ocorrencia'))
+        mes = data_ocorrencia.strftime('%Y-%m')
     except RelatorioProfessorValidationError as exc:
         flash(str(exc), 'error')
     except Exception:
@@ -741,20 +760,66 @@ def criar_relatorio_professor_route(escola_id):
 @dashboard_bp.route('/escola/<int:escola_id>/relatorios/professores/<int:relatorio_id>/deletar', methods=['POST'])
 @login_required
 def deletar_relatorio_professor_route(escola_id, relatorio_id):
-    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
+    escola, failure = _guard_school(escola_id, permission='manage_reports')
     if failure:
         return failure
 
     turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
     mes = request.form.get('mes') or _mes_atual()
     try:
-        removido = deletar_relatorio_professor(relatorio_id, escola['id'], turno_atual)
-        flash('Registro removido.' if removido else 'Registro não encontrado.', 'success' if removido else 'error')
+        removido = deletar_relatorio_professor(relatorio_id, escola['id'], turno_atual, g.user.get('id'))
+        flash('Registro arquivado.' if removido else 'Registro não encontrado.', 'success' if removido else 'error')
     except Exception:
         current_app.logger.exception('Erro ao remover relatório de professor %s da escola %s.', relatorio_id, escola['id'])
         flash('Não foi possível remover o registro agora.', 'error')
 
     return redirect(url_for('dashboard.relatorios', escola_id=escola_id, turno=turno_atual, mes=mes))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/relatorios/exportar/pdf')
+@login_required
+def exportar_relatorio_mensal(escola_id):
+    escola, failure = _guard_school(escola_id, permission='export_school')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    mes = request.args.get('mes') or _mes_atual()
+    try:
+        registros = listar_relatorios_professores(escola['id'], turno_atual, mes)
+    except RelatorioProfessorValidationError:
+        mes = _mes_atual()
+        registros = listar_relatorios_professores(escola['id'], turno_atual, mes)
+
+    for registro in registros:
+        registro['data_formatada'] = _format_date_br(registro.get('data_ocorrencia'))
+
+    inicio_mes, fim_mes = _month_bounds(mes)
+    camadas_temporarias = [
+        grupo for grupo in listar_grupos_horarios_temporarios(escola['id'], turno_atual)
+        if _grupo_temporario_intersecta_intervalo(grupo, inicio_mes, fim_mes)
+    ]
+    for grupo in camadas_temporarias:
+        grupo['data_inicio_formatada'] = _format_date_br(grupo.get('data_inicio'))
+        grupo['data_fim_formatada'] = _format_date_br(grupo.get('data_fim'))
+
+    resumo_camadas = {
+        'total': len(camadas_temporarias),
+        'aulas': sum(int(grupo.get('total_aulas') or 0) for grupo in camadas_temporarias),
+        'turmas': sum(int(grupo.get('total_turmas') or 0) for grupo in camadas_temporarias),
+    }
+    professores = listar_professores(escola['id'], turno_atual)
+    filepath = exportar_relatorio_mensal_pdf(
+        escola,
+        _turno_label(turno_atual),
+        _month_label(mes),
+        registros,
+        _build_relatorios_summary(registros, professores),
+        camadas_temporarias,
+        resumo_camadas,
+        TIPOS_OCORRENCIA,
+    )
+    return _send_temp_file(filepath, f'relatorio-{turno_atual}-{mes}.pdf')
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/disciplina/criar', methods=['POST'])

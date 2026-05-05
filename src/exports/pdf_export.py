@@ -573,3 +573,172 @@ def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina', tr
 
     doc.build(story, onFirstPage=_draw_page, onLaterPages=_draw_page)
     return tmp.name
+
+
+def exportar_relatorio_mensal_pdf(
+    escola,
+    turno_label,
+    mes_label,
+    registros,
+    resumo,
+    camadas_temporarias,
+    resumo_camadas,
+    tipos_ocorrencia,
+):
+    """Gera PDF mensal com registros, tratativas e camadas temporarias."""
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    tmp.close()
+
+    doc = SimpleDocTemplate(
+        tmp.name,
+        pagesize=A4,
+        rightMargin=1.2 * cm,
+        leftMargin=1.2 * cm,
+        topMargin=1.0 * cm,
+        bottomMargin=1.0 * cm,
+    )
+    base = getSampleStyleSheet()
+    styles = {
+        'eyebrow': ParagraphStyle(
+            'ReportEyebrow',
+            parent=base['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            leading=10,
+            textColor=GREEN,
+            spaceAfter=3,
+        ),
+        'title': ParagraphStyle(
+            'ReportTitle',
+            parent=base['Title'],
+            fontName='Helvetica-Bold',
+            fontSize=18,
+            leading=22,
+            textColor=INK,
+            alignment=TA_LEFT,
+            spaceAfter=3,
+        ),
+        'subtitle': ParagraphStyle(
+            'ReportSubtitle',
+            parent=base['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=MUTED,
+            spaceAfter=10,
+        ),
+        'section': ParagraphStyle(
+            'ReportSection',
+            parent=base['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=11,
+            leading=14,
+            textColor=INK,
+            spaceBefore=8,
+            spaceAfter=6,
+        ),
+        'cell': ParagraphStyle(
+            'ReportCell',
+            parent=base['Normal'],
+            fontSize=8,
+            leading=10,
+            textColor=INK,
+        ),
+        'muted': ParagraphStyle(
+            'ReportMuted',
+            parent=base['Normal'],
+            fontSize=8,
+            leading=10,
+            textColor=MUTED,
+        ),
+    }
+
+    generated_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    story = [
+        Paragraph('RELATORIO MENSAL', styles['eyebrow']),
+        Paragraph(f"{escape(escola['nome'])}", styles['title']),
+        Paragraph(f"{escape(mes_label)} | {escape(turno_label)} | Gerado em {generated_at}", styles['subtitle']),
+    ]
+
+    summary_data = [
+        ['Registros', 'Faltas', 'Ocorrencias', 'Professores', 'Camadas', 'Aulas impactadas'],
+        [
+            str(resumo.get('total', 0)),
+            str(resumo.get('faltas', 0)),
+            str(resumo.get('ocorrencias', 0)),
+            str(resumo.get('professores_envolvidos', 0)),
+            str(resumo_camadas.get('total', 0)),
+            str(resumo_camadas.get('aulas', 0)),
+        ],
+    ]
+    summary_table = Table(summary_data, colWidths=[3.0 * cm, 2.2 * cm, 2.8 * cm, 2.8 * cm, 2.4 * cm, 3.4 * cm])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.35, LINE),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.extend([summary_table, Spacer(1, 0.25 * cm), Paragraph('Registros e tratativas', styles['section'])])
+
+    if registros:
+        rows = [['Data', 'Tipo', 'Professor', 'Descricao', 'Registro']]
+        for registro in registros:
+            rows.append([
+                Paragraph(escape(str(registro.get('data_formatada') or registro.get('data_ocorrencia') or '-')), styles['cell']),
+                Paragraph(escape(tipos_ocorrencia.get(registro.get('tipo'), registro.get('tipo') or '-')), styles['cell']),
+                Paragraph(escape(registro.get('professor_nome') or 'Professor removido'), styles['cell']),
+                Paragraph(escape(registro.get('descricao') or '-'), styles['cell']),
+                Paragraph(escape(registro.get('criado_por_nome') or 'Sistema'), styles['muted']),
+            ])
+        table = Table(rows, colWidths=[2.0 * cm, 2.2 * cm, 3.5 * cm, 7.0 * cm, 2.8 * cm], repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), NAVY_2),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.3, LINE),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(table)
+    else:
+        story.append(Paragraph('Nenhum registro de professor neste mes.', styles['muted']))
+
+    story.append(Paragraph('Camadas temporarias de horario', styles['section']))
+    if camadas_temporarias:
+        rows = [['Periodo', 'Dia', 'Titulo', 'Tratativa', 'Impacto']]
+        for camada in camadas_temporarias:
+            periodo = camada.get('data_inicio_formatada') or str(camada.get('data_inicio') or '-')
+            if camada.get('data_fim') != camada.get('data_inicio'):
+                periodo = f"{periodo} ate {camada.get('data_fim_formatada') or camada.get('data_fim')}"
+            rows.append([
+                Paragraph(escape(str(periodo)), styles['cell']),
+                Paragraph(escape(camada.get('dia') or '-'), styles['cell']),
+                Paragraph(escape(camada.get('titulo') or 'Alternativo'), styles['cell']),
+                Paragraph(escape(camada.get('observacao') or '-'), styles['cell']),
+                Paragraph(escape(f"{camada.get('total_turmas', 0)} turma(s), {camada.get('total_aulas', 0)} aula(s)"), styles['cell']),
+            ])
+        table = Table(rows, colWidths=[3.0 * cm, 2.2 * cm, 4.0 * cm, 5.3 * cm, 3.0 * cm], repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), NAVY_2),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.3, LINE),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(table)
+    else:
+        story.append(Paragraph('Nenhuma camada temporaria com validade neste mes.', styles['muted']))
+
+    doc.build(story)
+    return tmp.name

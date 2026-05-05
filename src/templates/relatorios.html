@@ -15,7 +15,7 @@
 <a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual, mes=mes) }}" class="active">Relatórios</a>
 {% endblock %}
 
-{% set can_manage_reports = has_permission('manage_school_resources') %}
+{% set can_manage_reports = has_permission('manage_reports') %}
 
 {% block content %}
 <div class="container reports-page">
@@ -26,12 +26,22 @@
         </div>
         <form method="GET" action="{{ url_for('dashboard.relatorios', escola_id=escola.id) }}" class="reports-month-filter">
             <input type="hidden" name="turno" value="{{ turno_atual }}">
-            <label for="mes">Mês do relatório</label>
+            <label for="mes">Consultar mês</label>
             <div class="reports-month-actions">
                 <input type="month" id="mes" name="mes" value="{{ mes }}">
-                <button type="submit" class="btn btn-secondary">Gerar</button>
+                <button type="submit" class="btn btn-secondary">Ver mês</button>
+                <a class="btn btn-primary" href="{{ url_for('dashboard.exportar_relatorio_mensal', escola_id=escola.id, turno=turno_atual, mes=mes) }}">
+                    Exportar PDF
+                </a>
             </div>
         </form>
+    </div>
+
+    <div class="reports-access-strip">
+        <span class="reports-context-pill reports-month-pill">{{ mes_label }}</span>
+        <span class="reports-context-pill {{ 'can-edit' if can_manage_reports else 'read-only' }}">
+            {{ 'Edição liberada' if can_manage_reports else 'Somente leitura' }}
+        </span>
     </div>
 
     <nav class="turno-switcher" aria-label="Selecionar turno">
@@ -80,7 +90,7 @@
                 </div>
             </div>
 
-            {% if can_manage_reports %}
+            {% if can_manage_reports and professores %}
             <form method="POST" action="{{ url_for('dashboard.criar_relatorio_professor_route', escola_id=escola.id) }}" class="reports-form">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="turno" value="{{ turno_atual }}">
@@ -88,18 +98,22 @@
 
                 <div class="form-group">
                     <label class="form-label" for="professor_id">Professor</label>
-                    <select id="professor_id" name="professor_id" class="form-control" required>
-                        <option value="">Selecione</option>
-                        {% for professor in professores %}
-                        <option value="{{ professor.id }}">{{ professor.nome }}</option>
-                        {% endfor %}
-                    </select>
+                    <div class="reports-combobox" data-reports-professor-combobox>
+                        <input type="hidden" id="professor_id" name="professor_id" required>
+                        <input type="text" class="form-control reports-combobox-search"
+                            id="reports-professor-search"
+                            placeholder="Buscar professor..."
+                            autocomplete="off"
+                            aria-expanded="false"
+                            aria-controls="reports-professor-list">
+                        <div class="reports-combobox-list" id="reports-professor-list" role="listbox"></div>
+                    </div>
                 </div>
 
                 <div class="reports-inline-fields">
                     <div class="form-group">
                         <label class="form-label" for="data_ocorrencia">Data</label>
-                        <input id="data_ocorrencia" name="data_ocorrencia" type="date" class="form-control" value="{{ hoje }}" required>
+                        <input id="data_ocorrencia" name="data_ocorrencia" type="date" class="form-control" value="{{ data_registro_padrao }}" min="{{ inicio_mes }}" max="{{ fim_mes }}" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="tipo">Tipo</label>
@@ -119,6 +133,10 @@
 
                 <button type="submit" class="btn btn-primary reports-submit">Salvar registro</button>
             </form>
+            {% elif can_manage_reports %}
+            <div class="reports-empty compact">
+                Cadastre professores neste turno antes de criar registros.
+            </div>
             {% else %}
             <div class="reports-empty compact">
                 Seu perfil pode visualizar relatórios, mas não pode criar registros.
@@ -215,6 +233,7 @@
                         <th>Tipo</th>
                         <th>Professor</th>
                         <th>Descrição</th>
+                        <th>Registro</th>
                         {% if can_manage_reports %}
                         <th></th>
                         {% endif %}
@@ -236,15 +255,18 @@
                             </span>
                         </td>
                         <td data-label="Descrição">{{ registro.descricao }}</td>
+                        <td data-label="Registro">
+                            <span class="reports-audit-text">{{ registro.criado_por_nome or 'Sistema' }}</span>
+                        </td>
                         {% if can_manage_reports %}
                         <td class="reports-actions-cell">
                             <form method="POST"
                                 action="{{ url_for('dashboard.deletar_relatorio_professor_route', escola_id=escola.id, relatorio_id=registro.id) }}"
-                                onsubmit="return confirm('Remover este registro do relatório?')">
+                                onsubmit="return confirm('Arquivar este registro do relatório?')">
                                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="turno" value="{{ turno_atual }}">
                                 <input type="hidden" name="mes" value="{{ mes }}">
-                                <button type="submit" class="btn-icon-danger" title="Remover registro" aria-label="Remover registro">×</button>
+                                <button type="submit" class="btn-icon-danger" title="Arquivar registro" aria-label="Arquivar registro">×</button>
                             </form>
                         </td>
                         {% endif %}
@@ -261,4 +283,96 @@
         {% endif %}
     </section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const professores = {{ professores | tojson }};
+        const search = document.getElementById('reports-professor-search');
+        const value = document.getElementById('professor_id');
+        const list = document.getElementById('reports-professor-list');
+        const box = document.querySelector('[data-reports-professor-combobox]');
+        if (!search || !value || !list || !box) return;
+
+        const normalize = (text) => String(text || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+
+        const closeList = () => {
+            box.classList.remove('open');
+            search.setAttribute('aria-expanded', 'false');
+        };
+
+        const selectProfessor = (professor) => {
+            value.value = professor.id;
+            search.value = professor.nome;
+            closeList();
+        };
+
+        const render = () => {
+            const query = normalize(search.value);
+            const visible = professores
+                .filter((professor) => normalize(professor.nome).includes(query));
+
+            list.innerHTML = '';
+            if (!visible.length) {
+                const empty = document.createElement('div');
+                empty.className = 'reports-combobox-empty';
+                empty.textContent = 'Nenhum professor encontrado';
+                list.appendChild(empty);
+            } else {
+                visible.forEach((professor) => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'reports-combobox-option';
+                    item.setAttribute('role', 'option');
+                    item.dataset.value = professor.id;
+
+                    const dot = document.createElement('span');
+                    dot.className = 'reports-combobox-dot';
+                    dot.style.background = professor.cor || '#22c55e';
+
+                    const label = document.createElement('strong');
+                    label.textContent = professor.nome;
+
+                    item.append(dot, label);
+                    item.addEventListener('click', () => selectProfessor(professor));
+                    list.appendChild(item);
+                });
+            }
+
+            box.classList.add('open');
+            search.setAttribute('aria-expanded', 'true');
+        };
+
+        search.addEventListener('focus', render);
+        search.addEventListener('input', () => {
+            value.value = '';
+            render();
+        });
+        search.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeList();
+            if (event.key === 'Enter') {
+                const first = list.querySelector('.reports-combobox-option');
+                if (first) {
+                    event.preventDefault();
+                    const professor = professores.find((item) => String(item.id) === String(first.dataset.value));
+                    if (professor) selectProfessor(professor);
+                }
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!box.contains(event.target)) closeList();
+        });
+        document.querySelector('.reports-form')?.addEventListener('submit', (event) => {
+            if (!value.value) {
+                event.preventDefault();
+                search.focus();
+                render();
+            }
+        });
+    });
+</script>
 {% endblock %}

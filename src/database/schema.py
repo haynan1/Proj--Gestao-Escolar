@@ -193,17 +193,27 @@ TABLE_STATEMENTS = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
         turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
-        professor_id INT NOT NULL,
+        professor_id INT NULL,
+        professor_nome_snapshot VARCHAR(255) NOT NULL DEFAULT '',
+        professor_cor_snapshot VARCHAR(20) NULL DEFAULT NULL,
         data_ocorrencia DATE NOT NULL,
         tipo VARCHAR(30) NOT NULL,
         descricao TEXT NOT NULL,
+        criado_por_usuario_id INT NULL,
+        excluido_em TIMESTAMP NULL DEFAULT NULL,
+        excluido_por_usuario_id INT NULL,
         criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         KEY idx_relatorios_prof_escola_turno_data (escola_id, turno, data_ocorrencia),
+        KEY idx_relatorios_prof_escola_turno_excluido (escola_id, turno, excluido_em),
         KEY idx_relatorios_prof_professor_data (professor_id, data_ocorrencia),
         CONSTRAINT fk_relatorios_prof_escola
             FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
         CONSTRAINT fk_relatorios_prof_professor
-            FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE
+            FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE SET NULL,
+        CONSTRAINT fk_relatorios_prof_criado_por
+            FOREIGN KEY (criado_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+        CONSTRAINT fk_relatorios_prof_excluido_por
+            FOREIGN KEY (excluido_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 ]
@@ -231,6 +241,17 @@ def _constraint_exists(cursor, table_name, constraint_name):
         (table_name, constraint_name),
     ).fetchone()
     return bool(row and row['total'])
+
+
+def _foreign_key_delete_rule(cursor, constraint_name):
+    row = cursor.execute(
+        """SELECT delete_rule
+           FROM information_schema.referential_constraints
+           WHERE constraint_schema = DATABASE()
+             AND constraint_name = %s""",
+        (constraint_name,),
+    ).fetchone()
+    return (row.get('delete_rule') or row.get('DELETE_RULE')) if row else None
 
 
 def _index_exists(cursor, table_name, index_name):
@@ -342,6 +363,75 @@ def _ensure_school_schedule_lock_column(cursor):
     if not _column_exists(cursor, 'escolas', 'horarios_travados_turnos'):
         cursor.execute(
             "ALTER TABLE escolas ADD COLUMN horarios_travados_turnos VARCHAR(100) NOT NULL DEFAULT '' AFTER backup_de_escola_id"
+        )
+
+
+def _ensure_report_history_columns(cursor):
+    if not _column_exists(cursor, 'relatorios_professores', 'professor_nome_snapshot'):
+        cursor.execute(
+            "ALTER TABLE relatorios_professores ADD COLUMN professor_nome_snapshot VARCHAR(255) NOT NULL DEFAULT '' AFTER professor_id"
+        )
+
+    if not _column_exists(cursor, 'relatorios_professores', 'professor_cor_snapshot'):
+        cursor.execute(
+            "ALTER TABLE relatorios_professores ADD COLUMN professor_cor_snapshot VARCHAR(20) NULL DEFAULT NULL AFTER professor_nome_snapshot"
+        )
+
+    if not _column_exists(cursor, 'relatorios_professores', 'criado_por_usuario_id'):
+        cursor.execute(
+            "ALTER TABLE relatorios_professores ADD COLUMN criado_por_usuario_id INT NULL AFTER descricao"
+        )
+
+    if not _column_exists(cursor, 'relatorios_professores', 'excluido_em'):
+        cursor.execute(
+            "ALTER TABLE relatorios_professores ADD COLUMN excluido_em TIMESTAMP NULL DEFAULT NULL AFTER criado_por_usuario_id"
+        )
+
+    if not _column_exists(cursor, 'relatorios_professores', 'excluido_por_usuario_id'):
+        cursor.execute(
+            "ALTER TABLE relatorios_professores ADD COLUMN excluido_por_usuario_id INT NULL AFTER excluido_em"
+        )
+
+    cursor.execute(
+        """UPDATE relatorios_professores rp
+           JOIN professores p ON p.id = rp.professor_id
+           SET rp.professor_nome_snapshot = p.nome,
+               rp.professor_cor_snapshot = p.cor
+           WHERE rp.professor_nome_snapshot = ''"""
+    )
+
+    if (
+        _constraint_exists(cursor, 'relatorios_professores', 'fk_relatorios_prof_professor')
+        and _foreign_key_delete_rule(cursor, 'fk_relatorios_prof_professor') != 'SET NULL'
+    ):
+        cursor.execute("ALTER TABLE relatorios_professores DROP FOREIGN KEY fk_relatorios_prof_professor")
+
+    cursor.execute("ALTER TABLE relatorios_professores MODIFY COLUMN professor_id INT NULL")
+
+    if not _constraint_exists(cursor, 'relatorios_professores', 'fk_relatorios_prof_professor'):
+        cursor.execute(
+            """ALTER TABLE relatorios_professores
+               ADD CONSTRAINT fk_relatorios_prof_professor
+               FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE SET NULL"""
+        )
+
+    if not _constraint_exists(cursor, 'relatorios_professores', 'fk_relatorios_prof_criado_por'):
+        cursor.execute(
+            """ALTER TABLE relatorios_professores
+               ADD CONSTRAINT fk_relatorios_prof_criado_por
+               FOREIGN KEY (criado_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL"""
+        )
+
+    if not _constraint_exists(cursor, 'relatorios_professores', 'fk_relatorios_prof_excluido_por'):
+        cursor.execute(
+            """ALTER TABLE relatorios_professores
+               ADD CONSTRAINT fk_relatorios_prof_excluido_por
+               FOREIGN KEY (excluido_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL"""
+        )
+
+    if not _index_exists(cursor, 'relatorios_professores', 'idx_relatorios_prof_escola_turno_excluido'):
+        cursor.execute(
+            "CREATE INDEX idx_relatorios_prof_escola_turno_excluido ON relatorios_professores (escola_id, turno, excluido_em)"
         )
 
 
@@ -678,6 +768,7 @@ def create_tables():
         _ensure_school_owner_column(conn)
         _ensure_school_backup_columns(conn)
         _ensure_school_schedule_lock_column(conn)
+        _ensure_report_history_columns(conn)
         _ensure_user_school_links(conn)
         _ensure_turno_columns(conn)
         _ensure_turma_period_columns(conn)

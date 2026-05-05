@@ -150,15 +150,25 @@ CREATE TABLE IF NOT EXISTS relatorios_professores (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
     turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
-    professor_id INT NOT NULL,
+    professor_id INT NULL,
+    professor_nome_snapshot VARCHAR(255) NOT NULL DEFAULT '',
+    professor_cor_snapshot VARCHAR(20) NULL DEFAULT NULL,
     data_ocorrencia DATE NOT NULL,
     tipo VARCHAR(30) NOT NULL,
     descricao TEXT NOT NULL,
+    criado_por_usuario_id INT NULL,
+    excluido_em TIMESTAMP NULL DEFAULT NULL,
+    excluido_por_usuario_id INT NULL,
     criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_relatorios_prof_escola_turno_data (escola_id, turno, data_ocorrencia),
+    KEY idx_relatorios_prof_escola_turno_excluido (escola_id, turno, excluido_em),
     KEY idx_relatorios_prof_professor_data (professor_id, data_ocorrencia),
     CONSTRAINT fk_relatorios_prof_escola
         FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
     CONSTRAINT fk_relatorios_prof_professor
-        FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE
+        FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE SET NULL,
+    CONSTRAINT fk_relatorios_prof_criado_por
+        FOREIGN KEY (criado_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+    CONSTRAINT fk_relatorios_prof_excluido_por
+        FOREIGN KEY (excluido_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -50,12 +50,15 @@ def listar_relatorios_professores(escola_id, turno=None, mes=None):
 
         rows = conn.execute(
             f"""SELECT rp.*,
-                       p.nome AS professor_nome,
-                       p.cor AS professor_cor
+                       COALESCE(p.nome, NULLIF(rp.professor_nome_snapshot, ''), 'Professor removido') AS professor_nome,
+                       COALESCE(p.cor, rp.professor_cor_snapshot) AS professor_cor,
+                       criador.nome AS criado_por_nome
                 FROM relatorios_professores rp
-                JOIN professores p ON p.id = rp.professor_id
+                LEFT JOIN professores p ON p.id = rp.professor_id
+                LEFT JOIN usuarios criador ON criador.id = rp.criado_por_usuario_id
                 WHERE rp.escola_id = %s
                   AND rp.turno = %s
+                  AND rp.excluido_em IS NULL
                   {filtro_mes}
                 ORDER BY rp.data_ocorrencia DESC, rp.criado_em DESC, rp.id DESC""",
             tuple(params),
@@ -65,7 +68,15 @@ def listar_relatorios_professores(escola_id, turno=None, mes=None):
         conn.close()
 
 
-def criar_relatorio_professor(escola_id, turno, professor_id, data_ocorrencia, tipo, descricao):
+def criar_relatorio_professor(
+    escola_id,
+    turno,
+    professor_id,
+    data_ocorrencia,
+    tipo,
+    descricao,
+    criado_por_usuario_id=None,
+):
     turno = normalizar_turno(turno)
     data_ocorrencia = _parse_date(data_ocorrencia)
     tipo = (tipo or '').strip().lower()
@@ -84,7 +95,7 @@ def criar_relatorio_professor(escola_id, turno, professor_id, data_ocorrencia, t
     conn = get_connection()
     try:
         professor = conn.execute(
-            """SELECT id
+            """SELECT id, nome, cor
                FROM professores
                WHERE id = %s AND escola_id = %s AND turno = %s""",
             (professor_id, escola_id, turno),
@@ -94,9 +105,27 @@ def criar_relatorio_professor(escola_id, turno, professor_id, data_ocorrencia, t
 
         cursor = conn.execute(
             """INSERT INTO relatorios_professores (
-                   escola_id, turno, professor_id, data_ocorrencia, tipo, descricao
-               ) VALUES (%s, %s, %s, %s, %s, %s)""",
-            (escola_id, turno, professor_id, data_ocorrencia, tipo, descricao),
+                   escola_id,
+                   turno,
+                   professor_id,
+                   professor_nome_snapshot,
+                   professor_cor_snapshot,
+                   data_ocorrencia,
+                   tipo,
+                   descricao,
+                   criado_por_usuario_id
+               ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                escola_id,
+                turno,
+                professor_id,
+                professor['nome'],
+                professor.get('cor'),
+                data_ocorrencia,
+                tipo,
+                descricao,
+                int(criado_por_usuario_id) if criado_por_usuario_id else None,
+            ),
         )
         conn.commit()
         return cursor.lastrowid
@@ -107,14 +136,24 @@ def criar_relatorio_professor(escola_id, turno, professor_id, data_ocorrencia, t
         conn.close()
 
 
-def deletar_relatorio_professor(relatorio_id, escola_id, turno=None):
+def deletar_relatorio_professor(relatorio_id, escola_id, turno=None, excluido_por_usuario_id=None):
     turno = normalizar_turno(turno)
     conn = get_connection()
     try:
         cursor = conn.execute(
-            """DELETE FROM relatorios_professores
-               WHERE id = %s AND escola_id = %s AND turno = %s""",
-            (relatorio_id, escola_id, turno),
+            """UPDATE relatorios_professores
+               SET excluido_em = CURRENT_TIMESTAMP,
+                   excluido_por_usuario_id = %s
+               WHERE id = %s
+                 AND escola_id = %s
+                 AND turno = %s
+                 AND excluido_em IS NULL""",
+            (
+                int(excluido_por_usuario_id) if excluido_por_usuario_id else None,
+                relatorio_id,
+                escola_id,
+                turno,
+            ),
         )
         conn.commit()
         return cursor.rowcount > 0
