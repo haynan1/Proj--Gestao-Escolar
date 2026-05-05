@@ -246,8 +246,9 @@ MAIL_FROM_NAME=Flowter
 O favicon do Flowter fica em:
 
 - `src/static/favicon/imagem.ico`
+- `src/static/favicon/imagem1.ico` para o tema escuro
 
-A rota `/favicon.ico` tambem entrega esse arquivo para compatibilidade com navegadores e caches antigos.
+A rota `/favicon.ico` entrega `imagem1.ico` por padrao para compatibilidade com navegadores e caches antigos.
 
 ## GitHub
 

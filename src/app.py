@@ -70,7 +70,7 @@ def inject_static_url():
 def favicon():
     return send_from_directory(
         os.path.join(app.static_folder, 'favicon'),
-        'imagem.ico',
+        'imagem1.ico',
         mimetype='image/vnd.microsoft.icon',
     )
 

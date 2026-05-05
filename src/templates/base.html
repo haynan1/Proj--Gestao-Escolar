@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Flowter{% endblock %}</title>
     <link rel="stylesheet" href="{{ static_url('style.css') }}" />
-    <link rel="icon" type="image/x-icon" href="{{ static_url('favicon/imagem.ico') }}" />
-    <link rel="shortcut icon" href="{{ static_url('favicon/imagem.ico') }}" />
+    <link rel="icon" type="image/x-icon" href="{{ static_url('favicon/imagem1.ico') }}" data-favicon />
+    <link rel="shortcut icon" href="{{ static_url('favicon/imagem1.ico') }}" data-favicon />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
@@ -16,7 +16,14 @@
         // Inicialização imediata do tema para evitar "flash" de cor branca/preta
         (function() {
             const savedTheme = localStorage.getItem('theme') || 'dark';
+            const faviconByTheme = {
+                dark: "{{ static_url('favicon/imagem1.ico') }}",
+                light: "{{ static_url('favicon/imagem.ico') }}",
+            };
             document.documentElement.setAttribute('data-theme', savedTheme);
+            document.querySelectorAll('[data-favicon]').forEach((link) => {
+                link.href = faviconByTheme[savedTheme] || faviconByTheme.dark;
+            });
         })();
     </script>
     {% block head %}{% endblock %}
@@ -25,7 +32,14 @@
 <body {% block body_attrs %}{% endblock %}>
     <nav class="navbar">
         <a href="{{ url_for('escola.home' if current_user else 'auth.login') }}" class="navbar-brand">
-            <img class="logo-icon" src="{{ static_url('favicon/imagem.ico') }}" alt="" aria-hidden="true" />
+            <img
+                class="logo-icon"
+                src="{{ static_url('favicon/imagem1.ico') }}"
+                data-logo-light="{{ static_url('favicon/imagem.ico') }}"
+                data-logo-dark="{{ static_url('favicon/imagem1.ico') }}"
+                alt=""
+                aria-hidden="true"
+            />
             <span>Flowter</span>
         </a>
         <div class="navbar-links">
@@ -86,6 +100,25 @@
             const darkIcon = themeToggle.querySelector('.theme-icon-dark');
             const lightIcon = themeToggle.querySelector('.theme-icon-light');
             const backToTop = document.getElementById('back-to-top');
+            const logoIcon = document.querySelector('.navbar-brand .logo-icon');
+            const faviconLinks = document.querySelectorAll('[data-favicon]');
+            const faviconByTheme = {
+                dark: "{{ static_url('favicon/imagem1.ico') }}",
+                light: "{{ static_url('favicon/imagem.ico') }}",
+            };
+
+            const updateBrandAssets = (theme) => {
+                const normalizedTheme = theme === 'light' ? 'light' : 'dark';
+                const iconUrl = faviconByTheme[normalizedTheme];
+
+                faviconLinks.forEach((link) => {
+                    link.href = iconUrl;
+                });
+
+                if (logoIcon) {
+                    logoIcon.src = normalizedTheme === 'light' ? logoIcon.dataset.logoLight : logoIcon.dataset.logoDark;
+                }
+            };
             
             const updateIcons = (theme) => {
                 if (theme === 'light') {
@@ -99,6 +132,7 @@
 
             // Sincronizar ícones com o tema atual
             updateIcons(document.documentElement.getAttribute('data-theme'));
+            updateBrandAssets(document.documentElement.getAttribute('data-theme'));
 
             themeToggle.addEventListener('click', () => {
                 const currentTheme = document.documentElement.getAttribute('data-theme');
@@ -107,6 +141,7 @@
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);
                 updateIcons(newTheme);
+                updateBrandAssets(newTheme);
             });
 
             const updateBackToTop = () => {
