@@ -1,6 +1,8 @@
 import logging
 import os
 
+from mysql.connector import errorcode
+from mysql.connector.errors import ProgrammingError
 from werkzeug.security import generate_password_hash
 
 from access_control import ROLE_ADMIN, ROLE_STAFF
@@ -231,6 +233,31 @@ def _column_exists(cursor, table_name, column_name):
     return bool(row and row['total'])
 
 
+def _add_column_if_missing(cursor, table_name, column_name, alter_sql):
+    if _column_exists(cursor, table_name, column_name):
+        LOGGER.info(
+            "Coluna %s.%s ja existe; migracao ignorada.",
+            table_name,
+            column_name,
+        )
+        return False
+
+    try:
+        cursor.execute(alter_sql)
+    except ProgrammingError as exc:
+        if exc.errno == errorcode.ER_DUP_FIELDNAME:
+            LOGGER.info(
+                "Coluna %s.%s ja foi criada por outro processo; migracao ignorada.",
+                table_name,
+                column_name,
+            )
+            return False
+        raise
+
+    LOGGER.info("Coluna %s.%s criada.", table_name, column_name)
+    return True
+
+
 def _constraint_exists(cursor, table_name, constraint_name):
     row = cursor.execute(
         """SELECT COUNT(*) AS total
@@ -360,10 +387,12 @@ def _ensure_school_backup_columns(cursor):
 
 
 def _ensure_school_schedule_lock_column(cursor):
-    if not _column_exists(cursor, 'escolas', 'horarios_travados_turnos'):
-        cursor.execute(
-            "ALTER TABLE escolas ADD COLUMN horarios_travados_turnos VARCHAR(100) NOT NULL DEFAULT '' AFTER backup_de_escola_id"
-        )
+    _add_column_if_missing(
+        cursor,
+        'escolas',
+        'horarios_travados_turnos',
+        "ALTER TABLE escolas ADD COLUMN horarios_travados_turnos VARCHAR(100) NOT NULL DEFAULT '' AFTER backup_de_escola_id",
+    )
 
 
 def _ensure_report_history_columns(cursor):

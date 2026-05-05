@@ -721,7 +721,7 @@ def exportar_relatorio_mensal_pdf(
                 Paragraph(escape(str(periodo)), styles['cell']),
                 Paragraph(escape(camada.get('dia') or '-'), styles['cell']),
                 Paragraph(escape(camada.get('titulo') or 'Alternativo'), styles['cell']),
-                Paragraph(escape(camada.get('observacao') or '-'), styles['cell']),
+                Paragraph(escape(camada.get('detalhe_resumo') or camada.get('observacao') or '-'), styles['cell']),
                 Paragraph(escape(f"{camada.get('total_turmas', 0)} turma(s), {camada.get('total_aulas', 0)} aula(s)"), styles['cell']),
             ])
         table = Table(rows, colWidths=[3.0 * cm, 2.2 * cm, 4.0 * cm, 5.3 * cm, 3.0 * cm], repeatRows=1)

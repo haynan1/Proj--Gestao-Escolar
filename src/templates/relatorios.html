@@ -184,12 +184,19 @@
             {% for camada in camadas_temporarias %}
             <article class="reports-layer-card">
                 <div class="reports-layer-main">
-                    <span class="report-type-pill temporary">Alternativo</span>
+                    <span class="report-type-pill temporary">{{ camada.tipo_operacao or 'Alternativo' }}</span>
                     <strong>{{ camada.titulo }}</strong>
                     <small>
                         {{ camada.data_inicio_formatada }}{% if camada.data_fim != camada.data_inicio %} até {{ camada.data_fim_formatada }}{% endif %}
                         · {{ camada.dia }}
                     </small>
+                    {% if camada.periodos or camada.detalhe_resumo %}
+                    <small class="reports-layer-detail">
+                        {% if camada.periodos %}{{ camada.periodos | join(', ') }}º período{% endif %}
+                        {% if camada.periodos and camada.detalhe_resumo %} · {% endif %}
+                        {{ camada.detalhe_resumo or '' }}
+                    </small>
+                    {% endif %}
                     {% if camada.observacao %}
                     <p>{{ camada.observacao }}</p>
                     {% endif %}
@@ -200,7 +207,7 @@
                 </div>
                 <div class="reports-layer-actions">
                     <a class="btn btn-secondary btn-sm"
-                        href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, view='geral', visualizacao='alternativo') }}">
+                        href="{% if camada.turma_id %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, turma_id=camada.turma_id, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, view='geral', visualizacao='alternativo') }}{% endif %}">
                         Ver grade
                     </a>
                     <a class="btn btn-secondary btn-sm"

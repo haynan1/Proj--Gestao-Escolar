@@ -62,6 +62,7 @@ def listar_grupos_horarios_temporarios(escola_id, turno=None):
                       observacao,
                       COUNT(*) AS total_aulas,
                       COUNT(DISTINCT turma_id) AS total_turmas,
+                      GROUP_CONCAT(DISTINCT turma_id) AS turma_ids,
                       MIN(criado_em) AS criado_em
                FROM horarios_temporarios
                WHERE escola_id = %s
@@ -70,7 +71,18 @@ def listar_grupos_horarios_temporarios(escola_id, turno=None):
                ORDER BY data_inicio DESC, data_fim DESC, dia, titulo""",
             (escola_id, turno),
         ).fetchall()
-        return [dict(row) for row in rows]
+        grupos = []
+        for row in rows:
+            grupo = dict(row)
+            turma_ids = [
+                int(turma_id)
+                for turma_id in str(grupo.get('turma_ids') or '').split(',')
+                if str(turma_id).strip().isdigit()
+            ]
+            grupo['turma_ids'] = turma_ids
+            grupo['turma_id'] = turma_ids[0] if len(turma_ids) == 1 else None
+            grupos.append(grupo)
+        return grupos
     finally:
         conn.close()
 
@@ -127,11 +139,18 @@ def criar_horario_temporario(
 
         if professor_id:
             professor = conn.execute(
-                "SELECT id FROM professores WHERE id = %s AND escola_id = %s AND turno = %s",
+                "SELECT id, dias_disponiveis FROM professores WHERE id = %s AND escola_id = %s AND turno = %s",
                 (professor_id, escola_id, turno),
             ).fetchone()
             if not professor:
                 raise HorarioTemporarioValidationError("Professor nao encontrado.")
+            dias_disponiveis = [
+                item.strip()
+                for item in (professor.get("dias_disponiveis") or "").split(",")
+                if item.strip()
+            ]
+            if dias_disponiveis and dia not in dias_disponiveis:
+                raise HorarioTemporarioValidationError("Professor indisponivel neste dia.")
 
         if disciplina_id:
             disciplina = conn.execute(
@@ -140,6 +159,20 @@ def criar_horario_temporario(
             ).fetchone()
             if not disciplina:
                 raise HorarioTemporarioValidationError("Disciplina nao encontrada.")
+
+        if professor_id and disciplina_id:
+            carga = conn.execute(
+                """SELECT id
+                   FROM professores_cargas
+                   WHERE professor_id = %s
+                     AND turma_id = %s
+                     AND disciplina_id = %s
+                     AND aulas_semana > 0
+                   LIMIT 1""",
+                (professor_id, turma_id, disciplina_id),
+            ).fetchone()
+            if not carga:
+                raise HorarioTemporarioValidationError("Este professor nao possui esta disciplina cadastrada para a turma.")
 
         conflito_turma = conn.execute(
             """SELECT id

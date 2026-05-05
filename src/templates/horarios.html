@@ -3,6 +3,19 @@
 {% block title %}Horários - {{ escola.nome }}{% endblock %}
 
 {% block head %}
+<script>
+    (() => {
+        try {
+            const modeKey = 'flowter:schedule-color-mode:' + {{ escola.id | tojson }} + ':' + {{ turno_atual | tojson }};
+            const savedMode = localStorage.getItem(modeKey);
+            if (['disciplina', 'professor', 'none'].includes(savedMode)) {
+                document.documentElement.dataset.scheduleColorMode = savedMode;
+            }
+        } catch (error) {
+            document.documentElement.dataset.scheduleColorMode = 'disciplina';
+        }
+    })();
+</script>
 <link rel="stylesheet" href="{{ static_url('horario-grade.css') }}" />
 {% endblock %}
 
@@ -86,22 +99,26 @@
                     </form>
                 </div>
             </div>
-            <div class="schedule-alt-picker">
-                <button type="button" class="btn btn-secondary" data-alt-menu-trigger aria-expanded="false">
+            {% set grade_menu_open = request.args.get('menu') == 'grade' %}
+            <div class="schedule-alt-picker {% if grade_menu_open %}open{% endif %}">
+                <button type="button" class="btn btn-secondary" data-alt-menu-trigger aria-expanded="{{ 'true' if grade_menu_open else 'false' }}">
                     Ver grade
                 </button>
                 <div class="schedule-alt-menu" role="menu" aria-label="Opções de horário alternativo">
                     <span class="schedule-alt-menu-title">Visualização da grade</span>
                     <div class="schedule-view-toggle schedule-alt-view-toggle" aria-label="Alternar visualização da grade">
                         <a class="{% if visualizacao_horario == 'oficial' %}active{% endif %}"
-                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='oficial') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='oficial') }}{% endif %}">
+                            data-keep-alt-menu-open
+                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='oficial', menu='grade') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='oficial', menu='grade') }}{% endif %}">
                             Oficial
                         </a>
                         <a class="{% if visualizacao_horario == 'alternativo' %}active{% endif %}"
-                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='alternativo') }}{% endif %}">
+                            data-keep-alt-menu-open
+                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='alternativo', menu='grade') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='alternativo', menu='grade') }}{% endif %}">
                             Alternativos
                         </a>
                     </div>
+                    {% if visualizacao_horario == 'alternativo' %}
                     <form method="GET" action="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="schedule-view-date-form schedule-alt-date-form" role="menuitem">
                         <input type="hidden" name="turno" value="{{ turno_atual }}">
                         <input type="hidden" name="visualizacao" value="{{ visualizacao_horario }}">
@@ -120,11 +137,12 @@
                     <div class="schedule-alt-menu-info" role="note">
                         Camadas temporárias não apagam o horário oficial.
                     </div>
+                    {% endif %}
                     <a class="btn btn-secondary schedule-alt-create"
                         href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">
                         Ver relatórios
                     </a>
-                    {% if grupos_horarios_temporarios %}
+                    {% if visualizacao_horario == 'alternativo' and grupos_horarios_temporarios %}
                     <span class="schedule-alt-menu-title schedule-alt-menu-section">Camadas cadastradas</span>
                     <div class="schedule-layer-manager" role="list">
                         {% for grupo in grupos_horarios_temporarios %}
@@ -141,7 +159,7 @@
                             </div>
                             <div class="schedule-layer-manager-actions">
                                 <a class="btn btn-secondary btn-sm"
-                                    href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=grupo.data_inicio, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=grupo.data_inicio, visualizacao='alternativo') }}{% endif %}">
+                                    href="{% if grupo.turma_id %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=grupo.turma_id, data=grupo.data_inicio, visualizacao='alternativo') }}{% elif view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=grupo.data_inicio, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=grupo.data_inicio, visualizacao='alternativo') }}{% endif %}">
                                     Ver
                                 </a>
                                 <button type="button" class="btn btn-secondary btn-sm"
@@ -598,30 +616,155 @@
             <span class="modal-title">Gerar horário alternativo</span>
             <button class="modal-close" type="button" onclick="closeModal('modal-horario-alternativo')" aria-label="Fechar modal de horário alternativo">x</button>
         </div>
+        <div class="schedule-alt-mode-tabs" aria-label="Modo de criação do horário alternativo">
+            <button type="button" class="active" data-alt-mode="auto">Automático</button>
+            <button type="button" data-alt-mode="manual">Manual</button>
+        </div>
         <form method="POST"
             action="{{ url_for('dashboard.gerar_temporario', escola_id=escola.id, turno=turno_atual) }}"
-            class="schedule-alternative-form"
+            class="schedule-alternative-form schedule-alt-mode-panel"
+            id="schedule-alternative-auto-form"
+            data-alt-mode-panel="auto"
             onsubmit="return confirm('Gerar camada temporária apenas para os períodos afetados? Camadas sobrepostas nesses períodos serão substituídas, sem apagar o horário oficial.')">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="turma_contexto_id" value="{{ turma_selecionada_id }}">
+            <section class="schedule-alt-section">
+                <div class="schedule-alt-section-head">
+                    <strong>1. Alcance</strong>
+                    <span>Turno, turma e data de validade</span>
+                </div>
+                <div class="schedule-alt-section-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="alt-turno">Turno</label>
+                        <select class="form-control" id="alt-turno" name="turno" required>
+                            {% for turno in turnos %}
+                            <option value="{{ turno.id }}" {% if turno.id == turno_atual %}selected{% endif %}>{{ turno.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="alt-turma">Turma</label>
+                        <select class="form-control" id="alt-turma" name="turma_id">
+                            <option value="">Todas as turmas</option>
+                            {% for turno_id, turmas_do_turno in turmas_por_turno.items() %}
+                            {% for turma in turmas_do_turno %}
+                            <option value="{{ turma.id }}" data-turno="{{ turno_id }}" data-aulas-por-dia="{{ turma.aulas_por_dia or 5 }}"
+                                {% if turno_id == turno_atual and turma.id == turma_selecionada_id %}selected{% endif %}>
+                                {{ turma.nome }}
+                            </option>
+                            {% endfor %}
+                            {% endfor %}
+                        </select>
+                        <p class="text-muted text-sm mt-1" id="alt-turma-help"></p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="alt-data-inicio">Data</label>
+                        <input class="form-control" id="alt-data-inicio" name="data_inicio" type="date" value="{{ data_visualizada }}" required>
+                    </div>
+                    <label class="schedule-date-range-toggle">
+                        <input type="checkbox" id="alt-usar-data-fim">
+                        <span>Vale por mais de um dia</span>
+                    </label>
+                    <div class="form-group" id="alt-data-fim-group" hidden>
+                        <label class="form-label" for="alt-data-fim">Repetir até</label>
+                        <input class="form-control" id="alt-data-fim" name="data_fim" type="date">
+                    </div>
+                    <div class="form-group schedule-alt-days-group">
+                        <span class="form-label">Dias aplicados</span>
+                        <div class="schedule-day-checks schedule-day-checks-auto" id="alt-dias">
+                            {% for dia_opcao in dias %}
+                            <label>
+                                <input type="checkbox" name="dias" value="{{ dia_opcao }}" disabled>
+                                <span>{{ dia_opcao }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <p class="text-muted text-sm mt-1" id="alt-dias-help">
+                            O sistema seleciona automaticamente o dia da semana conforme a data informada.
+                        </p>
+                    </div>
+                </div>
+            </section>
+            <section class="schedule-alt-section">
+                <div class="schedule-alt-section-head">
+                    <strong>2. Motivo da alteração</strong>
+                    <span>Informe o professor ausente, o período bloqueado ou ambos</span>
+                </div>
+                <div class="schedule-alt-section-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="alt-professor">Professor ausente</label>
+                        <select class="form-control schedule-native-select-hidden" id="alt-professor" name="professor_excluido_id" tabindex="-1" aria-hidden="true">
+                            <option value="">Nenhum professor ausente</option>
+                            {% for turno_id, professores_do_turno in professores_por_turno.items() %}
+                            {% for professor in professores_do_turno %}
+                            <option value="{{ professor.id }}" data-turno="{{ turno_id }}"
+                                data-turma-ids="{{ professor.cargas_lista | map(attribute='turma_id') | unique | join(',') }}">
+                                {{ professor.nome }}
+                            </option>
+                            {% endfor %}
+                            {% endfor %}
+                        </select>
+                        <div class="schedule-professor-picker" id="alt-professor-picker">
+                            <button type="button" class="schedule-professor-trigger" id="alt-professor-trigger"
+                                aria-haspopup="listbox" aria-expanded="false">
+                                <span>Nenhum professor ausente</span>
+                            </button>
+                            <div class="schedule-professor-menu" id="alt-professor-menu" hidden>
+                                <input class="form-control schedule-professor-search" id="alt-professor-search"
+                                    type="search" placeholder="Buscar professor..." autocomplete="off">
+                                <div class="schedule-professor-list" id="alt-professor-list" role="listbox"></div>
+                            </div>
+                        </div>
+                        <p class="text-muted text-sm mt-1" id="alt-professor-help"></p>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="alt-periodo">Bloquear período</label>
+                        <select class="form-control" id="alt-periodo" name="periodo_bloqueado">
+                            <option value="">Nenhum período bloqueado</option>
+                            {% for p in periodos_alternativo %}
+                            <option value="{{ p }}">{{ p }}º período</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </section>
+            <div class="form-group schedule-temporary-notes">
+                <label class="form-label" for="alt-motivo">Motivo / título do alternativo</label>
+                <input class="form-control" id="alt-motivo" name="motivo" type="text"
+                    placeholder="Ex.: conselho de classe, ausência, evento" required>
+            </div>
+            <div class="flex gap-2 modal-actions-sticky">
+                <button type="submit" class="btn btn-primary">Gerar horário alternativo</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-horario-alternativo')">Cancelar</button>
+            </div>
+        </form>
+        <form method="POST"
+            action="{{ url_for('dashboard.criar_temporario', escola_id=escola.id, turno=turno_atual) }}"
+            class="schedule-alternative-form schedule-alt-mode-panel hidden"
+            id="schedule-alternative-manual-form"
+            data-alt-mode-panel="manual">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="turno" id="alt-manual-turno-hidden" value="{{ turno_atual }}">
+            <input type="hidden" name="dia" id="alt-manual-dia">
+            <input type="hidden" name="professor_id" id="alt-manual-professor-id">
+            <input type="hidden" name="disciplina_id" id="alt-manual-disciplina-id">
             <p class="text-muted text-sm schedule-alternative-help">
-                Cria uma camada somente nos períodos afetados pelo professor ausente ou pelo bloqueio. As outras aulas continuam oficiais.
+                Escolha manualmente quem fica em uma turma, dia e período. A validação evita professor ocupado ou fora da turma.
             </p>
             <div class="form-group">
-                <label class="form-label" for="alt-turno">Turno</label>
-                <select class="form-control" id="alt-turno" name="turno" required>
+                <label class="form-label" for="alt-manual-turno">Turno</label>
+                <select class="form-control" id="alt-manual-turno" required>
                     {% for turno in turnos %}
                     <option value="{{ turno.id }}" {% if turno.id == turno_atual %}selected{% endif %}>{{ turno.nome }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label" for="alt-turma">Turma</label>
-                <select class="form-control" id="alt-turma" name="turma_id">
-                    <option value="">Todas as turmas</option>
+                <label class="form-label" for="alt-manual-turma">Turma</label>
+                <select class="form-control" id="alt-manual-turma" name="turma_id" required>
                     {% for turno_id, turmas_do_turno in turmas_por_turno.items() %}
                     {% for turma in turmas_do_turno %}
-                    <option value="{{ turma.id }}" data-turno="{{ turno_id }}"
+                    <option value="{{ turma.id }}" data-turno="{{ turno_id }}" data-aulas-por-dia="{{ turma.aulas_por_dia or 5 }}"
                         {% if turno_id == turno_atual and turma.id == turma_selecionada_id %}selected{% endif %}>
                         {{ turma.nome }}
                     </option>
@@ -630,56 +773,36 @@
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label" for="alt-data-inicio">Data do horário alternativo</label>
-                <input class="form-control" id="alt-data-inicio" name="data_inicio" type="date" value="{{ data_visualizada }}" required>
-            </div>
-            <label class="schedule-date-range-toggle">
-                <input type="checkbox" id="alt-usar-data-fim">
-                <span>Este alternativo vale por mais de um dia</span>
-            </label>
-            <div class="form-group" id="alt-data-fim-group" hidden>
-                <label class="form-label" for="alt-data-fim">Repetir até</label>
-                <input class="form-control" id="alt-data-fim" name="data_fim" type="date">
+                <label class="form-label" for="alt-manual-data">Data</label>
+                <input class="form-control" id="alt-manual-data" name="data_inicio" type="date" value="{{ data_visualizada }}" required>
             </div>
             <div class="form-group">
-                <span class="form-label">Dias da grade oficial a verificar</span>
-                <div class="schedule-day-checks" id="alt-dias">
-                    {% for dia_opcao in dias %}
-                    <label>
-                        <input type="checkbox" name="dias" value="{{ dia_opcao }}">
-                        <span>{{ dia_opcao }}</span>
-                    </label>
-                    {% endfor %}
-                </div>
-                <p class="text-muted text-sm mt-1">Selecione um ou mais dias. Cada dia vira uma camada controlada separadamente.</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="alt-professor">Professor ausente</label>
-                <select class="form-control" id="alt-professor" name="professor_excluido_id">
-                    <option value="">Nenhum professor ausente</option>
-                    {% for turno_id, professores_do_turno in professores_por_turno.items() %}
-                    {% for professor in professores_do_turno %}
-                    <option value="{{ professor.id }}" data-turno="{{ turno_id }}">{{ professor.nome }}</option>
-                    {% endfor %}
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="alt-periodo">Bloquear período</label>
-                <select class="form-control" id="alt-periodo" name="periodo_bloqueado">
-                    <option value="">Nenhum período bloqueado</option>
+                <label class="form-label" for="alt-manual-periodo">Período</label>
+                <select class="form-control" id="alt-manual-periodo" name="periodo" required>
                     {% for p in periodos_alternativo %}
                     <option value="{{ p }}">{{ p }}º período</option>
                     {% endfor %}
                 </select>
             </div>
+            <div class="form-group schedule-alt-manual-list-group">
+                <span class="form-label">Professores disponíveis</span>
+                <input class="form-control schedule-alt-manual-search" id="alt-manual-search"
+                    type="search" placeholder="Buscar professor ou disciplina..." autocomplete="off">
+                <div class="schedule-alt-manual-list" id="alt-manual-options" role="listbox"></div>
+                <p class="text-muted text-sm mt-1" id="alt-manual-help"></p>
+            </div>
             <div class="form-group schedule-temporary-notes">
-                <label class="form-label" for="alt-motivo">Motivo / título do alternativo</label>
-                <input class="form-control" id="alt-motivo" name="motivo" type="text"
-                    placeholder="Ex.: conselho de classe, ausência, evento" required>
+                <label class="form-label" for="alt-manual-titulo">Motivo / título do alternativo</label>
+                <input class="form-control" id="alt-manual-titulo" name="titulo" type="text"
+                    placeholder="Ex.: substituição manual, evento" required>
+            </div>
+            <div class="form-group schedule-temporary-notes">
+                <label class="form-label" for="alt-manual-observacao">Observação</label>
+                <input class="form-control" id="alt-manual-observacao" name="observacao" type="text"
+                    placeholder="Opcional">
             </div>
             <div class="flex gap-2 modal-actions-sticky">
-                <button type="submit" class="btn btn-primary">Gerar horário alternativo</button>
+                <button type="submit" class="btn btn-primary">Salvar alternativo manual</button>
                 <button type="button" class="btn btn-secondary" onclick="closeModal('modal-horario-alternativo')">Cancelar</button>
             </div>
         </form>
@@ -733,16 +856,10 @@
         const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
         const legends = Array.from(document.querySelectorAll('.schedule-legend-list'));
         const manualOptions = {{ manual_options | tojson }};
+        const alternativeManualOptions = {{ alternative_manual_options | tojson }};
+        const alternativeOccupiedSlots = {{ alternative_occupied_slots | tojson }};
+        const alternativeOfficialLessons = {{ alternative_official_lessons | tojson }};
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
-        document.querySelectorAll('.dot-dynamic').forEach((dot) => {
-            const color = dot.dataset.color;
-            if (color) dot.style.backgroundColor = color;
-        });
-        document.querySelectorAll('.legenda-cor-dinamica').forEach((label) => {
-            const color = label.dataset.color;
-            if (color) label.style.color = color;
-        });
 
         const normalizeMode = (mode) => (
             ['disciplina', 'professor', 'none'].includes(mode) ? mode : 'disciplina'
@@ -772,8 +889,9 @@
             aplicarCorAula(card, color);
         };
 
-        const setMode = (mode) => {
+        const setMode = (mode, persist = true) => {
             const selectedMode = normalizeMode(mode);
+            document.documentElement.dataset.scheduleColorMode = selectedMode;
             lessonCards.forEach((card) => paintLesson(card, selectedMode));
             modeButtons.forEach((button) => {
                 const active = button.dataset.scheduleColorMode === selectedMode;
@@ -783,8 +901,22 @@
             legends.forEach((legend) => {
                 legend.classList.toggle('hidden', legend.dataset.legendMode !== selectedMode);
             });
-            localStorage.setItem(storageKey, selectedMode);
+            if (persist) {
+                localStorage.setItem(storageKey, selectedMode);
+            }
         };
+
+        const initialColorMode = normalizeMode(localStorage.getItem(storageKey));
+        setMode(initialColorMode, false);
+
+        document.querySelectorAll('.dot-dynamic').forEach((dot) => {
+            const color = dot.dataset.color;
+            if (color) dot.style.backgroundColor = color;
+        });
+        document.querySelectorAll('.legenda-cor-dinamica').forEach((label) => {
+            const color = label.dataset.color;
+            if (color) label.style.color = color;
+        });
 
         const closeScheduleMenus = (exceptPicker = null) => {
             document.querySelectorAll('.schedule-generate-picker.open').forEach((picker) => {
@@ -805,7 +937,6 @@
         };
 
         modeButtons.forEach((button) => {
-            button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
             button.addEventListener('click', () => setMode(button.dataset.scheduleColorMode));
         });
         generateTriggers.forEach((button) => {
@@ -848,13 +979,37 @@
 
         const altTurno = document.getElementById('alt-turno');
         const altTurma = document.getElementById('alt-turma');
+        const altTurmaHelp = document.getElementById('alt-turma-help');
         const altProfessor = document.getElementById('alt-professor');
+        const altProfessorPicker = document.getElementById('alt-professor-picker');
+        const altProfessorTrigger = document.getElementById('alt-professor-trigger');
+        const altProfessorTriggerLabel = altProfessorTrigger?.querySelector('span');
+        const altProfessorMenu = document.getElementById('alt-professor-menu');
+        const altProfessorSearch = document.getElementById('alt-professor-search');
+        const altProfessorList = document.getElementById('alt-professor-list');
+        const altProfessorHelp = document.getElementById('alt-professor-help');
+        const altPeriodo = document.getElementById('alt-periodo');
         const altDataInicio = document.getElementById('alt-data-inicio');
         const altDateRangeToggle = document.getElementById('alt-usar-data-fim');
         const altDataFimGroup = document.getElementById('alt-data-fim-group');
         const altDataFim = document.getElementById('alt-data-fim');
         const altDayChecks = Array.from(document.querySelectorAll('input[name="dias"]'));
+        const altDaysHelp = document.getElementById('alt-dias-help');
         const altMotivo = document.getElementById('alt-motivo');
+        const altModeButtons = Array.from(document.querySelectorAll('[data-alt-mode]'));
+        const altModePanels = Array.from(document.querySelectorAll('[data-alt-mode-panel]'));
+        const altManualTurno = document.getElementById('alt-manual-turno');
+        const altManualTurnoHidden = document.getElementById('alt-manual-turno-hidden');
+        const altManualTurma = document.getElementById('alt-manual-turma');
+        const altManualData = document.getElementById('alt-manual-data');
+        const altManualDia = document.getElementById('alt-manual-dia');
+        const altManualPeriodo = document.getElementById('alt-manual-periodo');
+        const altManualSearch = document.getElementById('alt-manual-search');
+        const altManualOptionsList = document.getElementById('alt-manual-options');
+        const altManualHelp = document.getElementById('alt-manual-help');
+        const altManualProfessorId = document.getElementById('alt-manual-professor-id');
+        const altManualDisciplinaId = document.getElementById('alt-manual-disciplina-id');
+        const schoolDayNames = {{ dias | tojson }};
 
         const todayAsInputValue = () => {
             const today = new Date();
@@ -862,20 +1017,188 @@
             return today.toISOString().slice(0, 10);
         };
 
+        const getSelectedAltTurmaOption = () => {
+            if (!altTurma?.value) return null;
+            return Array.from(altTurma.options).find((option) => option.value === altTurma.value) || null;
+        };
+
+        const optionHasTurma = (option, turmaId) => {
+            if (!turmaId) return true;
+            return String(option.dataset.turmaIds || '')
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .includes(String(turmaId));
+        };
+
+        const closeAlternativeProfessorPicker = () => {
+            if (!altProfessorPicker || !altProfessorMenu || !altProfessorTrigger) return;
+            altProfessorPicker.classList.remove('open');
+            altProfessorMenu.hidden = true;
+            altProfessorTrigger.setAttribute('aria-expanded', 'false');
+            if (altProfessorSearch) altProfessorSearch.value = '';
+        };
+
+        const openAlternativeProfessorPicker = () => {
+            if (!altProfessorPicker || !altProfessorMenu || !altProfessorTrigger) return;
+            altProfessorPicker.classList.add('open');
+            altProfessorMenu.hidden = false;
+            altProfessorTrigger.setAttribute('aria-expanded', 'true');
+            altProfessorSearch?.focus();
+            altProfessorSearch?.select();
+        };
+
+        const getVisibleProfessorOptions = () => Array.from(altProfessor?.options || [])
+            .filter((option) => !option.disabled && !option.hidden);
+
+        const updateAlternativeProfessorTrigger = () => {
+            if (!altProfessorTriggerLabel || !altProfessor) return;
+            const selected = Array.from(altProfessor.options).find((option) => option.value === altProfessor.value);
+            altProfessorTriggerLabel.textContent = selected?.textContent?.trim() || 'Nenhum professor ausente';
+        };
+
+        const renderAlternativeProfessorList = () => {
+            if (!altProfessorList || !altProfessor) return;
+
+            const query = (altProfessorSearch?.value || '').trim().toLowerCase();
+            const visibleOptions = getVisibleProfessorOptions().filter((option) => (
+                !query || option.textContent.toLowerCase().includes(query)
+            ));
+
+            altProfessorList.innerHTML = '';
+            if (!visibleOptions.length) {
+                const empty = document.createElement('div');
+                empty.className = 'schedule-professor-empty';
+                empty.textContent = 'Nenhum professor encontrado.';
+                altProfessorList.appendChild(empty);
+                return;
+            }
+
+            visibleOptions.forEach((option) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'schedule-professor-option';
+                item.dataset.value = option.value;
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', option.value === altProfessor.value ? 'true' : 'false');
+                const name = document.createElement('span');
+                name.textContent = option.textContent.trim();
+                item.append(name);
+                item.addEventListener('click', () => {
+                    altProfessor.value = option.value;
+                    updateAlternativeProfessorTrigger();
+                    closeAlternativeProfessorPicker();
+                    renderAlternativeProfessorList();
+                });
+                altProfessorList.appendChild(item);
+            });
+        };
+
         const syncAlternativeTurnoOptions = () => {
             const turno = altTurno?.value || '';
-            [altTurma, altProfessor].forEach((select) => {
-                if (!select) return;
-                let selectedStillVisible = !select.value;
-                Array.from(select.options).forEach((option) => {
-                    const optionTurno = option.dataset.turno;
-                    const visible = !optionTurno || optionTurno === turno;
-                    option.hidden = !visible;
-                    option.disabled = !visible;
-                    if (option.selected && visible) selectedStillVisible = true;
-                });
-                if (!selectedStillVisible) select.value = '';
+            if (!altTurma) return;
+            const hadClassSelected = Boolean(altTurma.value);
+            const { startValue, endValue } = getAlternativeRangeValues();
+            const days = getSchoolDaysInRange(startValue, endValue);
+            const lessons = alternativeOfficialLessons[turno] || [];
+            const hasLessonInDays = (turmaId = '') => lessons.some((lesson) => (
+                days.includes(String(lesson.dia))
+                && (!turmaId || String(lesson.turma_id) === String(turmaId))
+            ));
+
+            let selectedTurmaVisible = !altTurma.value && hasLessonInDays('');
+            Array.from(altTurma.options).forEach((option) => {
+                const optionTurno = option.dataset.turno;
+                const isAllClasses = !option.value;
+                const visible = isAllClasses
+                    ? hasLessonInDays('')
+                    : optionTurno === turno && hasLessonInDays(option.value);
+                option.hidden = !visible;
+                option.disabled = !visible;
+                if (option.selected && visible) selectedTurmaVisible = true;
             });
+            if (!selectedTurmaVisible) {
+                const firstVisible = Array.from(altTurma.options).find((option) => (
+                    !option.disabled && (!hadClassSelected || option.value)
+                ));
+                altTurma.value = firstVisible?.value || '';
+            }
+            if (altTurmaHelp) {
+                altTurmaHelp.textContent = altTurma.value
+                    ? 'A geração será aplicada somente nesta turma.'
+                    : 'A geração será aplicada em todas as turmas com aula no alcance selecionado.';
+            }
+        };
+
+        const getAlternativeScopeLessons = () => {
+            const turno = altTurno?.value || '';
+            const turmaId = String(altTurma?.value || '');
+            const { startValue, endValue } = getAlternativeRangeValues();
+            const days = getSchoolDaysInRange(startValue, endValue);
+            return (alternativeOfficialLessons[turno] || []).filter((lesson) => (
+                days.includes(String(lesson.dia))
+                && (!turmaId || String(lesson.turma_id) === turmaId)
+            ));
+        };
+
+        const professorHasOfficialLessonInScope = (professorId) => (
+            getAlternativeScopeLessons().some((lesson) => String(lesson.professor_id) === String(professorId))
+        );
+
+        const syncAlternativeProfessorOptions = () => {
+            if (!altProfessor) return;
+
+            const turno = altTurno?.value || '';
+            const turmaId = altTurma?.value || '';
+            let selectedStillVisible = !altProfessor.value;
+            let visibleProfessors = 0;
+
+            Array.from(altProfessor.options).forEach((option) => {
+                const optionTurno = option.dataset.turno;
+                const isPlaceholder = !option.value;
+                const visible = isPlaceholder || (
+                    (!optionTurno || optionTurno === turno)
+                    && optionHasTurma(option, turmaId)
+                    && professorHasOfficialLessonInScope(option.value)
+                );
+                option.hidden = !visible;
+                option.disabled = !visible;
+                if (option.value && visible) visibleProfessors += 1;
+                if (option.selected && visible) selectedStillVisible = true;
+            });
+
+            if (!selectedStillVisible) altProfessor.value = '';
+
+            if (altProfessorHelp) {
+                altProfessorHelp.textContent = visibleProfessors === 0
+                    ? 'Nenhum professor com aula oficial no alcance selecionado.'
+                    : '';
+            }
+            updateAlternativeProfessorTrigger();
+            renderAlternativeProfessorList();
+        };
+
+        const syncAlternativePeriodoOptions = () => {
+            if (!altPeriodo) return;
+
+            const lessons = getAlternativeScopeLessons();
+            const periodosDisponiveis = new Set(lessons.map((lesson) => String(lesson.periodo)));
+            let selectedStillVisible = !altPeriodo.value;
+
+            Array.from(altPeriodo.options).forEach((option) => {
+                const visible = !option.value || periodosDisponiveis.has(String(option.value));
+                option.hidden = !visible;
+                option.disabled = !visible;
+                if (option.selected && visible) selectedStillVisible = true;
+            });
+
+            if (!selectedStillVisible) altPeriodo.value = '';
+        };
+
+        const syncAlternativeOptions = () => {
+            syncAlternativeTurnoOptions();
+            syncAlternativeProfessorOptions();
+            syncAlternativePeriodoOptions();
         };
 
         const syncAlternativeDateRange = () => {
@@ -887,13 +1210,6 @@
                 if (!useRange) altDataFim.value = '';
             }
         };
-
-        altTurno?.addEventListener('change', syncAlternativeTurnoOptions);
-        altDataInicio?.addEventListener('change', syncAlternativeDateRange);
-        altDateRangeToggle?.addEventListener('change', syncAlternativeDateRange);
-        if (altDataInicio && !altDataInicio.value) altDataInicio.value = todayAsInputValue();
-        syncAlternativeTurnoOptions();
-        syncAlternativeDateRange();
 
         const parseInputDate = (dateValue) => {
             if (!dateValue) return null;
@@ -913,6 +1229,232 @@
             return false;
         };
 
+        const getAlternativeRangeValues = () => {
+            const startValue = altDataInicio?.value || todayAsInputValue();
+            const endValue = altDataFim?.disabled ? startValue : (altDataFim?.value || startValue);
+            return { startValue, endValue };
+        };
+
+        const getSchoolDaysInRange = (startValue, endValue = startValue) => {
+            const startDate = parseInputDate(startValue);
+            const endDate = parseInputDate(endValue || startValue);
+            if (!startDate || !endDate || endDate < startDate) return [];
+
+            const days = [];
+            const current = new Date(startDate.getTime());
+            while (current <= endDate) {
+                const dayName = schoolDayNames[current.getDay() - 1];
+                if (dayName && !days.includes(dayName)) days.push(dayName);
+                current.setDate(current.getDate() + 1);
+            }
+            return days;
+        };
+
+        const syncAlternativeDays = () => {
+            const { startValue, endValue } = getAlternativeRangeValues();
+            const days = getSchoolDaysInRange(startValue, endValue);
+            altDayChecks.forEach((check) => {
+                const active = days.includes(check.value);
+                check.checked = active;
+                check.disabled = true;
+                check.closest('label')?.classList.toggle('active', active);
+            });
+
+            if (altDaysHelp) {
+                altDaysHelp.textContent = days.length
+                    ? `Calculado pela data: ${days.join(', ')}.`
+                    : 'Escolha uma data entre segunda e sexta.';
+            }
+        };
+
+        const getDayNameFromDate = (dateValue) => {
+            const date = parseInputDate(dateValue);
+            if (!date) return '';
+            return schoolDayNames[date.getDay() - 1] || '';
+        };
+
+        const setAlternativeMode = (mode) => {
+            const selectedMode = mode === 'manual' ? 'manual' : 'auto';
+            altModeButtons.forEach((button) => {
+                const active = button.dataset.altMode === selectedMode;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            altModePanels.forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.altModePanel !== selectedMode);
+            });
+        };
+
+        const getSelectedManualTurmaOption = () => {
+            if (!altManualTurma?.value) return null;
+            return Array.from(altManualTurma.options).find((option) => option.value === altManualTurma.value) || null;
+        };
+
+        const clearManualAlternativeSelection = () => {
+            if (altManualProfessorId) altManualProfessorId.value = '';
+            if (altManualDisciplinaId) altManualDisciplinaId.value = '';
+        };
+
+        const syncManualAlternativeTurno = () => {
+            const turno = altManualTurno?.value || '';
+            if (altManualTurnoHidden) altManualTurnoHidden.value = turno;
+            if (!altManualTurma) return;
+
+            let selectedVisible = false;
+            Array.from(altManualTurma.options).forEach((option) => {
+                const visible = option.dataset.turno === turno;
+                option.hidden = !visible;
+                option.disabled = !visible;
+                if (option.selected && visible) selectedVisible = true;
+            });
+            if (!selectedVisible) {
+                const firstVisible = Array.from(altManualTurma.options).find((option) => !option.disabled);
+                altManualTurma.value = firstVisible?.value || '';
+            }
+        };
+
+        const syncManualAlternativePeriodos = () => {
+            if (!altManualPeriodo) return;
+            const turmaOption = getSelectedManualTurmaOption();
+            const aulasPorDia = Number(turmaOption?.dataset.aulasPorDia || 0);
+            let selectedVisible = !altManualPeriodo.value;
+            Array.from(altManualPeriodo.options).forEach((option) => {
+                const periodo = Number(option.value || 0);
+                const visible = !periodo || !aulasPorDia || periodo <= aulasPorDia;
+                option.hidden = !visible;
+                option.disabled = !visible;
+                if (option.selected && visible) selectedVisible = true;
+            });
+            if (!selectedVisible) altManualPeriodo.value = '';
+        };
+
+        const renderManualAlternativeOptions = () => {
+            if (!altManualOptionsList) return;
+            const turno = altManualTurno?.value || '';
+            const turmaId = String(altManualTurma?.value || '');
+            const dia = getDayNameFromDate(altManualData?.value || '');
+            const periodo = String(altManualPeriodo?.value || '');
+            const query = (altManualSearch?.value || '').trim().toLowerCase();
+            if (altManualDia) altManualDia.value = dia;
+
+            const options = (alternativeManualOptions[turno] || []).filter((item) => {
+                const matchesTurma = String(item.turma_id) === turmaId;
+                const matchesDay = !item.dias?.length || item.dias.includes(dia);
+                const professorBusy = (alternativeOccupiedSlots[turno] || []).some((slot) => (
+                    String(slot.professor_id) === String(item.professor_id)
+                    && String(slot.dia) === String(dia)
+                    && String(slot.periodo) === String(periodo)
+                    && String(slot.turma_id) !== turmaId
+                ));
+                const haystack = `${item.professor_nome} ${item.disciplina_nome}`.toLowerCase();
+                return matchesTurma && dia && periodo && matchesDay && !professorBusy && (!query || haystack.includes(query));
+            });
+
+            altManualOptionsList.innerHTML = '';
+            if (!options.length) {
+                const empty = document.createElement('div');
+                empty.className = 'schedule-alt-manual-empty';
+                empty.textContent = dia
+                    ? 'Nenhum professor disponível para esta turma e data.'
+                    : 'Escolha uma data entre segunda e sexta.';
+                altManualOptionsList.appendChild(empty);
+                if (altManualHelp) altManualHelp.textContent = '';
+                clearManualAlternativeSelection();
+                return;
+            }
+
+            options.forEach((item) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'schedule-alt-manual-option';
+                const selected = (
+                    String(altManualProfessorId?.value || '') === String(item.professor_id)
+                    && String(altManualDisciplinaId?.value || '') === String(item.disciplina_id)
+                );
+                button.classList.toggle('active', selected);
+                button.setAttribute('role', 'option');
+                button.setAttribute('aria-selected', selected ? 'true' : 'false');
+                const title = document.createElement('strong');
+                title.textContent = item.professor_nome;
+                const meta = document.createElement('span');
+                meta.textContent = item.disciplina_nome;
+                button.append(title, meta);
+                button.addEventListener('click', () => {
+                    if (altManualProfessorId) altManualProfessorId.value = item.professor_id;
+                    if (altManualDisciplinaId) altManualDisciplinaId.value = item.disciplina_id;
+                    renderManualAlternativeOptions();
+                });
+                altManualOptionsList.appendChild(button);
+            });
+
+            if (altManualHelp) {
+                altManualHelp.textContent = `Dia calculado: ${dia}. Escolha um professor e disciplina para o período.`;
+            }
+        };
+
+        const syncManualAlternative = () => {
+            syncManualAlternativeTurno();
+            syncManualAlternativePeriodos();
+            renderManualAlternativeOptions();
+        };
+
+        altTurno?.addEventListener('change', syncAlternativeOptions);
+        altTurma?.addEventListener('change', syncAlternativeOptions);
+        altModeButtons.forEach((button) => {
+            button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
+            button.addEventListener('click', () => setAlternativeMode(button.dataset.altMode));
+        });
+        altProfessorTrigger?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (altProfessorPicker?.classList.contains('open')) {
+                closeAlternativeProfessorPicker();
+            } else {
+                renderAlternativeProfessorList();
+                openAlternativeProfessorPicker();
+            }
+        });
+        altProfessorMenu?.addEventListener('click', (event) => event.stopPropagation());
+        altProfessorSearch?.addEventListener('input', renderAlternativeProfessorList);
+        document.addEventListener('click', (event) => {
+            if (!altProfessorPicker?.contains(event.target)) closeAlternativeProfessorPicker();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeAlternativeProfessorPicker();
+        });
+        altDataInicio?.addEventListener('change', () => {
+            syncAlternativeDateRange();
+            syncAlternativeDays();
+            syncAlternativeOptions();
+        });
+        altDateRangeToggle?.addEventListener('change', () => {
+            syncAlternativeDateRange();
+            syncAlternativeDays();
+            syncAlternativeOptions();
+        });
+        altDataFim?.addEventListener('change', () => {
+            syncAlternativeDays();
+            syncAlternativeOptions();
+        });
+        if (altDataInicio && !altDataInicio.value) altDataInicio.value = todayAsInputValue();
+        syncAlternativeOptions();
+        syncAlternativeDateRange();
+        syncAlternativeDays();
+        altManualTurno?.addEventListener('change', syncManualAlternative);
+        altManualTurma?.addEventListener('change', () => {
+            clearManualAlternativeSelection();
+            syncManualAlternative();
+        });
+        altManualData?.addEventListener('change', () => {
+            clearManualAlternativeSelection();
+            renderManualAlternativeOptions();
+        });
+        altManualPeriodo?.addEventListener('change', () => {
+            clearManualAlternativeSelection();
+            renderManualAlternativeOptions();
+        });
+        altManualSearch?.addEventListener('input', renderManualAlternativeOptions);
+        syncManualAlternative();
+
         document.querySelectorAll('[data-layer-edit]').forEach((button) => {
             button.addEventListener('click', () => {
                 if (altMotivo) altMotivo.value = button.dataset.title || '';
@@ -928,6 +1470,7 @@
                     check.checked = check.value === button.dataset.day;
                 });
                 syncAlternativeDateRange();
+                syncAlternativeDays();
                 closeScheduleMenus();
                 openModal('modal-horario-alternativo');
                 showToast('Revise professor ausente ou periodo bloqueado antes de salvar a edicao.', 'info');
@@ -946,14 +1489,59 @@
         });
 
         document.querySelector('.schedule-alternative-form')?.addEventListener('submit', (event) => {
-            if (!altDayChecks.some((check) => check.checked)) {
+            const { startValue, endValue } = getAlternativeRangeValues();
+            const startDate = parseInputDate(startValue);
+            const endDate = parseInputDate(endValue);
+            if (startDate && endDate && endDate < startDate) {
                 event.preventDefault();
-                showToast('Selecione pelo menos um dia da grade oficial.', 'warning');
+                showToast('A data final não pode ser anterior à data inicial.', 'warning');
                 return;
             }
-            if (rangeHasWeekend(altDataInicio?.value, altDataFim?.disabled ? altDataInicio?.value : altDataFim?.value)) {
+            const calculatedDays = getSchoolDaysInRange(startValue, endValue);
+            if (!calculatedDays.length) {
+                event.preventDefault();
+                showToast('Escolha uma data entre segunda e sexta.', 'warning');
+                return;
+            }
+            if (altProfessor?.value) {
+                const selectedProfessor = Array.from(altProfessor.options).find((option) => option.value === altProfessor.value);
+                if (!selectedProfessor || selectedProfessor.disabled || !optionHasTurma(selectedProfessor, altTurma?.value || '')) {
+                    event.preventDefault();
+                    showToast('Selecione um professor que ministre aulas na turma escolhida.', 'warning');
+                    return;
+                }
+            }
+            if (altPeriodo?.value) {
+                const turmaOption = getSelectedAltTurmaOption();
+                const aulasPorDia = Number(turmaOption?.dataset.aulasPorDia || 0);
+                if (aulasPorDia && Number(altPeriodo.value) > aulasPorDia) {
+                    event.preventDefault();
+                    showToast('Selecione um período válido para a turma escolhida.', 'warning');
+                    return;
+                }
+            }
+            if (rangeHasWeekend(startValue, endValue)) {
                 event.preventDefault();
                 showToast('Não é permitido criar alteração para sábado ou domingo.', 'warning');
+            }
+        });
+
+        document.getElementById('schedule-alternative-manual-form')?.addEventListener('submit', (event) => {
+            const dia = getDayNameFromDate(altManualData?.value || '');
+            if (!dia) {
+                event.preventDefault();
+                showToast('Escolha uma data entre segunda e sexta.', 'warning');
+                return;
+            }
+            if (!altManualProfessorId?.value || !altManualDisciplinaId?.value) {
+                event.preventDefault();
+                showToast('Escolha um professor disponível para o horário.', 'warning');
+                return;
+            }
+            if (!altManualPeriodo?.value) {
+                event.preventDefault();
+                showToast('Escolha o período do alternativo manual.', 'warning');
+                return;
             }
         });
 
@@ -1116,7 +1704,6 @@
             }
         });
 
-        setMode(localStorage.getItem(storageKey));
     });
 </script>
 {% endblock %}

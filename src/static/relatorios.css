@@ -455,6 +455,11 @@
     line-height: 1.35;
 }
 
+.reports-layer-main .reports-layer-detail {
+    color: #bfdbfe;
+    font-weight: 700;
+}
+
 .reports-layer-metrics,
 .reports-layer-actions {
     display: flex;

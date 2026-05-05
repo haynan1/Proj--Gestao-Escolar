@@ -79,6 +79,25 @@
     box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
 }
 
+html[data-schedule-color-mode] .schedule-color-mode-btn.active {
+    color: var(--text-muted);
+    background: transparent;
+    box-shadow: none;
+}
+
+html[data-schedule-color-mode="disciplina"] .schedule-color-mode-btn[data-schedule-color-mode="disciplina"],
+html[data-schedule-color-mode="professor"] .schedule-color-mode-btn[data-schedule-color-mode="professor"] {
+    color: var(--green);
+    background: rgba(34, 197, 94, 0.15);
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.22);
+}
+
+html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-color-mode="none"] {
+    color: var(--text);
+    background: rgba(148, 163, 184, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
+}
+
 .schedule-generate-picker,
 .schedule-export-picker,
 .schedule-alt-picker {
@@ -763,6 +782,38 @@
     max-width: 640px;
 }
 
+.schedule-alt-mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-bottom: 0.9rem;
+    padding: 0.25rem;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.22);
+}
+
+.schedule-alt-mode-tabs button {
+    min-height: 34px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.schedule-alt-mode-tabs button.active {
+    background: rgba(34, 197, 94, 0.16);
+    color: var(--green-light);
+}
+
+.schedule-alt-mode-panel.hidden {
+    display: none;
+}
+
 .schedule-alternative-form {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -776,6 +827,45 @@
 .schedule-alternative-help {
     grid-column: 1 / -1;
     margin: 0;
+}
+
+.schedule-alt-section,
+.schedule-alt-days-group {
+    grid-column: 1 / -1;
+}
+
+.schedule-alt-section {
+    display: grid;
+    gap: 0.7rem;
+    padding: 0.8rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.16);
+}
+
+.schedule-alt-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.schedule-alt-section-head strong {
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.schedule-alt-section-head span {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-align: right;
+}
+
+.schedule-alt-section-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
 }
 
 .schedule-date-range-toggle {
@@ -800,8 +890,196 @@
 }
 
 .schedule-alternative-form .schedule-temporary-notes,
-.schedule-alternative-form .modal-actions-sticky {
+.schedule-alternative-form .modal-actions-sticky,
+.schedule-alt-manual-list-group {
     grid-column: 1 / -1;
+}
+
+.schedule-alt-manual-search {
+    margin-bottom: 0.45rem;
+}
+
+.schedule-alt-manual-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.4rem;
+    max-height: 220px;
+    overflow: auto;
+    padding: 0.35rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.18);
+}
+
+.schedule-alt-manual-option {
+    display: grid;
+    gap: 0.15rem;
+    min-height: 48px;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.16);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+
+.schedule-alt-manual-option strong,
+.schedule-alt-manual-option span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schedule-alt-manual-option strong {
+    color: var(--text);
+    font-size: 0.86rem;
+}
+
+.schedule-alt-manual-option span {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.schedule-alt-manual-option:hover,
+.schedule-alt-manual-option:focus-visible,
+.schedule-alt-manual-option.active {
+    outline: none;
+    border-color: rgba(34, 197, 94, 0.34);
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.schedule-alt-manual-empty {
+    grid-column: 1 / -1;
+    padding: 0.7rem;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.schedule-native-select-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.schedule-professor-picker {
+    position: relative;
+}
+
+.schedule-professor-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 42px;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg3);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.schedule-professor-trigger::after {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    opacity: 0.78;
+    flex: 0 0 auto;
+}
+
+.schedule-professor-trigger:hover,
+.schedule-professor-picker.open .schedule-professor-trigger {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.13);
+}
+
+.schedule-professor-menu {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.4rem;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    background: #172338;
+    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.42);
+}
+
+.schedule-professor-menu[hidden] {
+    display: none !important;
+}
+
+.schedule-professor-search {
+    min-height: 34px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.84rem;
+}
+
+.schedule-professor-list {
+    display: grid;
+    gap: 0.15rem;
+    max-height: 176px;
+    overflow: auto;
+    padding-right: 0.1rem;
+}
+
+.schedule-professor-option {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 32px;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+.schedule-professor-option span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.schedule-professor-option:hover,
+.schedule-professor-option:focus-visible,
+.schedule-professor-option[aria-selected="true"] {
+    outline: none;
+    border-color: rgba(34, 197, 94, 0.28);
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--green-light);
+}
+
+.schedule-professor-empty {
+    padding: 0.65rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
 }
 
 .manual-slot-context {
@@ -1106,6 +1384,21 @@
     accent-color: var(--green);
 }
 
+.schedule-day-checks-auto label {
+    cursor: default;
+    color: var(--text-muted);
+}
+
+.schedule-day-checks-auto label.active {
+    border-color: rgba(34, 197, 94, 0.42);
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--green-light);
+}
+
+.schedule-day-checks-auto input:disabled {
+    opacity: 1;
+}
+
 .schedule-export-menu .schedule-export-menu-section {
     margin-top: 0.25rem;
     padding-top: 0.55rem;
@@ -1167,6 +1460,45 @@
 [data-theme="light"] .schedule-day-checks label {
     background: #f8fafc;
     border-color: #e2e8f0;
+}
+
+[data-theme="light"] .schedule-day-checks-auto label.active {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+[data-theme="light"] .schedule-professor-menu {
+    background: #ffffff;
+    border-color: #dbe4ee;
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14);
+}
+
+[data-theme="light"] .schedule-professor-option:hover,
+[data-theme="light"] .schedule-professor-option:focus-visible,
+[data-theme="light"] .schedule-professor-option[aria-selected="true"] {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+[data-theme="light"] .schedule-alt-mode-tabs,
+[data-theme="light"] .schedule-alt-manual-list,
+[data-theme="light"] .schedule-alt-section {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .schedule-alt-manual-option {
+    background: #ffffff;
+    border-color: #e2e8f0;
+}
+
+[data-theme="light"] .schedule-alt-manual-option:hover,
+[data-theme="light"] .schedule-alt-manual-option:focus-visible,
+[data-theme="light"] .schedule-alt-manual-option.active {
+    background: #dcfce7;
+    border-color: #86efac;
 }
 
 [data-theme="light"] .schedule-clear-form,
@@ -1740,6 +2072,19 @@
         grid-template-columns: 1fr;
     }
 
+    .schedule-alt-section-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .schedule-alt-section-head {
+        display: grid;
+        gap: 0.2rem;
+    }
+
+    .schedule-alt-section-head span {
+        text-align: left;
+    }
+
     .schedule-alternative-panel-header,
     .schedule-alternative-item {
         align-items: stretch;
@@ -2026,6 +2371,22 @@
 }
 
 .aula-card.aula-card-no-color .prof-nome {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+html[data-schedule-color-mode="none"] .aula-card.aula-card-dynamic {
+    background: var(--bg3) !important;
+    border-left-color: transparent !important;
+    color: var(--text) !important;
+    box-shadow: none;
+}
+
+html[data-schedule-color-mode="none"] .aula-card.aula-card-dynamic .disc-nome {
+    color: var(--text);
+}
+
+html[data-schedule-color-mode="none"] .aula-card.aula-card-dynamic .prof-nome {
     color: var(--text-muted);
     opacity: 1;
 }
