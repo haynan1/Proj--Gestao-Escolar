@@ -1,6 +1,6 @@
-# Projeto Planax
+# Projeto Flowter
 
-Aplicacao Flask do Planax para gerenciamento de escolas, turmas, disciplinas, professores e geracao de horarios.
+Aplicacao Flask do Flowter para gerenciamento de escolas, turmas, disciplinas, professores e geracao de horarios.
 
 ## O que o projeto faz
 
@@ -68,7 +68,7 @@ SESSION_COOKIE_SECURE=0
 VERIFY_EMAIL_TOKEN_MAX_AGE=86400
 RESET_PASSWORD_TOKEN_MAX_AGE=3600
 
-MAIL_FROM_NAME=Planax
+MAIL_FROM_NAME=Flowter
 MAIL_FROM_EMAIL=
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -160,7 +160,7 @@ Exemplo de configuracao:
 
 ```env
 APP_BASE_URL=http://localhost:5000
-MAIL_FROM_NAME=Planax
+MAIL_FROM_NAME=Flowter
 MAIL_FROM_EMAIL=seuemail@gmail.com
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587

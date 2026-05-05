@@ -20,7 +20,7 @@ def send_email(recipient: str, subject: str, body_text: str):
     smtp_password = os.getenv('SMTP_PASSWORD', '').strip()
     smtp_use_tls = _get_bool_env('SMTP_USE_TLS', True)
     sender_email = os.getenv('MAIL_FROM_EMAIL', '').strip()
-    sender_name = os.getenv('MAIL_FROM_NAME', 'Planax').strip() or 'Planax'
+    sender_name = os.getenv('MAIL_FROM_NAME', 'Flowter').strip() or 'Flowter'
 
     if not smtp_host or not sender_email:
         LOGGER.warning(
@@ -61,7 +61,7 @@ def send_email(recipient: str, subject: str, body_text: str):
 
 
 def send_verification_email(user: dict, verification_url: str):
-    subject = 'Confirme seu e-mail no Planax'
+    subject = 'Confirme seu e-mail no Flowter'
     body = (
         f'Ola, {user["nome"]}.\n\n'
         'Confirme seu e-mail para ativar o acesso a sua conta:\n'
@@ -72,7 +72,7 @@ def send_verification_email(user: dict, verification_url: str):
 
 
 def send_password_reset_email(user: dict, reset_url: str):
-    subject = 'Redefinicao de senha no Planax'
+    subject = 'Redefinicao de senha no Flowter'
     body = (
         f'Ola, {user["nome"]}.\n\n'
         'Recebemos uma solicitacao para redefinir sua senha.\n'

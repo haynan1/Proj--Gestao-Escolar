@@ -93,7 +93,7 @@ def _setup_sheet(ws):
     ws.page_margins.right = 0.25
     ws.page_margins.top = 0.45
     ws.page_margins.bottom = 0.45
-    ws.oddFooter.center.text = 'Planax - Gestão escolar'
+    ws.oddFooter.center.text = 'Flowter - Gestão escolar'
     ws.oddFooter.right.text = 'Página &P de &N'
 
     for row in range(1, 16):
@@ -122,7 +122,7 @@ def _write_header(ws, escola, turma):
     subtitle.fill = PatternFill('solid', fgColor=PAGE)
     ws.row_dimensions[2].height = 20
 
-    ws[f'{brand_col}1'] = 'Planax'
+    ws[f'{brand_col}1'] = 'Flowter'
     ws[f'{brand_col}1'].font = Font(name='Aptos', bold=True, size=11, color=WHITE)
     ws[f'{brand_col}1'].alignment = Alignment(horizontal='center', vertical='center')
     ws[f'{brand_col}1'].fill = PatternFill('solid', fgColor=GREEN)

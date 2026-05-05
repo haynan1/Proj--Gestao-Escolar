@@ -1,5 +1,5 @@
 /**
- * Lógica do Dashboard Planax
+ * Lógica do Dashboard Flowter
  * Separada do HTML para evitar conflitos de sintaxe no editor
  */
 
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selected && cargaValue > 0) totalAulas += cargaValue;
             if (input) {
                 input.disabled = !selected;
-                if (!selected) input.value = 0;
+                if (!selected) input.value = input.classList.contains('edit-carga-input') ? '' : 0;
             }
         });
 
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             document.querySelectorAll('.edit-carga-input').forEach(input => {
-                input.value = cargasMapa[`${input.dataset.turmaId}:${input.dataset.disciplinaId}`] || 0;
+                input.value = cargasMapa[`${input.dataset.turmaId}:${input.dataset.disciplinaId}`] || '';
             });
 
             document.getElementById('form-prof-edit').action = `/escola/${escolaId}/professor/${id}/editar${turnoQuery}`;

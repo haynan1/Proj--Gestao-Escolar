@@ -162,13 +162,13 @@
                     <span class="schedule-export-menu-section">Alternativos ativos em {{ data_visualizada_formatada }}</span>
                     {% for grupo in grupos_horarios_temporarios_ativos %}
                     <span class="schedule-export-menu-subtitle">{{ grupo.titulo }} - {{ grupo.dia }}</span>
-                    <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='disciplina') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', turma_id=turma_selecionada_id if view_mode != 'geral' else '', color_mode='disciplina') }}" role="menuitem">
                         Alternativo · cores das disciplinas
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='professor') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', turma_id=turma_selecionada_id if view_mode != 'geral' else '', color_mode='professor') }}" role="menuitem">
                         Alternativo · cores dos professores
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='none') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_temporario_xls', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', turma_id=turma_selecionada_id if view_mode != 'geral' else '', color_mode='none') }}" role="menuitem">
                         Alternativo · sem cores
                     </a>
                     {% endfor %}
@@ -206,13 +206,13 @@
                     <span class="schedule-export-menu-section">Alternativos ativos em {{ data_visualizada_formatada }}</span>
                     {% for grupo in grupos_horarios_temporarios_ativos %}
                     <span class="schedule-export-menu-subtitle">{{ grupo.titulo }} - {{ grupo.dia }}</span>
-                    <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='disciplina') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', turma_id=turma_selecionada_id if view_mode != 'geral' else '', color_mode='disciplina') }}" role="menuitem">
                         Alternativo · cores das disciplinas
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='professor') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', turma_id=turma_selecionada_id if view_mode != 'geral' else '', color_mode='professor') }}" role="menuitem">
                         Alternativo · cores dos professores
                     </a>
-                    <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', color_mode='none') }}" role="menuitem">
+                    <a href="{{ url_for('dashboard.exportar_temporario_pdf', escola_id=escola.id, turno=turno_atual, titulo=grupo.titulo, data_inicio=grupo.data_inicio, data_fim=grupo.data_fim, dia=grupo.dia, observacao=grupo.observacao or '', turma_id=turma_selecionada_id if view_mode != 'geral' else '', color_mode='none') }}" role="menuitem">
                         Alternativo · sem cores
                     </a>
                     {% endfor %}
@@ -303,21 +303,21 @@
                     <table class="grade-table schedule-compact-table">
                         <thead>
                             <tr>
-                                <th style="min-width:90px;">Período / Dia</th>
-                                {% for dia in dias %}
-                                <th>{{ dia }}</th>
+                                <th style="min-width:120px;">Dia / Período</th>
+                                {% for p in periodos_geral %}
+                                <th>{{ p }}º Período</th>
                                 {% endfor %}
                             </tr>
                         </thead>
                         <tbody>
-                            {% for p in periodos_geral %}
+                            {% for dia in dias %}
                             <tr>
-                                <th class="dia-header dia-header-cell">{{ p }}º Período</th>
-                                {% for dia in dias %}
+                                <th class="dia-header dia-header-cell">{{ dia }}</th>
+                                {% for p in periodos_geral %}
                                 {% set aula = grade[turma.id][dia][p] %}
                                 {% set temp_slot_geral = temporarios_por_turma_slot.get(turma.id ~ ':' ~ dia ~ ':' ~ p, []) %}
                                 {% set aula_temp_geral = temp_slot_geral[0] if temp_slot_geral else none %}
-                                <td data-periodo-label="{{ dia }}">
+                                <td data-periodo-label="{{ p }}º Período">
                                     <div class="grade-cell {% if not aula and not aula_temp_geral %}empty{% endif %}"
                                         data-turma-id="{{ turma.id }}"
                                         data-turma-nome="{{ turma.nome }}"
@@ -422,24 +422,24 @@
         {% endif %}
 
         <div class="grade-container">
-            <table class="grade-table">
-                <thead>
-                    <tr>
-                        <th style="min-width:90px;">Período / Dia</th>
-                        {% for dia in dias %}
-                        <th>{{ dia }}</th>
+                    <table class="grade-table">
+                        <thead>
+                            <tr>
+                        <th style="min-width:120px;">Dia / Período</th>
+                        {% for p in periodos %}
+                        <th>{{ p }}º Período</th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
-                    {% for p in periodos %}
+                    {% for dia in dias %}
                     <tr>
-                        <th class="dia-header dia-header-cell">{{ p }}º Período</th>
-                        {% for dia in dias %}
+                        <th class="dia-header dia-header-cell">{{ dia }}</th>
+                        {% for p in periodos %}
                         {% set aula = grade[turma_selecionada_id][dia][p] %}
                         {% set excecoes_slot = temporarios_por_slot.get(dia ~ ':' ~ p, []) %}
                         {% set aula_temp = excecoes_slot[0] if excecoes_slot else none %}
-                        <td data-periodo-label="{{ dia }}">
+                        <td data-periodo-label="{{ p }}º Período">
                             <div class="grade-cell {% if not aula and not aula_temp %}empty{% endif %}"
                                 data-turma-id="{{ turma_atual.id }}"
                                 data-turma-nome="{{ turma_atual.nome }}"
@@ -685,7 +685,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
+        const storageKey = `flowter:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
         const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const altMenuTriggers = Array.from(document.querySelectorAll('[data-alt-menu-trigger]'));
