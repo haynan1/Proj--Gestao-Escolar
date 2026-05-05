@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS escolas (
     nome VARCHAR(255) NOT NULL,
     oculta TINYINT(1) NOT NULL DEFAULT 0,
     backup_de_escola_id INT NULL,
+    horarios_travados_turnos VARCHAR(100) NOT NULL DEFAULT '',
     criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_escolas_oculta (oculta),
     KEY idx_escolas_backup_de (backup_de_escola_id),

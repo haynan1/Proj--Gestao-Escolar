@@ -3,6 +3,7 @@ import re
 
 from access_control import user_has_permission
 from database.connection import get_connection
+from models.turno import normalizar_turno
 from models.user_link import usuario_tem_vinculo
 
 BACKUP_NAME_RE = re.compile(r'\s+\(backup \d{4}-\d{2}-\d{2} \d{6}\)(?: \d+)?$')
@@ -16,6 +17,51 @@ def _serialize_escola(row):
     else:
         item['criado_em_formatado'] = str(criado_em)[:10] if criado_em else None
     return item
+
+
+def _parse_turnos_travados(value):
+    return {
+        normalizar_turno(turno)
+        for turno in str(value or '').split(',')
+        if str(turno or '').strip()
+    }
+
+
+def horario_turno_travado(escola, turno):
+    if not escola:
+        return False
+    turno = normalizar_turno(turno)
+    return turno in _parse_turnos_travados(escola.get('horarios_travados_turnos'))
+
+
+def definir_horario_turno_travado(escola_id, turno, travado):
+    turno = normalizar_turno(turno)
+    conn = get_connection()
+    try:
+        escola = conn.execute(
+            "SELECT horarios_travados_turnos FROM escolas WHERE id = %s",
+            (escola_id,),
+        ).fetchone()
+        if not escola:
+            return False
+
+        turnos = _parse_turnos_travados(escola.get('horarios_travados_turnos'))
+        if travado:
+            turnos.add(turno)
+        else:
+            turnos.discard(turno)
+
+        conn.execute(
+            "UPDATE escolas SET horarios_travados_turnos = %s WHERE id = %s",
+            (','.join(sorted(turnos)), escola_id),
+        )
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def criar_escola(user_id, nome):
@@ -244,9 +290,19 @@ def duplicar_escola_oculta(escola_id):
 
         nome_backup = _gerar_nome_backup(conn, escola)
         cursor = conn.execute(
-            """INSERT INTO escolas (user_id, nome, oculta, backup_de_escola_id)
-               VALUES (%s, %s, 1, %s)""",
-            (escola.get('user_id'), nome_backup, escola['id']),
+            """INSERT INTO escolas (
+                   user_id,
+                   nome,
+                   oculta,
+                   backup_de_escola_id,
+                   horarios_travados_turnos
+               ) VALUES (%s, %s, 1, %s, %s)""",
+            (
+                escola.get('user_id'),
+                nome_backup,
+                escola['id'],
+                escola.get('horarios_travados_turnos') or '',
+            ),
         )
         backup_id = cursor.lastrowid
 

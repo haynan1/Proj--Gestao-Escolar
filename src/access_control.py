@@ -6,6 +6,7 @@ from flask import flash, g, jsonify, redirect, request, url_for
 ROLE_ADMIN = 'administrador'
 ROLE_COORDINATOR = 'coordenador'
 ROLE_STAFF = 'funcionario'
+SCHEDULE_MANAGER_ROLES = {ROLE_ADMIN, ROLE_COORDINATOR}
 
 ROLE_LABELS = {
     ROLE_ADMIN: 'Administrador',
@@ -54,6 +55,8 @@ def user_has_permission(user: dict | None, permission: str) -> bool:
     if not user:
         return False
     role = normalize_role(user.get('role'))
+    if permission == 'manage_schedule' and role not in SCHEDULE_MANAGER_ROLES:
+        return False
     return permission in ROLE_PERMISSIONS.get(role, set())
 
 

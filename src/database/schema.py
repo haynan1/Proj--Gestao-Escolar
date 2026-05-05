@@ -38,6 +38,7 @@ TABLE_STATEMENTS = [
         nome VARCHAR(255) NOT NULL,
         oculta TINYINT(1) NOT NULL DEFAULT 0,
         backup_de_escola_id INT NULL,
+        horarios_travados_turnos VARCHAR(100) NOT NULL DEFAULT '',
         criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_escolas_usuario_nome (user_id, nome),
         CONSTRAINT fk_escolas_usuario
@@ -335,6 +336,13 @@ def _ensure_school_backup_columns(cursor):
 
     if not _index_exists(cursor, 'escolas', 'idx_escolas_backup_de'):
         cursor.execute("CREATE INDEX idx_escolas_backup_de ON escolas (backup_de_escola_id)")
+
+
+def _ensure_school_schedule_lock_column(cursor):
+    if not _column_exists(cursor, 'escolas', 'horarios_travados_turnos'):
+        cursor.execute(
+            "ALTER TABLE escolas ADD COLUMN horarios_travados_turnos VARCHAR(100) NOT NULL DEFAULT '' AFTER backup_de_escola_id"
+        )
 
 
 def _ensure_user_school_links(cursor):
@@ -669,6 +677,7 @@ def create_tables():
         _ensure_user_security_columns(conn)
         _ensure_school_owner_column(conn)
         _ensure_school_backup_columns(conn)
+        _ensure_school_schedule_lock_column(conn)
         _ensure_user_school_links(conn)
         _ensure_turno_columns(conn)
         _ensure_turma_period_columns(conn)

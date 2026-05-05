@@ -36,7 +36,7 @@ from models.disciplina import (
     deletar_disciplina,
     listar_disciplinas,
 )
-from models.escola import buscar_escola
+from models.escola import buscar_escola, definir_horario_turno_travado, horario_turno_travado
 from models.horario_temporario import (
     HorarioTemporarioValidationError,
     criar_horarios_temporarios_lote,
@@ -549,10 +549,26 @@ def _horario_temporario_ativo_na_data(registro, data_referencia):
     return data_inicio <= data_referencia <= data_fim
 
 
+def _geracao_oficial_travada_json(escola, turno):
+    if not horario_turno_travado(escola, turno):
+        return None
+    return _json_error(
+        'Geracao oficial travada. Destrave este turno antes de alterar o horario oficial.',
+        status_code=423,
+        code='official_schedule_locked',
+    )
+
+
 def _grupo_temporario_intersecta_intervalo(registro, inicio_intervalo, fim_intervalo):
     data_inicio = _parse_date_or_today(registro.get('data_inicio'))
     data_fim = _parse_date_or_today(registro.get('data_fim') or registro.get('data_inicio'))
     return data_inicio < fim_intervalo and data_fim >= inicio_intervalo
+
+
+def _grupo_temporario_nao_vencido(registro, hoje=None):
+    hoje = hoje or date.today()
+    data_fim = _parse_date_or_today(registro.get('data_fim') or registro.get('data_inicio'))
+    return data_fim >= hoje
 
 
 def _month_bounds(month_value):
@@ -911,6 +927,7 @@ def horarios(escola_id):
         return failure
 
     turno_atual = _active_turno()
+    horario_oficial_travado = horario_turno_travado(escola, turno_atual)
     data_visualizada = _parse_date_or_today(request.args.get('data'))
     data_visualizada_iso = data_visualizada.isoformat()
     view_mode = request.args.get('view', 'turma')
@@ -965,6 +982,10 @@ def horarios(escola_id):
     grupos_horarios_temporarios = listar_grupos_horarios_temporarios(escola['id'], turno_atual)
     if view_mode != 'geral':
         grupos_horarios_temporarios = _agrupar_horarios_temporarios(horarios_temporarios)
+    grupos_horarios_temporarios = [
+        grupo for grupo in grupos_horarios_temporarios
+        if _grupo_temporario_nao_vencido(grupo)
+    ]
     for grupo in grupos_horarios_temporarios:
         grupo['ativo_na_data'] = _horario_temporario_ativo_na_data(grupo, data_visualizada)
         grupo['data_inicio_formatada'] = _format_date_br(grupo.get('data_inicio'))
@@ -1011,9 +1032,39 @@ def horarios(escola_id):
         turnos=TURNOS,
         turno_atual=turno_atual,
         turno_atual_label=_turno_label(turno_atual),
+        horario_oficial_travado=horario_oficial_travado,
         data_visualizada=data_visualizada_iso,
         data_visualizada_formatada=_format_date_br(data_visualizada),
+        hoje=_data_atual(),
     )
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/trava', methods=['POST'])
+@login_required
+def alternar_trava_horario(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    travar = request.form.get('acao') != 'destravar'
+    definir_horario_turno_travado(escola['id'], turno_atual, travar)
+    flash(
+        'Geracao oficial travada para este turno.'
+        if travar else
+        'Geracao oficial destravada para este turno.',
+        'success',
+    )
+
+    turma_id = request.form.get('turma_id', type=int)
+    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
+    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
+    view_mode = request.form.get('view') or request.args.get('view')
+    if turma_id:
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada, visualizacao=visualizacao))
+    if view_mode == 'geral':
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', data=data_visualizada, visualizacao=visualizacao))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, data=data_visualizada, visualizacao=visualizacao))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/gerar', methods=['POST'])
@@ -1024,8 +1075,14 @@ def gerar(escola_id):
         return failure
 
     turma_id = request.form.get('turma_id', type=int)
+    turno_atual = _active_turno()
+    if horario_turno_travado(escola, turno_atual):
+        flash('Geracao oficial travada. Destrave este turno antes de gerar um novo horario oficial.', 'error')
+        if turma_id:
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
     try:
-        sucesso, msg, total = gerar_horario(escola['id'], turma_id, _active_turno())
+        sucesso, msg, total = gerar_horario(escola['id'], turma_id, turno_atual)
     except Exception:
         current_app.logger.exception(
             'Erro inesperado ao gerar horário da escola %s, turma %s.',
@@ -1171,6 +1228,11 @@ def limpar_horarios(escola_id):
     if failure:
         return failure
 
+    turno_atual = _active_turno()
+    if horario_turno_travado(escola, turno_atual):
+        flash('Geracao oficial travada. Destrave este turno antes de limpar o horario oficial.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
+
     alvo = request.form.get('limpar_alvo', 'todas')
     limpar_turma_id = None
     if alvo != 'todas':
@@ -1180,7 +1242,7 @@ def limpar_horarios(escola_id):
             flash('Selecione uma turma válida para limpar.', 'error')
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
     try:
-        limpar_aulas(escola['id'], limpar_turma_id, _active_turno())
+        limpar_aulas(escola['id'], limpar_turma_id, turno_atual)
         flash(
             'Horários da turma limpos.' if limpar_turma_id else 'Horários de todas as turmas limpos.',
             'success',
@@ -1201,6 +1263,11 @@ def criar_manual(escola_id):
     if failure:
         return failure
 
+    turno_atual = _active_turno()
+    locked = _geracao_oficial_travada_json(escola, turno_atual)
+    if locked:
+        return locked
+
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return _json_error('Corpo da requisição inválido.', code='invalid_payload')
@@ -1213,7 +1280,7 @@ def criar_manual(escola_id):
             int(data.get('disciplina_id')),
             str(data.get('dia')),
             int(data.get('periodo')),
-            _active_turno(),
+            turno_atual,
         )
     except ScheduleConflictError as exc:
         return _json_error(str(exc), code='schedule_conflict')
@@ -1232,8 +1299,13 @@ def deletar_aula_manual(escola_id, aula_id):
     if failure:
         return failure
 
+    turno_atual = _active_turno()
+    locked = _geracao_oficial_travada_json(escola, turno_atual)
+    if locked:
+        return locked
+
     try:
-        aula_removida = deletar_aula(aula_id, escola_id=escola['id'], turno=_active_turno())
+        aula_removida = deletar_aula(aula_id, escola_id=escola['id'], turno=turno_atual)
     except Exception:
         current_app.logger.exception('Erro ao remover aula %s da escola %s.', aula_id, escola['id'])
         return _json_error('Não foi possível remover a aula agora.', code='delete_failed')
@@ -1343,6 +1415,10 @@ def mover(escola_id):
     escola, failure = _guard_school(escola_id, permission='manage_schedule', json_response=True)
     if failure:
         return failure
+
+    locked = _geracao_oficial_travada_json(escola, _active_turno())
+    if locked:
+        return locked
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):

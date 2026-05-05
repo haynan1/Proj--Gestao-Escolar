@@ -194,6 +194,7 @@ function removerBotaoManual(cell) {
 function garantirBotaoManual(cell) {
     if (!cell || cell.querySelector('.aula-card') || cell.querySelector('[data-manual-slot]')) return;
     if (document.body.dataset.canManageSchedule !== 'true') return;
+    if (document.body.dataset.scheduleLocked === 'true') return;
     if (document.body.dataset.scheduleView !== 'geral') return;
 
     const button = document.createElement('button');
@@ -269,6 +270,12 @@ function initTrashDrop() {
 
 function initDragDrop() {
     if (document.body.dataset.canManageSchedule !== 'true') {
+        return;
+    }
+    if (document.body.dataset.scheduleLocked === 'true') {
+        document.querySelectorAll('.aula-card[data-aula-id]').forEach((card) => {
+            card.setAttribute('draggable', 'false');
+        });
         return;
     }
 

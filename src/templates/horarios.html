@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ static_url('horario-grade.css') }}" />
 {% endblock %}
 
-{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turno="{{ turno_atual }}" data-turma-id="{{ turma_selecionada_id }}" data-schedule-view="{{ view_mode }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}"{% endblock %}
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turno="{{ turno_atual }}" data-turma-id="{{ turma_selecionada_id }}" data-schedule-view="{{ view_mode }}" data-can-manage-schedule="{{ 'true' if has_permission('manage_schedule') else 'false' }}" data-schedule-locked="{{ 'true' if horario_oficial_travado else 'false' }}"{% endblock %}
 
 {% block nav_links %}
 <a href="{{ url_for('escola.home') }}">Início</a>
@@ -16,6 +16,7 @@
 {% endblock %}
 
 {% set can_manage_schedule = has_permission('manage_schedule') %}
+{% set can_edit_official_schedule = can_manage_schedule and not horario_oficial_travado %}
 {% set can_export_schedule = has_permission('export_school') %}
 
 {% block content %}
@@ -34,20 +35,60 @@
         </div>
         <div class="export-bar">
             {% if can_manage_schedule %}
-            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
-                onsubmit="return confirm('Gerar novo horário para esta turma do turno {{ turno_atual_label }}? O horário atual desta turma será substituído.')">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
-                <button type="submit" class="btn btn-primary">Gerar Horário da Turma</button>
-            </form>
-            <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
-                onsubmit="return confirm('Gerar novo horário para todas as turmas do turno {{ turno_atual_label }}? Todos os horários atuais deste turno serão substituídos.')">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-secondary">Gerar Todas as Turmas</button>
-            </form>
+            <div class="schedule-generate-picker">
+                <button type="button" class="btn btn-primary" data-generate-menu-trigger aria-expanded="false">
+                    Gerar
+                </button>
+                <div class="schedule-generate-menu" role="menu" aria-label="Opções de geração de horário">
+                    <span class="schedule-alt-menu-title">Gerar horários</span>
+                    {% if horario_oficial_travado %}
+                    <div class="schedule-alt-menu-info" role="note">
+                        Geração oficial travada para este turno. Destrave para gerar outro horário oficial.
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
+                        class="schedule-menu-form"
+                        onsubmit="return confirm('Gerar novo horário para esta turma do turno {{ turno_atual_label }}? O horário atual desta turma será substituído.')">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
+                        <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
+                            Gerar Horário da Turma
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
+                        class="schedule-menu-form"
+                        onsubmit="return confirm('Gerar novo horário para todas as turmas do turno {{ turno_atual_label }}? Todos os horários atuais deste turno serão substituídos.')">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
+                            Gerar Todas as Turmas
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-secondary schedule-menu-action" onclick="openModal('modal-horario-alternativo')">
+                        Gerar horário alternativo
+                    </button>
+                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Segurança</span>
+                    <form method="POST" action="{{ url_for('dashboard.alternar_trava_horario', escola_id=escola.id, turno=turno_atual) }}"
+                        class="schedule-menu-form"
+                        onsubmit="return confirm('{{ 'Destravar a geração oficial deste turno?' if horario_oficial_travado else 'Travar a geração oficial deste turno?' }}')">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="turno" value="{{ turno_atual }}">
+                        <input type="hidden" name="data_visualizada" value="{{ data_visualizada }}">
+                        <input type="hidden" name="visualizacao" value="{{ visualizacao_horario }}">
+                        {% if view_mode == 'geral' %}
+                        <input type="hidden" name="view" value="geral">
+                        {% elif turma_selecionada_id %}
+                        <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
+                        {% endif %}
+                        <input type="hidden" name="acao" value="{{ 'destravar' if horario_oficial_travado else 'travar' }}">
+                        <button type="submit" class="btn {% if horario_oficial_travado %}btn-danger{% else %}btn-secondary{% endif %} schedule-menu-action">
+                            {{ 'Destravar geração oficial' if horario_oficial_travado else 'Travar geração oficial' }}
+                        </button>
+                    </form>
+                </div>
+            </div>
             <div class="schedule-alt-picker">
                 <button type="button" class="btn btn-secondary" data-alt-menu-trigger aria-expanded="false">
-                    Gerar horário alternativo
+                    Alternativos
                 </button>
                 <div class="schedule-alt-menu" role="menu" aria-label="Opções de horário alternativo">
                     <span class="schedule-alt-menu-title">Visualização da grade</span>
@@ -73,21 +114,18 @@
                             Data visualizada
                             <small>Somente dias letivos</small>
                         </label>
-                        <input id="schedule-data-visualizada" name="data" type="date" value="{{ data_visualizada }}">
+                        <input id="schedule-data-visualizada" name="data" type="date" value="{{ data_visualizada }}" min="{{ hoje }}">
                         <button type="submit" class="btn btn-secondary btn-sm">Ver</button>
                     </form>
                     <div class="schedule-alt-menu-info" role="note">
                         Camadas temporárias não apagam o horário oficial.
                     </div>
-                    <button type="button" class="btn btn-primary schedule-alt-create" onclick="openModal('modal-horario-alternativo')">
-                        Criar nova camada
-                    </button>
                     <a class="btn btn-secondary schedule-alt-create"
                         href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">
                         Ver relatórios
                     </a>
-                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Camadas cadastradas</span>
                     {% if grupos_horarios_temporarios %}
+                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Camadas cadastradas</span>
                     <div class="schedule-layer-manager" role="list">
                         {% for grupo in grupos_horarios_temporarios %}
                         <article class="schedule-layer-manager-item" role="listitem">
@@ -133,10 +171,6 @@
                             </div>
                         </article>
                         {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="schedule-alt-menu-info" role="note">
-                        Nenhuma camada temporária cadastrada para este contexto.
                     </div>
                     {% endif %}
                 </div>
@@ -265,7 +299,7 @@
             <div class="card-title">
                 <div class="icon icon-purple">T</div>
                 Modo manual
-                {% if can_manage_schedule %}
+                {% if can_edit_official_schedule %}
                 <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id, turno=turno_atual) }}"
                     class="schedule-clear-form schedule-clear-form-inline"
                     onsubmit="return confirm(this.limpar_alvo.value === 'todas' ? 'Limpar os horários de todas as turmas do turno {{ turno_atual_label }}?' : 'Limpar os horários da turma selecionada no turno {{ turno_atual_label }}?')">
@@ -281,7 +315,10 @@
                 {% endif %}
             </div>
             <div class="horarios-card-meta">
-                {% if can_manage_schedule %}
+                {% if horario_oficial_travado %}
+                <span class="schedule-lock-badge">Geração oficial travada</span>
+                {% endif %}
+                {% if can_edit_official_schedule %}
                 <div class="schedule-trash-zone" data-schedule-trash aria-label="Arraste uma aula aqui para remover">
                     <span class="schedule-trash-icon" aria-hidden="true"></span>
                     <span>Arraste aqui para remover</span>
@@ -357,7 +394,7 @@
                                             <div class="disc-nome">{{ aula.disciplina_nome }}</div>
                                             <div class="prof-nome text-muted">{{ aula.professor_nome }}</div>
                                         </div>
-                                        {% elif can_manage_schedule %}
+                                        {% elif can_edit_official_schedule %}
                                         <button type="button" class="manual-slot-add"
                                             data-manual-slot
                                             data-turma-id="{{ turma.id }}"
@@ -385,6 +422,9 @@
                 {{ turma_atual.nome }}
             </div>
             <div class="horarios-card-meta">
+                {% if horario_oficial_travado %}
+                <span class="schedule-lock-badge">Geração oficial travada</span>
+                {% endif %}
                 <div class="schedule-color-mode" aria-label="Escolha como colorir as aulas">
                     <span>Colorir por</span>
                     <button type="button" class="schedule-color-mode-btn active" data-schedule-color-mode="disciplina">
@@ -400,7 +440,7 @@
             </div>
         </div>
 
-        {% if can_manage_schedule %}
+        {% if can_edit_official_schedule %}
         <div class="schedule-drag-legend" aria-label="Legenda dos alertas ao arrastar aulas">
             <span class="schedule-legend-item">
                 <span class="schedule-legend-dot legend-origin"></span>
@@ -687,6 +727,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const storageKey = `flowter:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
         const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
+        const generateTriggers = Array.from(document.querySelectorAll('[data-generate-menu-trigger]'));
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const altMenuTriggers = Array.from(document.querySelectorAll('[data-alt-menu-trigger]'));
         const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
@@ -746,6 +787,11 @@
         };
 
         const closeScheduleMenus = (exceptPicker = null) => {
+            document.querySelectorAll('.schedule-generate-picker.open').forEach((picker) => {
+                if (picker === exceptPicker) return;
+                picker.classList.remove('open');
+                picker.querySelector('[data-generate-menu-trigger]')?.setAttribute('aria-expanded', 'false');
+            });
             document.querySelectorAll('.schedule-export-picker.open').forEach((picker) => {
                 if (picker === exceptPicker) return;
                 picker.classList.remove('open');
@@ -761,6 +807,16 @@
         modeButtons.forEach((button) => {
             button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
             button.addEventListener('click', () => setMode(button.dataset.scheduleColorMode));
+        });
+        generateTriggers.forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const picker = button.closest('.schedule-generate-picker');
+                const open = !picker.classList.contains('open');
+                closeScheduleMenus(picker);
+                picker.classList.toggle('open', open);
+                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
         });
         exportTriggers.forEach((button) => {
             button.addEventListener('click', (event) => {
@@ -782,7 +838,7 @@
                 button.setAttribute('aria-expanded', open ? 'true' : 'false');
             });
         });
-        document.querySelectorAll('.schedule-export-menu, .schedule-alt-menu').forEach((menu) => {
+        document.querySelectorAll('.schedule-generate-menu, .schedule-export-menu, .schedule-alt-menu').forEach((menu) => {
             menu.addEventListener('click', (event) => event.stopPropagation());
         });
         document.addEventListener('click', () => closeScheduleMenus());
