@@ -116,43 +116,58 @@ def _dias_disponiveis_professor(row):
     ]
 
 
-def _validar_disponibilidade_professor(conn, escola_id, professor_id, dia):
+def _validar_disponibilidade_professor(conn, escola_id, professor_id, dia, turno=None):
+    turno = normalizar_turno(turno)
     professor = conn.execute(
-        "SELECT dias_disponiveis FROM professores WHERE id = %s AND escola_id = %s",
-        (professor_id, escola_id),
+        "SELECT dias_disponiveis FROM professores WHERE id = %s AND escola_id = %s AND turno = %s",
+        (professor_id, escola_id, turno),
     ).fetchone()
     dias_disponiveis = _dias_disponiveis_professor(professor)
     if dias_disponiveis and dia not in dias_disponiveis:
         raise ScheduleConflictError("O professor não está disponível neste dia.")
 
 
-def _validar_limite_professor(conn, escola_id, professor_id):
+def _validar_limite_professor(conn, escola_id, professor_id, turno=None):
+    turno = normalizar_turno(turno)
     professor = conn.execute(
-        "SELECT COALESCE(max_aulas_semana, 0) AS max_aulas_semana FROM professores WHERE id = %s AND escola_id = %s",
-        (professor_id, escola_id),
+        """SELECT COALESCE(max_aulas_semana, 0) AS max_aulas_semana
+           FROM professores
+           WHERE id = %s AND escola_id = %s AND turno = %s""",
+        (professor_id, escola_id, turno),
     ).fetchone()
     max_aulas_semana = int((professor or {}).get('max_aulas_semana') or 0)
     if max_aulas_semana <= 0:
         return
 
     aulas_professor = conn.execute(
-        "SELECT COUNT(*) AS total FROM aulas WHERE escola_id = %s AND professor_id = %s",
-        (escola_id, professor_id),
+        "SELECT COUNT(*) AS total FROM aulas WHERE escola_id = %s AND turno = %s AND professor_id = %s",
+        (escola_id, turno, professor_id),
     ).fetchone()
     if aulas_professor and int(aulas_professor['total'] or 0) >= max_aulas_semana:
         raise ScheduleConflictError("O professor já atingiu o limite semanal de aulas.")
 
 
-def _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id, dia, periodo, ignorar_aula_ids=None):
+def _validar_aulas_seguidas_disciplina(
+    conn,
+    escola_id,
+    turma_id,
+    disciplina_id,
+    dia,
+    periodo,
+    ignorar_aula_ids=None,
+    turno=None,
+):
+    turno = normalizar_turno(turno)
     ignorar = {int(aula_id) for aula_id in (ignorar_aula_ids or []) if aula_id is not None}
     rows = conn.execute(
         """SELECT id, periodo
            FROM aulas
            WHERE escola_id = %s
+             AND turno = %s
              AND turma_id = %s
              AND disciplina_id = %s
              AND dia = %s""",
-        (escola_id, turma_id, disciplina_id, dia),
+        (escola_id, turno, turma_id, disciplina_id, dia),
     ).fetchall()
 
     periodos = {
@@ -207,22 +222,22 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
         if not carga:
             raise ScheduleValidationError("Este professor não possui aulas cadastradas para esta turma e disciplina.")
 
-        _validar_disponibilidade_professor(conn, escola_id, professor_id, dia)
-        _validar_limite_professor(conn, escola_id, professor_id)
-        _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id, dia, periodo)
+        _validar_disponibilidade_professor(conn, escola_id, professor_id, dia, turno)
+        _validar_limite_professor(conn, escola_id, professor_id, turno)
+        _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id, dia, periodo, turno=turno)
 
         aula_turma = conn.execute(
             """SELECT id FROM aulas
-               WHERE escola_id = %s AND turma_id = %s AND dia = %s AND periodo = %s""",
-            (escola_id, turma_id, dia, periodo),
+               WHERE escola_id = %s AND turno = %s AND turma_id = %s AND dia = %s AND periodo = %s""",
+            (escola_id, turno, turma_id, dia, periodo),
         ).fetchone()
         if aula_turma:
             raise ScheduleConflictError("A turma já possui aula neste horário.")
 
         aula_professor = conn.execute(
             """SELECT id FROM aulas
-               WHERE escola_id = %s AND professor_id = %s AND dia = %s AND periodo = %s""",
-            (escola_id, professor_id, dia, periodo),
+               WHERE escola_id = %s AND turno = %s AND professor_id = %s AND dia = %s AND periodo = %s""",
+            (escola_id, turno, professor_id, dia, periodo),
         ).fetchone()
         if aula_professor:
             raise ScheduleConflictError("O professor já possui aula neste horário.")
@@ -231,10 +246,11 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
             """SELECT COUNT(*) AS total
                FROM aulas
                WHERE escola_id = %s
+                 AND turno = %s
                  AND turma_id = %s
                  AND professor_id = %s
                  AND disciplina_id = %s""",
-            (escola_id, turma_id, professor_id, disciplina_id),
+            (escola_id, turno, turma_id, professor_id, disciplina_id),
         ).fetchone()
         if aulas_existentes and int(aulas_existentes['total'] or 0) >= int(carga['aulas_semana'] or 0):
             raise ScheduleConflictError("As aulas cadastradas para este professor já foram preenchidas.")
@@ -253,8 +269,9 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
         conn.close()
 
 
-def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
+def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None, turno=None):
     """Move uma aula para outro dia/periodo ou troca com a aula do destino."""
+    turno = normalizar_turno(turno)
     if novo_dia not in DIAS:
         raise ScheduleValidationError("Dia inválido para a grade horária.")
     conn = get_connection()
@@ -270,8 +287,8 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                       COALESCE(t.aulas_por_dia, 5) AS aulas_por_dia
                FROM aulas a
                JOIN turmas t ON t.id = a.turma_id
-               WHERE a.id = %s""",
-            (aula_id,),
+               WHERE a.id = %s AND a.turno = %s""",
+            (aula_id, turno),
         ).fetchone()
 
         if not aula_atual:
@@ -281,7 +298,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
         if novo_periodo not in PERIODOS or novo_periodo > int(aula_atual.get('aulas_por_dia') or 5):
             raise ScheduleValidationError("Período inválido para a grade desta turma.")
 
-        _validar_disponibilidade_professor(conn, aula_atual['escola_id'], aula_atual['professor_id'], novo_dia)
+        _validar_disponibilidade_professor(conn, aula_atual['escola_id'], aula_atual['professor_id'], novo_dia, turno)
 
         aula_destino = conn.execute(
             """SELECT id,
@@ -290,8 +307,8 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                       dia,
                       periodo
                FROM aulas
-               WHERE turma_id = %s AND dia = %s AND periodo = %s AND id <> %s""",
-            (aula_atual['turma_id'], novo_dia, novo_periodo, aula_id),
+               WHERE turma_id = %s AND turno = %s AND dia = %s AND periodo = %s AND id <> %s""",
+            (aula_atual['turma_id'], turno, novo_dia, novo_periodo, aula_id),
         ).fetchone()
 
         if aula_destino:
@@ -303,17 +320,20 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 novo_dia,
                 novo_periodo,
                 ignorar_aula_ids=[aula_atual['id'], aula_destino['id']],
+                turno=turno,
             )
 
             conflito_professor_atual = conn.execute(
                 """SELECT id
                    FROM aulas
                    WHERE professor_id = %s
+                     AND turno = %s
                      AND dia = %s
                      AND periodo = %s
                      AND id NOT IN (%s, %s)""",
                 (
                     aula_atual['professor_id'],
+                    turno,
                     novo_dia,
                     novo_periodo,
                     aula_atual['id'],
@@ -327,11 +347,13 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 """SELECT id
                    FROM aulas
                    WHERE professor_id = %s
+                     AND turno = %s
                      AND dia = %s
                      AND periodo = %s
                      AND id NOT IN (%s, %s)""",
                 (
                     aula_destino['professor_id'],
+                    turno,
                     aula_atual['dia'],
                     aula_atual['periodo'],
                     aula_atual['id'],
@@ -346,6 +368,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 aula_atual['escola_id'],
                 aula_destino['professor_id'],
                 aula_atual['dia'],
+                turno,
             )
             _validar_aulas_seguidas_disciplina(
                 conn,
@@ -355,6 +378,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 aula_atual['dia'],
                 aula_atual['periodo'],
                 ignorar_aula_ids=[aula_atual['id'], aula_destino['id']],
+                turno=turno,
             )
 
             conn.execute(
@@ -378,8 +402,8 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
         conflito_professor = conn.execute(
             """SELECT id
                FROM aulas
-               WHERE professor_id = %s AND dia = %s AND periodo = %s AND id <> %s""",
-            (aula_atual['professor_id'], novo_dia, novo_periodo, aula_id),
+               WHERE professor_id = %s AND turno = %s AND dia = %s AND periodo = %s AND id <> %s""",
+            (aula_atual['professor_id'], turno, novo_dia, novo_periodo, aula_id),
         ).fetchone()
         if conflito_professor:
             raise ScheduleConflictError("O professor já possui uma aula nesse dia e período.")
@@ -392,6 +416,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
             novo_dia,
             novo_periodo,
             ignorar_aula_ids=[aula_atual['id']],
+            turno=turno,
         )
 
         conn.execute(

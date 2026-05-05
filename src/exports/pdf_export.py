@@ -195,7 +195,7 @@ def _header(escola, turma, styles):
         Paragraph(f"{escape(escola['nome'])}<br/>Atualizado em {generated_at}", styles['subtitle']),
     ]
     meta = Table(
-        [[Paragraph('Planax', styles['meta'])], [Paragraph('Gestão escolar', styles['meta'])]],
+        [[Paragraph('Flowter', styles['meta'])], [Paragraph('Gestão escolar', styles['meta'])]],
         colWidths=[4.1 * cm],
         rowHeights=[0.65 * cm, 0.55 * cm],
     )

@@ -1,4 +1,4 @@
--- Backup seguro para versionamento do Planax
+-- Backup seguro para versionamento do Flowter
 -- Conteudo: Dom Pedro II somente, com 215 aulas completas
 -- Usuarios, senhas, emails e vinculos de usuarios nao sao incluidos
 -- Gerado em: 2026-04-28 23:54:04

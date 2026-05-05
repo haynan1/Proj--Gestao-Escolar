@@ -327,6 +327,50 @@ def _format_date_br(value):
         return value
 
 
+def _datas_letivas_por_dias(data_inicio, data_fim, dias_semana):
+    dias_alvo = set(dias_semana or [])
+    datas = []
+    cursor = data_inicio
+    while cursor <= data_fim:
+        if cursor.weekday() < len(DIAS_SEMANA) and DIAS_SEMANA[cursor.weekday()] in dias_alvo:
+            datas.append(cursor)
+        cursor = cursor + timedelta(days=1)
+    return datas
+
+
+def _registrar_faltas_professor_alternativo(escola_id, turno, professor_id, datas, titulo, observacao):
+    if not professor_id or not datas:
+        return 0
+
+    professor = next(
+        (prof for prof in listar_professores(escola_id, turno) if prof['id'] == professor_id),
+        None,
+    )
+    professor_nome = professor['nome'] if professor else 'Professor selecionado'
+    descricao = (
+        f'Falta registrada ao gerar horario alternativo: {titulo or "Horario alternativo"}. '
+        f'{observacao or f"Sem {professor_nome}"}'
+    )
+    criados = 0
+    cache_por_mes = {}
+    for data_falta in datas:
+        mes = data_falta.strftime('%Y-%m')
+        if mes not in cache_por_mes:
+            cache_por_mes[mes] = listar_relatorios_professores(escola_id, turno, mes)
+        ja_existe = any(
+            int(registro.get('professor_id') or 0) == int(professor_id)
+            and str(registro.get('data_ocorrencia')) == data_falta.isoformat()
+            and registro.get('tipo') == 'falta'
+            and (registro.get('descricao') or '') == descricao
+            for registro in cache_por_mes[mes]
+        )
+        if ja_existe:
+            continue
+        criar_relatorio_professor(escola_id, turno, professor_id, data_falta, 'falta', descricao)
+        criados += 1
+    return criados
+
+
 def _dashboard_url(endpoint, escola_id, **values):
     values.setdefault('turno', _active_turno())
     return url_for(endpoint, escola_id=escola_id, **values)
@@ -445,13 +489,15 @@ def _slot_aula(aula):
         return None
 
 
-def _mesclar_aulas_oficiais_com_alternativas(escola_id, turno, aulas_temporarias):
+def _mesclar_aulas_oficiais_com_alternativas(escola_id, turno, aulas_temporarias, turma_id_contexto=None):
     aulas_alternativas = _normalizar_aulas_temporarias_para_export(aulas_temporarias)
     turma_ids = {
         int(aula['turma_id'])
         for aula in aulas_alternativas
         if aula.get('turma_id')
     }
+    if turma_id_contexto:
+        turma_ids.add(int(turma_id_contexto))
     if not turma_ids:
         return [], []
 
@@ -487,7 +533,16 @@ def _mesclar_aulas_oficiais_com_alternativas(escola_id, turno, aulas_temporarias
     return aulas_mescladas, turmas
 
 
-def _filtrar_horarios_temporarios_grupo(escola_id, turno, titulo, data_inicio, data_fim, dia, observacao=None):
+def _filtrar_horarios_temporarios_grupo(
+    escola_id,
+    turno,
+    titulo,
+    data_inicio,
+    data_fim,
+    dia,
+    observacao=None,
+    turma_id=None,
+):
     aulas = listar_horarios_temporarios(escola_id, turno)
     observacao = (observacao or '').strip() or None
     return [
@@ -497,6 +552,7 @@ def _filtrar_horarios_temporarios_grupo(escola_id, turno, titulo, data_inicio, d
         and str(aula.get('data_fim')) == str(data_fim or data_inicio)
         and str(aula.get('dia')) == str(dia)
         and ((aula.get('observacao') or None) == observacao)
+        and (not turma_id or int(aula.get('turma_id') or 0) == int(turma_id))
     ]
 
 
@@ -1133,11 +1189,25 @@ def gerar_temporario(escola_id):
             total_geral += total_item
             dias_criados.append(dia_item)
 
+        faltas_registradas = 0
+        if dias_criados and professor_excluido_id:
+            datas_falta = _datas_letivas_por_dias(data_inicio_parsed, data_fim_parsed, dias_criados)
+            faltas_registradas = _registrar_faltas_professor_alternativo(
+                escola['id'],
+                turno_atual,
+                professor_excluido_id,
+                datas_falta,
+                titulo,
+                observacao,
+            )
+
         if dias_criados:
             flash(
                 f'Camada temporaria criada para {", ".join(dias_criados)}: {total_geral} aula(s) temporaria(s).',
                 'success',
             )
+            if faltas_registradas:
+                flash(f'{faltas_registradas} falta(s) registrada(s) no relatorio mensal.', 'success')
         if dias_sem_aulas:
             flash(f'Sem aulas oficiais em: {", ".join(dias_sem_aulas)}.', 'warning')
         if dias_sem_impacto:
@@ -1356,7 +1426,13 @@ def mover(escola_id):
         return _json_error('Dados obrigatórios ausentes.', code='invalid_payload')
 
     try:
-        resultado = mover_aula(int(aula_id), str(novo_dia), int(novo_periodo), escola_id=escola['id'])
+        resultado = mover_aula(
+            int(aula_id),
+            str(novo_dia),
+            int(novo_periodo),
+            escola_id=escola['id'],
+            turno=_active_turno(),
+        )
     except ScheduleConflictError as exc:
         return _json_error(str(exc), code='schedule_conflict')
     except ScheduleValidationError as exc:
@@ -1451,6 +1527,7 @@ def exportar_temporario_xls(escola_id):
         return failure
 
     turno_atual = _active_turno()
+    turma_id_contexto = request.args.get('turma_id', type=int)
     aulas_temporarias = _filtrar_horarios_temporarios_grupo(
         escola['id'],
         turno_atual,
@@ -1459,8 +1536,14 @@ def exportar_temporario_xls(escola_id):
         request.args.get('data_fim') or request.args.get('data_inicio'),
         request.args.get('dia'),
         request.args.get('observacao'),
+        turma_id=turma_id_contexto,
     )
-    aulas, turmas = _mesclar_aulas_oficiais_com_alternativas(escola['id'], turno_atual, aulas_temporarias)
+    aulas, turmas = _mesclar_aulas_oficiais_com_alternativas(
+        escola['id'],
+        turno_atual,
+        aulas_temporarias,
+        turma_id_contexto=turma_id_contexto,
+    )
     filepath = exportar_excel(escola, aulas, turmas, color_mode=_export_color_mode())
     return _send_temp_file(filepath, f'horario-alternativo-{turno_atual}.xlsx')
 
@@ -1473,6 +1556,7 @@ def exportar_temporario_pdf(escola_id):
         return failure
 
     turno_atual = _active_turno()
+    turma_id_contexto = request.args.get('turma_id', type=int)
     aulas_temporarias = _filtrar_horarios_temporarios_grupo(
         escola['id'],
         turno_atual,
@@ -1481,8 +1565,14 @@ def exportar_temporario_pdf(escola_id):
         request.args.get('data_fim') or request.args.get('data_inicio'),
         request.args.get('dia'),
         request.args.get('observacao'),
+        turma_id=turma_id_contexto,
     )
-    aulas, turmas = _mesclar_aulas_oficiais_com_alternativas(escola['id'], turno_atual, aulas_temporarias)
+    aulas, turmas = _mesclar_aulas_oficiais_com_alternativas(
+        escola['id'],
+        turno_atual,
+        aulas_temporarias,
+        turma_id_contexto=turma_id_contexto,
+    )
     disciplinas = listar_disciplinas(escola['id'], turno_atual)
     filepath = exportar_pdf(
         escola,
