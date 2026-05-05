@@ -1,5 +1,5 @@
 /**
- * Lógica do Dashboard Planax
+ * Lógica do Dashboard Flowter
  * Separada do HTML para evitar conflitos de sintaxe no editor
  */
 

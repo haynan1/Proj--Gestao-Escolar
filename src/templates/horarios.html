@@ -685,7 +685,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const storageKey = `planax:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
+        const storageKey = `flowter:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;
         const modeButtons = Array.from(document.querySelectorAll('[data-schedule-color-mode]'));
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const altMenuTriggers = Array.from(document.querySelectorAll('[data-alt-menu-trigger]'));

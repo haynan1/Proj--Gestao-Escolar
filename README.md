@@ -1,6 +1,6 @@
-# Projeto Planax
+# Projeto Flowter
 
-Aplicacao Flask do Planax para gerenciamento de escolas, turmas, disciplinas, professores e geracao de horarios.
+Aplicacao Flask do Flowter para gerenciamento de escolas, turmas, disciplinas, professores e geracao de horarios.
 
 ## O que o projeto faz
 
@@ -68,7 +68,7 @@ SESSION_COOKIE_SECURE=0
 VERIFY_EMAIL_TOKEN_MAX_AGE=86400
 RESET_PASSWORD_TOKEN_MAX_AGE=3600
 
-MAIL_FROM_NAME=Planax
+MAIL_FROM_NAME=Flowter
 MAIL_FROM_EMAIL=
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -160,7 +160,7 @@ Exemplo de configuracao:
 
 ```env
 APP_BASE_URL=http://localhost:5000
-MAIL_FROM_NAME=Planax
+MAIL_FROM_NAME=Flowter
 MAIL_FROM_EMAIL=seuemail@gmail.com
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -211,6 +211,20 @@ SESSION_COOKIE_SECURE=1
 APP_BASE_URL=https://app.seudominio.com
 ```
 
+### Atualizacao na VM
+
+Padronize o diretorio da aplicacao na VM como:
+
+```bash
+cd /var/www/flowter
+```
+
+Se a VM ainda estiver usando uma pasta de deploy anterior, renomeie ou recrie essa pasta como `/var/www/flowter` e atualize qualquer referencia equivalente em scripts, servicos `systemd`, configuracoes do Nginx e rotinas de importacao/deploy. No `.env` de producao, ajuste tambem:
+
+```env
+MAIL_FROM_NAME=Flowter
+```
+
 ## Seguranca
 
 - nao suba `.env` para o Git
@@ -229,13 +243,11 @@ APP_BASE_URL=https://app.seudominio.com
 
 ## Favicon
 
-Para usar o icone do site, coloque a imagem em:
+O favicon do Flowter fica em:
 
-- `src/static/favicon/favicon.png`
+- `src/static/favicon/imagem.ico`
 
-Opcionalmente, se voce tiver um `.ico`, pode colocar tambem em:
-
-- `src/static/favicon/favicon.ico`
+A rota `/favicon.ico` tambem entrega esse arquivo para compatibilidade com navegadores e caches antigos.
 
 ## GitHub
 

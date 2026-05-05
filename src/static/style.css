@@ -86,16 +86,9 @@ body {
 .navbar-brand .logo-icon {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, var(--green), var(--green-dark));
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    font-weight: 800;
-    letter-spacing: -0.06em;
-    color: #f8fafc;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    display: block;
+    object-fit: contain;
 }
 
 .navbar-links {

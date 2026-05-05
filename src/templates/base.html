@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}Planax{% endblock %}</title>
+    <title>{% block title %}Flowter{% endblock %}</title>
     <link rel="stylesheet" href="{{ static_url('style.css') }}" />
     <link rel="icon" type="image/x-icon" href="{{ static_url('favicon/imagem.ico') }}" />
     <link rel="shortcut icon" href="{{ static_url('favicon/imagem.ico') }}" />
@@ -25,8 +25,8 @@
 <body {% block body_attrs %}{% endblock %}>
     <nav class="navbar">
         <a href="{{ url_for('escola.home' if current_user else 'auth.login') }}" class="navbar-brand">
-            <div class="logo-icon">PX</div>
-            <span>Planax</span>
+            <img class="logo-icon" src="{{ static_url('favicon/imagem.ico') }}" alt="" aria-hidden="true" />
+            <span>Flowter</span>
         </a>
         <div class="navbar-links">
             {% block nav_links %}{% endblock %}
