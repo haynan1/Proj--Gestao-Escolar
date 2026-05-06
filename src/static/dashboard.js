@@ -7,6 +7,111 @@ document.addEventListener('DOMContentLoaded', () => {
     const escolaId = document.body.dataset.escolaId;
     const turno = document.body.dataset.turno || 'matutino';
     const turnoQuery = `?turno=${encodeURIComponent(turno)}`;
+    const dashboardScrollKey = `flowter:dashboard-scroll:${escolaId || 'default'}:${turno}`;
+
+    const getResourceTargetFromAction = (action = '') => {
+        if (action.includes('/professor/')) return 'professores';
+        if (action.includes('/disciplina/')) return 'disciplinas';
+        if (action.includes('/turma/')) return 'turmas';
+        return '';
+    };
+
+    const saveDashboardScrollPosition = (form) => {
+        const targetId = getResourceTargetFromAction(form?.getAttribute('action') || '');
+        if (!targetId) return;
+
+        sessionStorage.setItem(dashboardScrollKey, JSON.stringify({
+            targetId,
+            scrollX: window.scrollX || 0,
+            scrollY: window.scrollY || 0,
+            savedAt: Date.now(),
+        }));
+    };
+
+    const restoreDashboardScrollPosition = () => {
+        let saved = null;
+        try {
+            saved = JSON.parse(sessionStorage.getItem(dashboardScrollKey) || 'null');
+            sessionStorage.removeItem(dashboardScrollKey);
+        } catch (error) {
+            sessionStorage.removeItem(dashboardScrollKey);
+        }
+
+        if (!saved || Date.now() - Number(saved.savedAt || 0) > 15000) return;
+
+        const target = document.getElementById(saved.targetId);
+        requestAnimationFrame(() => {
+            if (Number.isFinite(Number(saved.scrollY))) {
+                window.scrollTo(Number(saved.scrollX || 0), Number(saved.scrollY));
+            } else if (target) {
+                target.scrollIntoView({ block: 'start', inline: 'nearest' });
+            }
+        });
+    };
+
+    restoreDashboardScrollPosition();
+
+    const applyDynamicColors = () => {
+        document.querySelectorAll('.dot-dynamic').forEach(el => {
+            const color = el.dataset.color;
+            if (color) el.style.backgroundColor = color;
+        });
+        document.querySelectorAll('.badge-dynamic').forEach(el => {
+            const color = el.dataset.color;
+            if (color) {
+                el.style.backgroundColor = color + '15';
+                el.style.color = color;
+                el.style.borderColor = color + '30';
+            }
+        });
+    };
+
+    const initDashboardColorPickers = () => {
+        if (typeof initColorPicker !== 'function') return;
+        initColorPicker('cor-disciplina', 'swatches-disciplina');
+        initColorPicker('cor-disciplina-edit', 'swatches-disciplina-edit');
+        initColorPicker('cor-professor', 'swatches-professor');
+        initColorPicker('cor-professor-edit', 'swatches-professor-edit');
+    };
+
+    const getDashboardContainer = (root = document) => (
+        root.querySelector('.dashboard-page-header')?.closest('.container')
+    );
+
+    const replaceElementFromDocument = (selector, nextDoc) => {
+        const current = document.querySelector(selector);
+        const next = nextDoc.querySelector(selector);
+        if (current && next) current.replaceWith(next);
+    };
+
+    const applyDashboardHtml = (html, targetId, scrollPosition) => {
+        const nextDoc = new DOMParser().parseFromString(html, 'text/html');
+        const currentFlash = document.querySelector('body > .container');
+        const nextFlash = nextDoc.querySelector('body > .container');
+        const currentDashboard = getDashboardContainer(document);
+        const nextDashboard = getDashboardContainer(nextDoc);
+
+        if (currentFlash && nextFlash) currentFlash.replaceWith(nextFlash);
+        if (currentDashboard && nextDashboard) currentDashboard.replaceWith(nextDashboard);
+
+        ['modal-disc', 'modal-disc-edit', 'modal-prof', 'modal-prof-edit', 'modal-turma', 'modal-turma-edit'].forEach((id) => {
+            replaceElementFromDocument(`#${id}`, nextDoc);
+        });
+
+        applyDynamicColors();
+        initDashboardColorPickers();
+        initProfessorForms();
+        initResourceForms();
+
+        const target = document.getElementById(targetId);
+        requestAnimationFrame(() => {
+            if (scrollPosition && Number.isFinite(Number(scrollPosition.scrollY))) {
+                window.scrollTo(Number(scrollPosition.scrollX || 0), Number(scrollPosition.scrollY));
+            } else if (target) {
+                target.scrollIntoView({ block: 'start', inline: 'nearest' });
+            }
+        });
+    };
 
     const syncCargaRows = (form) => {
         const disciplinas = new Set(
@@ -75,28 +180,84 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    document.querySelectorAll('#modal-prof form, #modal-prof-edit form').forEach(form => {
-        form.addEventListener('change', (event) => {
-            if (event.target.matches('input[name="disciplina_ids"], input[name="turma_ids"]')) {
+    const initProfessorForms = () => {
+        document.querySelectorAll('#modal-prof form, #modal-prof-edit form').forEach(form => {
+            if (form.dataset.professorFormInitialized === 'true') {
                 syncCargaRows(form);
+                return;
             }
-            if (event.target.matches('.carga-input')) {
+            form.dataset.professorFormInitialized = 'true';
+
+            form.addEventListener('change', (event) => {
+                if (event.target.matches('input[name="disciplina_ids"], input[name="turma_ids"]')) {
+                    syncCargaRows(form);
+                }
+                if (event.target.matches('.carga-input')) {
+                    syncCargaRows(form);
+                }
+            });
+            form.addEventListener('input', (event) => {
+                if (event.target.matches('.carga-input')) {
+                    syncCargaRows(form);
+                }
+            });
+            form.addEventListener('submit', () => {
+                syncChecksFromCargas(form);
                 syncCargaRows(form);
-            }
-        });
-        form.addEventListener('input', (event) => {
-            if (event.target.matches('.carga-input')) {
-                syncCargaRows(form);
-            }
-        });
-        form.addEventListener('submit', () => {
-            syncChecksFromCargas(form);
+            });
             syncCargaRows(form);
         });
-        syncCargaRows(form);
-    });
+    };
+
+    initProfessorForms();
 
     // Gerenciamento de Modais de Edição via Event Delegation
+    const initResourceForms = () => {
+        Array.from(document.querySelectorAll('form'))
+            .filter(form => String(form.getAttribute('method') || '').toLowerCase() === 'post')
+            .forEach(form => {
+            if (form.dataset.resourceSubmitInitialized === 'true') return;
+            form.dataset.resourceSubmitInitialized = 'true';
+
+            form.addEventListener('submit', async (event) => {
+                if (event.defaultPrevented) return;
+                const targetId = getResourceTargetFromAction(form.getAttribute('action') || '');
+                if (!targetId) return;
+
+                event.preventDefault();
+                if (form.dataset.submitting === 'true') return;
+
+                saveDashboardScrollPosition(form);
+                form.dataset.submitting = 'true';
+                const scrollPosition = { scrollX: window.scrollX || 0, scrollY: window.scrollY || 0 };
+                const submitButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
+                submitButtons.forEach(button => { button.disabled = true; });
+
+                try {
+                    const resp = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'fetch' },
+                    });
+                    const html = await resp.text();
+                    if (!resp.ok) throw new Error('Falha ao salvar.');
+                    applyDashboardHtml(html, targetId, scrollPosition);
+                } catch (error) {
+                    if (typeof showToast === 'function') {
+                        showToast('Não foi possível salvar agora. Tente novamente.', 'error');
+                    } else {
+                        alert('Não foi possível salvar agora. Tente novamente.');
+                    }
+                    submitButtons.forEach(button => { button.disabled = false; });
+                    form.dataset.submitting = 'false';
+                }
+            });
+        });
+    };
+
+    initResourceForms();
+
     document.addEventListener('click', (e) => {
         const scrollTopButton = e.target.closest('.mobile-modal-scroll-top');
         if (scrollTopButton) {

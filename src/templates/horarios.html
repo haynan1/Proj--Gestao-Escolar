@@ -853,13 +853,70 @@
         const generateTriggers = Array.from(document.querySelectorAll('[data-generate-menu-trigger]'));
         const exportTriggers = Array.from(document.querySelectorAll('[data-export-menu-trigger]'));
         const altMenuTriggers = Array.from(document.querySelectorAll('[data-alt-menu-trigger]'));
-        const lessonCards = Array.from(document.querySelectorAll('.aula-card-dynamic'));
+        const getLessonCards = () => Array.from(document.querySelectorAll('.aula-card-dynamic'));
         const legends = Array.from(document.querySelectorAll('.schedule-legend-list'));
         const manualOptions = {{ manual_options | tojson }};
         const alternativeManualOptions = {{ alternative_manual_options | tojson }};
         const alternativeOccupiedSlots = {{ alternative_occupied_slots | tojson }};
         const alternativeOfficialLessons = {{ alternative_official_lessons | tojson }};
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const manualScrollKey = [
+            'flowter:manual-schedule-scroll',
+            document.body.dataset.escolaId || 'default',
+            document.body.dataset.turno || 'matutino',
+            document.body.dataset.scheduleView || 'turma',
+        ].join(':');
+
+        const findGradeCell = ({ turmaId, dia, periodo } = {}) => (
+            Array.from(document.querySelectorAll('.grade-cell')).find((cell) => (
+                String(cell.dataset.turmaId || '') === String(turmaId || '')
+                && String(cell.dataset.dia || '') === String(dia || '')
+                && String(cell.dataset.periodo || '') === String(periodo || '')
+            ))
+        );
+
+        const restoreManualScrollPosition = () => {
+            let saved = null;
+            try {
+                saved = JSON.parse(sessionStorage.getItem(manualScrollKey) || 'null');
+                sessionStorage.removeItem(manualScrollKey);
+            } catch (error) {
+                sessionStorage.removeItem(manualScrollKey);
+            }
+
+            if (!saved || Date.now() - Number(saved.savedAt || 0) > 15000) return;
+
+            const scrollArea = document.querySelector('.schedule-all-scroll');
+            const targetCell = findGradeCell(saved);
+            requestAnimationFrame(() => {
+                if (scrollArea && Number.isFinite(Number(saved.containerScrollTop))) {
+                    scrollArea.scrollTop = Number(saved.containerScrollTop);
+                    scrollArea.scrollLeft = Number(saved.containerScrollLeft || 0);
+                }
+                if (Number.isFinite(Number(saved.windowScrollY))) {
+                    window.scrollTo(Number(saved.windowScrollX || 0), Number(saved.windowScrollY));
+                }
+                if (targetCell) {
+                    targetCell.scrollIntoView({ block: 'center', inline: 'nearest' });
+                }
+            });
+        };
+
+        const saveManualScrollPosition = ({ turmaId, dia, periodo } = {}) => {
+            const scrollArea = document.querySelector('.schedule-all-scroll');
+            sessionStorage.setItem(manualScrollKey, JSON.stringify({
+                turmaId,
+                dia,
+                periodo,
+                containerScrollTop: scrollArea?.scrollTop || 0,
+                containerScrollLeft: scrollArea?.scrollLeft || 0,
+                windowScrollX: window.scrollX || 0,
+                windowScrollY: window.scrollY || 0,
+                savedAt: Date.now(),
+            }));
+        };
+
+        restoreManualScrollPosition();
 
         const normalizeMode = (mode) => (
             ['disciplina', 'professor', 'none'].includes(mode) ? mode : 'disciplina'
@@ -892,7 +949,7 @@
         const setMode = (mode, persist = true) => {
             const selectedMode = normalizeMode(mode);
             document.documentElement.dataset.scheduleColorMode = selectedMode;
-            lessonCards.forEach((card) => paintLesson(card, selectedMode));
+            getLessonCards().forEach((card) => paintLesson(card, selectedMode));
             modeButtons.forEach((button) => {
                 const active = button.dataset.scheduleColorMode === selectedMode;
                 button.classList.toggle('active', active);
@@ -1688,6 +1745,63 @@
             }
         };
 
+        const getSelectedManualOption = (turmaId, professorId, disciplinaId) => (
+            (manualOptions[String(turmaId)] || []).find((opcao) => (
+                String(opcao.professor_id) === String(professorId)
+                && String(opcao.disciplina_id) === String(disciplinaId)
+            ))
+        );
+
+        const consumeManualOption = (turmaId, professorId, disciplinaId) => {
+            const options = manualOptions[String(turmaId)] || [];
+            const index = options.findIndex((opcao) => (
+                String(opcao.professor_id) === String(professorId)
+                && String(opcao.disciplina_id) === String(disciplinaId)
+            ));
+            if (index < 0) return;
+
+            const option = options[index];
+            option.faltam = Math.max(0, Number(option.faltam || 0) - 1);
+            if (option.faltam <= 0) {
+                options.splice(index, 1);
+            }
+        };
+
+        const createManualLessonCard = (aula, fallbackOption) => {
+            const card = document.createElement('div');
+            card.className = 'aula-card aula-card-dynamic';
+            card.dataset.aulaId = aula?.id || aula?.aula_id || '';
+            card.dataset.professorId = aula?.professor_id || fallbackOption?.professor_id || '';
+            card.dataset.professorNome = aula?.professor_nome || fallbackOption?.professor_nome || '';
+            card.dataset.disciplinaColor = aula?.disciplina_cor || fallbackOption?.disciplina_cor || '';
+            card.dataset.professorColor = aula?.professor_cor || fallbackOption?.professor_cor || '';
+            card.dataset.color = card.dataset.disciplinaColor;
+
+            const disciplina = document.createElement('div');
+            disciplina.className = 'disc-nome';
+            disciplina.textContent = aula?.disciplina_nome || fallbackOption?.disciplina_nome || 'Disciplina';
+
+            const professor = document.createElement('div');
+            professor.className = 'prof-nome text-muted';
+            professor.textContent = aula?.professor_nome || fallbackOption?.professor_nome || 'Professor';
+
+            card.append(disciplina, professor);
+            return card;
+        };
+
+        const updateManualSlot = (aula, fallbackOption, slot) => {
+            const cell = findGradeCell(slot);
+            if (!cell) return false;
+
+            cell.querySelector('[data-manual-slot]')?.remove();
+            cell.appendChild(createManualLessonCard(aula, fallbackOption));
+            cell.classList.remove('empty');
+            setMode(document.documentElement.dataset.scheduleColorMode, false);
+            window.FlowterSchedule?.clearProfessorOccupationCache?.();
+            window.FlowterSchedule?.initDragDrop?.();
+            return true;
+        };
+
         manualSearch?.addEventListener('input', () => {
             manualValue.value = '';
             renderManualOptions(manualCurrentOptions);
@@ -1725,6 +1839,10 @@
             event.preventDefault();
             const [professorId, disciplinaId] = (manualValue.value || '').split(':');
             if (!professorId || !disciplinaId) return;
+            const turmaId = document.getElementById('manual-turma-id').value;
+            const dia = document.getElementById('manual-dia').value;
+            const periodo = document.getElementById('manual-periodo').value;
+            const selectedOption = getSelectedManualOption(turmaId, professorId, disciplinaId);
 
             try {
                 const escolaId = document.body.dataset.escolaId;
@@ -1736,16 +1854,24 @@
                         'X-CSRF-Token': csrfToken,
                     },
                     body: JSON.stringify({
-                        turma_id: parseInt(document.getElementById('manual-turma-id').value),
+                        turma_id: parseInt(turmaId),
                         professor_id: parseInt(professorId),
                         disciplina_id: parseInt(disciplinaId),
-                        dia: document.getElementById('manual-dia').value,
-                        periodo: parseInt(document.getElementById('manual-periodo').value),
+                        dia,
+                        periodo: parseInt(periodo),
                     }),
                 });
                 const data = await resp.json();
                 if (resp.ok && data.status === 'ok') {
-                    window.location.reload();
+                    const slot = { turmaId, dia, periodo };
+                    const updated = updateManualSlot(data.aula || { id: data.aula_id }, selectedOption, slot);
+                    consumeManualOption(turmaId, professorId, disciplinaId);
+                    closeModal('modal-aula-manual');
+                    showToast('Aula adicionada com sucesso!', 'success');
+                    if (!updated) {
+                        saveManualScrollPosition(slot);
+                        window.location.reload();
+                    }
                     return;
                 }
                 showToast(data?.error?.message || 'Não foi possível adicionar a aula.', 'error');

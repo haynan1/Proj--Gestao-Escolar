@@ -213,6 +213,8 @@ function garantirBotaoManual(cell) {
 function initTrashDrop() {
     const trashZone = document.querySelector('[data-schedule-trash]');
     if (!trashZone) return;
+    if (trashZone.dataset.dragdropInitialized === 'true') return;
+    trashZone.dataset.dragdropInitialized = 'true';
 
     trashZone.addEventListener('dragover', (e) => {
         if (!draggedAulaId) return;
@@ -282,6 +284,8 @@ function initDragDrop() {
     initTrashDrop();
 
     document.querySelectorAll('.aula-card[data-aula-id]').forEach((card) => {
+        if (card.dataset.dragdropInitialized === 'true') return;
+        card.dataset.dragdropInitialized = 'true';
         card.setAttribute('draggable', 'true');
 
         card.addEventListener('dragstart', async (e) => {
@@ -321,6 +325,8 @@ function initDragDrop() {
     });
 
     document.querySelectorAll('.grade-cell').forEach((cell) => {
+        if (cell.dataset.dragdropInitialized === 'true') return;
+        cell.dataset.dragdropInitialized = 'true';
         cell.addEventListener('dragover', (e) => {
             e.preventDefault();
             const targetCard = cell.querySelector('.aula-card');
@@ -422,6 +428,11 @@ function initDragDrop() {
         });
     });
 }
+
+
+window.FlowterSchedule = window.FlowterSchedule || {};
+window.FlowterSchedule.initDragDrop = initDragDrop;
+window.FlowterSchedule.clearProfessorOccupationCache = () => ocupacaoProfessorCache.clear();
 
 
 function showToast(msg, type = 'success') {

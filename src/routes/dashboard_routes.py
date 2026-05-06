@@ -971,7 +971,7 @@ def criar_disc(escola_id):
     else:
         sucesso, msg = criar_disciplina(escola['id'], nome, cor, _active_turno())
         flash(msg, 'success' if sucesso else 'error')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='disciplinas'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/disciplina/<int:disc_id>/editar', methods=['POST'])
@@ -986,7 +986,7 @@ def editar_disc(escola_id, disc_id):
     if nome:
         atualizar_disciplina(disc_id, escola['id'], nome, cor)
         flash('Disciplina atualizada.', 'success')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='disciplinas'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/disciplina/<int:disc_id>/deletar', methods=['POST'])
@@ -1001,7 +1001,7 @@ def deletar_disc(escola_id, disc_id):
         flash('Disciplina removida.', 'success')
     except DisciplineInUseError as exc:
         flash(str(exc), 'error')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='disciplinas'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/criar', methods=['POST'])
@@ -1031,7 +1031,7 @@ def criar_prof(escola_id):
     else:
         sucesso, msg = criar_professor(escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas, cor, _active_turno())
         flash(msg, 'success' if sucesso else 'error')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/editar', methods=['POST'])
@@ -1060,7 +1060,7 @@ def editar_prof(escola_id, prof_id):
             flash(str(exc), 'error')
     else:
         flash('Preencha nome, disciplinas, dias disponiveis e pelo menos uma turma.', 'error')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/deletar', methods=['POST'])
@@ -1072,7 +1072,7 @@ def deletar_prof(escola_id, prof_id):
 
     deletar_professor(prof_id, escola['id'])
     flash('Professor removido.', 'success')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/turma/criar', methods=['POST'])
@@ -1089,7 +1089,7 @@ def criar_turm(escola_id):
     else:
         sucesso, msg = criar_turma(escola['id'], nome, aulas_por_dia, _active_turno())
         flash(msg, 'success' if sucesso else 'error')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='turmas'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/turma/<int:turma_id>/editar', methods=['POST'])
@@ -1104,7 +1104,7 @@ def editar_turm(escola_id, turma_id):
     if nome:
         atualizar_turma(turma_id, escola['id'], nome, aulas_por_dia)
         flash('Turma atualizada.', 'success')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='turmas'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/turma/<int:turma_id>/deletar', methods=['POST'])
@@ -1116,7 +1116,7 @@ def deletar_turm(escola_id, turma_id):
 
     deletar_turma(turma_id, escola['id'])
     flash('Turma removida.', 'success')
-    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id))
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='turmas'))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios')
@@ -1548,7 +1548,12 @@ def criar_manual(escola_id):
     except (TypeError, ValueError):
         return _json_error('Dados obrigatórios inválidos.', code='invalid_payload')
 
-    return jsonify({'status': 'ok', 'aula_id': aula_id})
+    aula = next(
+        (dict(item) for item in listar_aulas(escola['id'], turno_atual) if int(item['id']) == int(aula_id)),
+        None,
+    )
+
+    return jsonify({'status': 'ok', 'aula_id': aula_id, 'aula': aula})
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/aula/<int:aula_id>/deletar', methods=['POST'])
