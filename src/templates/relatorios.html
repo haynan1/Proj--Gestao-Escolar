@@ -206,6 +206,25 @@
                     <span>{{ camada.total_aulas }} aula(s)</span>
                 </div>
                 <div class="reports-layer-actions">
+                    {% if can_manage_schedule %}
+                    <a class="btn btn-secondary btn-sm"
+                        href="{% if camada.turma_id %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, turma_id=camada.turma_id, visualizacao='alternativo', edit_temporario='1', edit_modo=camada.modo_edicao, edit_titulo=camada.titulo, edit_data_inicio=camada.data_inicio, edit_data_fim=camada.data_fim, edit_dia=camada.dia, edit_observacao=camada.observacao or '', edit_periodo=camada.periodo or '', edit_professor_id=camada.professor_id or '', edit_disciplina_id=camada.disciplina_id or '') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, view='geral', visualizacao='alternativo', edit_temporario='1', edit_modo=camada.modo_edicao, edit_titulo=camada.titulo, edit_data_inicio=camada.data_inicio, edit_data_fim=camada.data_fim, edit_dia=camada.dia, edit_observacao=camada.observacao or '', edit_periodo=camada.periodo or '', edit_professor_id=camada.professor_id or '', edit_disciplina_id=camada.disciplina_id or '') }}{% endif %}">
+                        Editar
+                    </a>
+                    <form method="POST"
+                        action="{{ url_for('dashboard.deletar_temporario_grupo', escola_id=escola.id, turno=turno_atual) }}"
+                        onsubmit="return confirm('Excluir esta camada temporária de horário? O horário oficial será preservado.')">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="redirect_to" value="relatorios">
+                        <input type="hidden" name="mes" value="{{ mes }}">
+                        <input type="hidden" name="titulo" value="{{ camada.titulo }}">
+                        <input type="hidden" name="data_inicio" value="{{ camada.data_inicio }}">
+                        <input type="hidden" name="data_fim" value="{{ camada.data_fim }}">
+                        <input type="hidden" name="dia" value="{{ camada.dia }}">
+                        <input type="hidden" name="observacao" value="{{ camada.observacao or '' }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                    </form>
+                    {% endif %}
                     <a class="btn btn-secondary btn-sm"
                         href="{% if camada.turma_id %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, turma_id=camada.turma_id, visualizacao='alternativo') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, data=camada.data_inicio, view='geral', visualizacao='alternativo') }}{% endif %}">
                         Ver grade

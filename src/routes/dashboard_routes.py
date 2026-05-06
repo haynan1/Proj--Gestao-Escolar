@@ -687,11 +687,16 @@ def _enriquecer_camadas_temporarias(escola_id, turno, camadas):
         professores = sorted({aula.get('professor_nome') for aula in aulas if aula.get('professor_nome')})
         disciplinas = sorted({aula.get('disciplina_nome') for aula in aulas if aula.get('disciplina_nome')})
         periodos = sorted({int(aula.get('periodo')) for aula in aulas if aula.get('periodo')})
+        primeira_aula = aulas[0] if len(aulas) == 1 else {}
 
         camada['turmas_nomes'] = turmas
         camada['professores_nomes'] = professores
         camada['disciplinas_nomes'] = disciplinas
         camada['periodos'] = periodos
+        camada['modo_edicao'] = 'manual' if len(aulas) == 1 else 'auto'
+        camada['professor_id'] = primeira_aula.get('professor_id')
+        camada['disciplina_id'] = primeira_aula.get('disciplina_id')
+        camada['periodo'] = primeira_aula.get('periodo')
         camada['tipo_operacao'] = 'Manual' if len(aulas) == 1 else 'Automático'
         camada['detalhe_resumo'] = ' · '.join(filter(None, [
             ', '.join(turmas[:2]) + (' +' if len(turmas) > 2 else '') if turmas else '',
@@ -851,6 +856,7 @@ def relatorios(escola_id):
         fim_mes=(fim_mes - timedelta(days=1)).isoformat(),
         data_registro_padrao=data_registro_padrao.isoformat(),
         hoje=_data_atual(),
+        can_manage_schedule=user_has_permission(g.user, 'manage_schedule'),
     )
 
 
@@ -1182,7 +1188,7 @@ def horarios(escola_id):
         grupos_horarios_temporarios = _agrupar_horarios_temporarios(horarios_temporarios)
     grupos_horarios_temporarios = [
         grupo for grupo in grupos_horarios_temporarios
-        if _grupo_temporario_nao_vencido(grupo)
+        if _grupo_temporario_nao_vencido(grupo, hoje=data_visualizada)
     ]
     for grupo in grupos_horarios_temporarios:
         grupo['ativo_na_data'] = _horario_temporario_ativo_na_data(grupo, data_visualizada)
@@ -1672,6 +1678,13 @@ def deletar_temporario_grupo(escola_id):
     data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
     view_mode = request.form.get('view') or request.args.get('view')
     visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
+    if request.form.get('redirect_to') == 'relatorios':
+        return redirect(_dashboard_url(
+            'dashboard.relatorios',
+            escola_id=escola_id,
+            turno=_active_turno(),
+            mes=request.form.get('mes') or _mes_atual(),
+        ))
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada, visualizacao=visualizacao))
     if view_mode == 'geral':

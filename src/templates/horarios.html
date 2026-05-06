@@ -1009,6 +1009,8 @@
         const altManualHelp = document.getElementById('alt-manual-help');
         const altManualProfessorId = document.getElementById('alt-manual-professor-id');
         const altManualDisciplinaId = document.getElementById('alt-manual-disciplina-id');
+        const altManualTitulo = document.getElementById('alt-manual-titulo');
+        const altManualObservacao = document.getElementById('alt-manual-observacao');
         const schoolDayNames = {{ dias | tojson }};
 
         const todayAsInputValue = () => {
@@ -1455,27 +1457,75 @@
         altManualSearch?.addEventListener('input', renderManualAlternativeOptions);
         syncManualAlternative();
 
-        document.querySelectorAll('[data-layer-edit]').forEach((button) => {
-            button.addEventListener('click', () => {
-                if (altMotivo) altMotivo.value = button.dataset.title || '';
-                if (altDataInicio) altDataInicio.value = button.dataset.start || altDataInicio.value;
-                if (altDataFim && button.dataset.end && button.dataset.end !== button.dataset.start) {
+        const openLayerEditor = (data) => {
+            const mode = data.mode === 'manual' ? 'manual' : 'auto';
+            setAlternativeMode(mode);
+
+            if (mode === 'manual') {
+                if (altManualTurno) altManualTurno.value = data.turno || altManualTurno.value;
+                if (altManualTurnoHidden) altManualTurnoHidden.value = altManualTurno?.value || altManualTurnoHidden.value;
+                if (altManualTurma && data.turmaId) altManualTurma.value = data.turmaId;
+                if (altManualData) altManualData.value = data.start || altManualData.value;
+                if (altManualPeriodo && data.periodo) altManualPeriodo.value = data.periodo;
+                if (altManualTitulo) altManualTitulo.value = data.title || '';
+                if (altManualObservacao) altManualObservacao.value = data.observation || '';
+                if (altManualProfessorId) altManualProfessorId.value = data.professorId || '';
+                if (altManualDisciplinaId) altManualDisciplinaId.value = data.disciplinaId || '';
+                syncManualAlternative();
+            } else {
+                if (altTurno) altTurno.value = data.turno || altTurno.value;
+                if (altMotivo) altMotivo.value = data.title || '';
+                if (altDataInicio) altDataInicio.value = data.start || altDataInicio.value;
+                if (altDataFim && data.end && data.end !== data.start) {
                     if (altDateRangeToggle) altDateRangeToggle.checked = true;
-                    altDataFim.value = button.dataset.end;
+                    altDataFim.value = data.end;
                 } else {
                     if (altDateRangeToggle) altDateRangeToggle.checked = false;
                     if (altDataFim) altDataFim.value = '';
                 }
+                if (altTurma && data.turmaId) altTurma.value = data.turmaId;
                 altDayChecks.forEach((check) => {
-                    check.checked = check.value === button.dataset.day;
+                    check.checked = check.value === data.day;
                 });
                 syncAlternativeDateRange();
                 syncAlternativeDays();
-                closeScheduleMenus();
-                openModal('modal-horario-alternativo');
-                showToast('Revise professor ausente ou periodo bloqueado antes de salvar a edicao.', 'info');
-            });
+                syncAlternativeOptions();
+            }
+
+            closeScheduleMenus();
+            openModal('modal-horario-alternativo');
+            showToast('Revise os dados e salve para substituir a camada temporaria.', 'info');
+        };
+
+        document.querySelectorAll('[data-layer-edit]').forEach((button) => {
+            button.addEventListener('click', () => openLayerEditor({
+                mode: 'auto',
+                title: button.dataset.title || '',
+                start: button.dataset.start || '',
+                end: button.dataset.end || '',
+                day: button.dataset.day || '',
+                observation: button.dataset.observation || '',
+                turno: document.body.dataset.turno || '',
+                turmaId: document.body.dataset.scheduleView === 'geral' ? '' : (document.body.dataset.turmaId || ''),
+            }));
         });
+
+        const editParams = new URLSearchParams(window.location.search);
+        if (editParams.get('edit_temporario') === '1') {
+            openLayerEditor({
+                mode: editParams.get('edit_modo') || 'auto',
+                title: editParams.get('edit_titulo') || '',
+                start: editParams.get('edit_data_inicio') || editParams.get('data') || '',
+                end: editParams.get('edit_data_fim') || '',
+                day: editParams.get('edit_dia') || '',
+                observation: editParams.get('edit_observacao') || '',
+                periodo: editParams.get('edit_periodo') || '',
+                professorId: editParams.get('edit_professor_id') || '',
+                disciplinaId: editParams.get('edit_disciplina_id') || '',
+                turno: editParams.get('turno') || document.body.dataset.turno || '',
+                turmaId: editParams.get('turma_id') || '',
+            });
+        }
 
         document.querySelector('.schedule-view-date-form')?.addEventListener('submit', (event) => {
             const dateValue = document.getElementById('schedule-data-visualizada')?.value;

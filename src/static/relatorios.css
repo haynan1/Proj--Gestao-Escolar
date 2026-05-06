@@ -469,6 +469,10 @@
     flex-wrap: wrap;
 }
 
+.reports-layer-actions form {
+    margin: 0;
+}
+
 .reports-layer-metrics span {
     display: inline-flex;
     align-items: center;
