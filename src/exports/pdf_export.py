@@ -400,9 +400,11 @@ def _matrix_text(aula, color_mode, font_size, leading):
     cor = _aula_color(aula, color_mode)
     disciplina_cor = cor or '#0f172a'
     style = _matrix_cell_style('MatrixCell', font_size, leading)
+    disciplina_nome = escape(str(aula['disciplina_nome']).upper())
+    professor_nome = escape(str(aula['professor_nome']).upper())
     return Paragraph(
-        f"<font color='{disciplina_cor}'><b>{escape(aula['disciplina_nome'])}</b></font>"
-        f"<br/><font color='#64748b'>{escape(aula['professor_nome'])}</font>",
+        f"<font color='{disciplina_cor}'><b>{disciplina_nome}</b></font>"
+        f" <font color='#64748b'>- {professor_nome}</font>",
         style,
     )
 
@@ -419,8 +421,8 @@ def _matrix_table(turmas, idx, styles, color_mode='none'):
     turma_col_width = (available_width - day_col_width - period_col_width) / max(len(turmas), 1)
     header_height = 0.52 * cm
     row_height = max(0.28 * cm, (available_height - header_height) / max(data_rows, 1))
-    font_size = max(4.15, min(6.25, (turma_col_width / cm) * 1.1, (row_height / cm) * 7.7))
-    leading = font_size + 1.0
+    font_size = max(5.8, min(8.4, (turma_col_width / cm) * 1.38, (row_height / cm) * 9.2))
+    leading = font_size + 0.9
 
     table_data = [['Dia', 'P'] + [Paragraph(escape(turma['nome']), styles['matrix_header']) for turma in turmas]]
     for dia in DIAS:
@@ -448,10 +450,10 @@ def _matrix_table(turmas, idx, styles, color_mode='none'):
         ('FONTSIZE', (0, 0), (-1, 0), 6.8),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 2.6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 2.6),
-        ('TOPPADDING', (0, 0), (-1, -1), 1.2),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3.0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3.0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0.8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0.8),
         ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 1), (1, -1), 6.5),
         ('ALIGN', (0, 1), (0, -1), 'CENTER'),
