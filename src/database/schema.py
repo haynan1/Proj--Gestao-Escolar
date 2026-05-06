@@ -540,7 +540,7 @@ def _backfill_professor_turma_links(cursor):
         """INSERT IGNORE INTO professores_turmas (professor_id, turma_id)
            SELECT p.id, t.id
            FROM professores p
-           JOIN turmas t ON t.escola_id = p.escola_id
+           JOIN turmas t ON t.escola_id = p.escola_id AND t.turno = p.turno
            WHERE NOT EXISTS (
                SELECT 1
                FROM professores_turmas pt
@@ -552,16 +552,20 @@ def _backfill_professor_turma_links(cursor):
 def _backfill_professor_disciplina_links(cursor):
     cursor.execute(
         """INSERT IGNORE INTO professores_disciplinas (professor_id, disciplina_id)
-           SELECT id, disciplina_id
-           FROM professores"""
+           SELECT p.id, d.id
+           FROM professores p
+           JOIN disciplinas d
+             ON d.id = p.disciplina_id
+            AND d.escola_id = p.escola_id
+            AND d.turno = p.turno"""
     )
 
 
 def _merge_duplicate_professors(conn):
     duplicates = conn.execute(
-        """SELECT escola_id, LOWER(TRIM(nome)) AS nome_normalizado
+        """SELECT escola_id, turno, LOWER(TRIM(nome)) AS nome_normalizado
            FROM professores
-           GROUP BY escola_id, LOWER(TRIM(nome))
+           GROUP BY escola_id, turno, LOWER(TRIM(nome))
            HAVING COUNT(*) > 1"""
     ).fetchall()
 
@@ -569,9 +573,9 @@ def _merge_duplicate_professors(conn):
         professores = conn.execute(
             """SELECT *
                FROM professores
-               WHERE escola_id = %s AND LOWER(TRIM(nome)) = %s
+               WHERE escola_id = %s AND turno = %s AND LOWER(TRIM(nome)) = %s
                ORDER BY id""",
-            (group['escola_id'], group['nome_normalizado']),
+            (group['escola_id'], group['turno'], group['nome_normalizado']),
         ).fetchall()
         if len(professores) < 2:
             continue
@@ -615,8 +619,8 @@ def _merge_duplicate_professors(conn):
                 (principal_id, duplicado_id),
             )
             conn.execute(
-                "UPDATE aulas SET professor_id = %s WHERE professor_id = %s",
-                (principal_id, duplicado_id),
+                "UPDATE aulas SET professor_id = %s WHERE professor_id = %s AND turno = %s",
+                (principal_id, duplicado_id, group['turno']),
             )
             conn.execute(
                 "DELETE FROM professores WHERE id = %s",
@@ -820,7 +824,8 @@ def create_tables():
         _ensure_system_test_user(conn)
         _backfill_professor_disciplina_links(conn)
         _backfill_professor_turma_links(conn)
-        _merge_duplicate_professors(conn)
+        # Do not merge duplicate teachers automatically during app boot.
+        # Names can legitimately repeat across shifts or represent distinct people.
         _normalize_professor_days(conn)
         _assign_legacy_schools(conn)
         _backfill_school_links(conn)
