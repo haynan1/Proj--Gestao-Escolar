@@ -794,10 +794,12 @@ def create_tables():
     lock_acquired = False
 
     try:
-        lock_row = conn.execute(
+        lock_cursor = conn.execute(
             "SELECT GET_LOCK(%s, %s) AS acquired",
             (SCHEMA_INIT_LOCK_NAME, SCHEMA_INIT_LOCK_TIMEOUT),
-        ).fetchone()
+        )
+        lock_row = lock_cursor.fetchone()
+        lock_cursor.close()
         lock_acquired = bool(lock_row and int(lock_row.get('acquired') or 0) == 1)
         if not lock_acquired:
             raise RuntimeError('Nao foi possivel obter a trava de inicializacao do schema.')
@@ -829,7 +831,9 @@ def create_tables():
     finally:
         if lock_acquired:
             try:
-                conn.execute("SELECT RELEASE_LOCK(%s)", (SCHEMA_INIT_LOCK_NAME,))
+                release_cursor = conn.execute("SELECT RELEASE_LOCK(%s)", (SCHEMA_INIT_LOCK_NAME,))
+                release_cursor.fetchone()
+                release_cursor.close()
             except Exception:
                 LOGGER.exception('Nao foi possivel liberar a trava de inicializacao do schema.')
         cursor.close()

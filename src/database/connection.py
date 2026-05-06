@@ -87,7 +87,7 @@ class DatabaseConnection:
         self._connection = connection
 
     def cursor(self, dictionary: bool = False):
-        return self._connection.cursor(dictionary=dictionary)
+        return self._connection.cursor(dictionary=dictionary, buffered=True)
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None):
         cursor = self.cursor(dictionary=True)
