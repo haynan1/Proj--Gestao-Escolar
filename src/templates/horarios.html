@@ -288,7 +288,7 @@
 
     {% if not turmas %}
     <div class="card card-horarios-empty">
-        <div class="card-horarios-empty-icon">T</div>
+        <img class="card-horarios-empty-icon" src="{{ static_url('favicon/turma.ico') }}" alt="" aria-hidden="true">
         <p class="text-muted">Nenhuma turma cadastrada.</p>
         <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}" class="btn btn-primary mt-2">
             Ir ao Dashboard
@@ -315,7 +315,7 @@
     <div class="card schedule-all-card">
         <div class="card-header">
             <div class="card-title">
-                <div class="icon icon-purple">T</div>
+                <img class="icon resource-icon" src="{{ static_url('favicon/turma.ico') }}" alt="" aria-hidden="true">
                 Modo manual
                 {% if can_edit_official_schedule %}
                 <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id, turno=turno_atual) }}"
@@ -436,7 +436,7 @@
     <div class="card">
         <div class="card-header">
             <div class="card-title">
-                <div class="icon icon-purple">T</div>
+                <img class="icon resource-icon" src="{{ static_url('favicon/turma.ico') }}" alt="" aria-hidden="true">
                 {{ turma_atual.nome }}
             </div>
             <div class="horarios-card-meta">

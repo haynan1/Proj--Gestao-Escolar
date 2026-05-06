@@ -214,6 +214,16 @@ body {
     font-size: 1rem;
 }
 
+.card-title img.icon {
+    display: block;
+    object-fit: contain;
+    flex: 0 0 32px;
+}
+
+.card-title .resource-icon {
+    background: transparent;
+}
+
 .icon-green {
     background: rgba(34, 197, 94, 0.15);
     color: var(--green);

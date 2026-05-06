@@ -2270,6 +2270,14 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
     margin-bottom: 1rem;
 }
 
+img.card-horarios-empty-icon {
+    display: block;
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    margin: 0 auto 1rem;
+}
+
 /* Destaque de Conflito em Tempo Real */
 .grade-cell.conflict-busy {
     background-color: rgba(239, 68, 68, 0.1) !important;
