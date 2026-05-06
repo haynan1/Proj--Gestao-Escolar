@@ -62,6 +62,26 @@ def _normalizar_cargas(cargas):
     return normalizadas
 
 
+def _professor_nome_existe(conn, escola_id, turno, nome, ignorar_id=None):
+    params = [escola_id, turno, nome.strip()]
+    filtro_ignorar = ''
+    if ignorar_id is not None:
+        filtro_ignorar = ' AND id <> %s'
+        params.append(ignorar_id)
+
+    row = conn.execute(
+        f"""SELECT id
+            FROM professores
+            WHERE escola_id = %s
+              AND turno = %s
+              AND LOWER(TRIM(nome)) = LOWER(TRIM(%s))
+              {filtro_ignorar}
+            LIMIT 1""",
+        tuple(params),
+    ).fetchone()
+    return bool(row)
+
+
 def _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids, turno=None):
     turno = normalizar_turno(turno)
     conn.execute(
@@ -266,6 +286,8 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
 
     conn = get_connection()
     try:
+        if _professor_nome_existe(conn, escola_id, turno, nome):
+            return False, "Ja existe um professor com esse nome neste turno."
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
         cursor = conn.execute(
             """INSERT INTO professores (escola_id, turno, nome, cor, disciplina_id, max_aulas_semana, dias_disponiveis)
@@ -340,6 +362,8 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
 
     conn = get_connection()
     try:
+        if _professor_nome_existe(conn, escola_id, turno, nome, professor_id):
+            raise ValueError("Ja existe um professor com esse nome neste turno.")
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
         conn.execute(
             """UPDATE professores

@@ -984,8 +984,11 @@ def editar_disc(escola_id, disc_id):
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '#22c55e').strip()
     if nome:
-        atualizar_disciplina(disc_id, escola['id'], nome, cor)
-        flash('Disciplina atualizada.', 'success')
+        try:
+            atualizar_disciplina(disc_id, escola['id'], nome, cor, _active_turno())
+            flash('Disciplina atualizada.', 'success')
+        except ValueError as exc:
+            flash(str(exc), 'error')
     return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='disciplinas'))
 
 
@@ -1102,8 +1105,11 @@ def editar_turm(escola_id, turma_id):
     nome = request.form.get('nome', '').strip()
     aulas_por_dia = request.form.get('aulas_por_dia', 5)
     if nome:
-        atualizar_turma(turma_id, escola['id'], nome, aulas_por_dia)
-        flash('Turma atualizada.', 'success')
+        try:
+            atualizar_turma(turma_id, escola['id'], nome, aulas_por_dia, _active_turno())
+            flash('Turma atualizada.', 'success')
+        except ValueError as exc:
+            flash(str(exc), 'error')
     return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='turmas'))
 
 

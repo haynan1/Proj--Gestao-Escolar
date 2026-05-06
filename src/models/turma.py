@@ -10,11 +10,33 @@ def _normalizar_aulas_por_dia(aulas_por_dia):
     return valor if valor in (5, 6) else 5
 
 
+def _turma_nome_existe(conn, escola_id, turno, nome, ignorar_id=None):
+    params = [escola_id, turno, nome.strip()]
+    filtro_ignorar = ''
+    if ignorar_id is not None:
+        filtro_ignorar = ' AND id <> %s'
+        params.append(ignorar_id)
+
+    row = conn.execute(
+        f"""SELECT id
+            FROM turmas
+            WHERE escola_id = %s
+              AND turno = %s
+              AND LOWER(TRIM(nome)) = LOWER(TRIM(%s))
+              {filtro_ignorar}
+            LIMIT 1""",
+        tuple(params),
+    ).fetchone()
+    return bool(row)
+
+
 def criar_turma(escola_id, nome, aulas_por_dia=5, turno=None):
     turno = normalizar_turno(turno)
     aulas_por_dia = _normalizar_aulas_por_dia(aulas_por_dia)
     conn = get_connection()
     try:
+        if _turma_nome_existe(conn, escola_id, turno, nome):
+            return False, "Ja existe uma turma com esse nome neste turno."
         conn.execute(
             "INSERT INTO turmas (escola_id, turno, nome, aulas_por_dia) VALUES (%s, %s, %s, %s)",
             (escola_id, turno, nome, aulas_por_dia)
@@ -22,6 +44,7 @@ def criar_turma(escola_id, nome, aulas_por_dia=5, turno=None):
         conn.commit()
         return True, "Turma criada com sucesso."
     except Exception as e:
+        conn.rollback()
         return False, str(e)
     finally:
         conn.close()
@@ -51,16 +74,19 @@ def buscar_turma(turma_id, escola_id=None):
     return dict(row) if row else None
 
 
-def atualizar_turma(turma_id, escola_id, nome, aulas_por_dia=5):
+def atualizar_turma(turma_id, escola_id, nome, aulas_por_dia=5, turno=None):
+    turno = normalizar_turno(turno)
     aulas_por_dia = _normalizar_aulas_por_dia(aulas_por_dia)
     conn = get_connection()
     try:
+        if _turma_nome_existe(conn, escola_id, turno, nome, turma_id):
+            raise ValueError("Ja existe uma turma com esse nome neste turno.")
         conn.execute(
             """UPDATE turmas
                SET nome = %s,
                    aulas_por_dia = %s
-               WHERE id = %s AND escola_id = %s""",
-            (nome, aulas_por_dia, turma_id, escola_id),
+               WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (nome, aulas_por_dia, turma_id, escola_id, turno),
         )
         conn.execute(
             """DELETE FROM aulas
