@@ -1,6 +1,23 @@
+import time
+
+import mysql.connector
+
 from database.connection import get_connection
 from models.turno import normalizar_turno
 from utils.conflitos import DIAS, PERIODOS
+
+
+MYSQL_RETRYABLE_LOCK_ERRORS = {1205, 1213}
+
+
+def _is_retryable_lock_error(error):
+    errno = getattr(error, 'errno', None)
+    if errno in MYSQL_RETRYABLE_LOCK_ERRORS:
+        return True
+    if not isinstance(error, mysql.connector.Error):
+        return False
+    message = str(error).lower()
+    return 'deadlock' in message or 'lock wait timeout' in message
 
 
 class ScheduleValidationError(ValueError):
@@ -11,30 +28,36 @@ class ScheduleConflictError(ValueError):
     """Raised when a move would create a logical schedule conflict."""
 
 
-def salvar_aulas(escola_id, aulas, turma_id=None, turno=None):
+def salvar_aulas(escola_id, aulas, turma_id=None, turno=None, max_retries=3):
     """Salva uma lista de aulas no banco. Cada aula é um dict com turma_id, professor_id, disciplina_id, dia, periodo."""
     turno = normalizar_turno(turno)
-    conn = get_connection()
-    try:
-        if turma_id:
-            conn.execute(
-                "DELETE FROM aulas WHERE escola_id = %s AND turno = %s AND turma_id = %s",
-                (escola_id, turno, turma_id),
-            )
-        else:
-            conn.execute("DELETE FROM aulas WHERE escola_id = %s AND turno = %s", (escola_id, turno))
-        for a in aulas:
-            conn.execute(
-                """INSERT INTO aulas (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                (escola_id, turno, a['turma_id'], a['professor_id'], a['disciplina_id'], a['dia'], a['periodo'])
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    tentativa = 0
+    while True:
+        conn = get_connection()
+        try:
+            if turma_id:
+                conn.execute(
+                    "DELETE FROM aulas WHERE escola_id = %s AND turno = %s AND turma_id = %s",
+                    (escola_id, turno, turma_id),
+                )
+            else:
+                conn.execute("DELETE FROM aulas WHERE escola_id = %s AND turno = %s", (escola_id, turno))
+            for a in aulas:
+                conn.execute(
+                    """INSERT INTO aulas (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (escola_id, turno, a['turma_id'], a['professor_id'], a['disciplina_id'], a['dia'], a['periodo'])
+                )
+            conn.commit()
+            return
+        except Exception as error:
+            conn.rollback()
+            tentativa += 1
+            if tentativa > max_retries or not _is_retryable_lock_error(error):
+                raise
+            time.sleep(0.15 * tentativa)
+        finally:
+            conn.close()
 
 
 def listar_aulas(escola_id, turno=None):
