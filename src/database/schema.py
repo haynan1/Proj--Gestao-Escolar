@@ -14,6 +14,8 @@ DEFAULT_TEST_USER_NAME = 'Teste'
 DEFAULT_TEST_USER_EMAIL = 'teste@escola.com'
 DEFAULT_TEST_USER_PASSWORD = 'Teste12345'
 LEGACY_TEST_USER_EMAILS = ('teste_review3@example.com',)
+SCHEMA_INIT_LOCK_NAME = 'flowter:schema:init'
+SCHEMA_INIT_LOCK_TIMEOUT = 30
 DEFAULT_SCHOOL_DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
 
 TABLE_STATEMENTS = [
@@ -789,8 +791,17 @@ def _backfill_school_links(cursor):
 def create_tables():
     conn = get_connection()
     cursor = conn.cursor()
+    lock_acquired = False
 
     try:
+        lock_row = conn.execute(
+            "SELECT GET_LOCK(%s, %s) AS acquired",
+            (SCHEMA_INIT_LOCK_NAME, SCHEMA_INIT_LOCK_TIMEOUT),
+        ).fetchone()
+        lock_acquired = bool(lock_row and int(lock_row.get('acquired') or 0) == 1)
+        if not lock_acquired:
+            raise RuntimeError('Nao foi possivel obter a trava de inicializacao do schema.')
+
         for statement in TABLE_STATEMENTS:
             cursor.execute(statement)
         _ensure_user_security_columns(conn)
@@ -812,6 +823,14 @@ def create_tables():
         _assign_legacy_schools(conn)
         _backfill_school_links(conn)
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
+        if lock_acquired:
+            try:
+                conn.execute("SELECT RELEASE_LOCK(%s)", (SCHEMA_INIT_LOCK_NAME,))
+            except Exception:
+                LOGGER.exception('Nao foi possivel liberar a trava de inicializacao do schema.')
         cursor.close()
         conn.close()
