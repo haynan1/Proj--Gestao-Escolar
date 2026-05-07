@@ -244,6 +244,7 @@
                 </button>
                 <div class="schedule-export-menu" role="menu">
                     <span>PDF por turma</span>
+                    <div class="schedule-export-link-grid">
                     <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, turno=turno_atual, color_mode='disciplina') }}" role="menuitem">
                         Cores das disciplinas
                     </a>
@@ -253,7 +254,9 @@
                     <a href="{{ url_for('dashboard.exportar_pdf_route', escola_id=escola.id, turno=turno_atual, color_mode='none') }}" role="menuitem">
                         Sem cores
                     </a>
+                    </div>
                     <span class="schedule-export-menu-section">Todas em 1 página</span>
+                    <div class="schedule-export-link-grid">
                     <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, turno=turno_atual, color_mode='none') }}" role="menuitem">
                         Sem cores
                     </a>
@@ -263,6 +266,40 @@
                     <a href="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id, turno=turno_atual, color_mode='professor') }}" role="menuitem">
                         Cores dos professores
                     </a>
+                    </div>
+                    <form method="GET"
+                        action="{{ url_for('dashboard.exportar_pdf_geral_route', escola_id=escola.id) }}"
+                        class="schedule-highlight-export-form"
+                        role="menuitem">
+                        <input type="hidden" name="turno" value="{{ turno_atual }}">
+                        <input type="hidden" name="color_mode" value="professor_destaque">
+                        <div class="schedule-highlight-export-title">
+                            <strong>Professor em destaque</strong>
+                        </div>
+                        <div class="schedule-highlight-professor-grid" id="highlight-professor-pdf" role="radiogroup" aria-label="Professor destacado">
+                            {% for professor in professores %}
+                            <label>
+                                <input type="radio" name="highlight_professor_id" value="{{ professor.id }}" required>
+                                <span>{{ professor.nome }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <div class="schedule-highlight-color-palette" aria-label="Cor do destaque">
+                            {% set highlight_colors = [
+                                '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1',
+                                '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
+                                '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+                                '#10b981', '#0ea5e9', '#2563eb', '#7c3aed', '#64748b'
+                            ] %}
+                            {% for cor in highlight_colors %}
+                            <label style="--highlight-swatch: {{ cor }}">
+                                <input type="radio" name="highlight_color" value="{{ cor }}" {% if loop.first %}checked{% endif %}>
+                                <span></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">Gerar PDF</button>
+                    </form>
                     {% if grupos_horarios_temporarios_ativos %}
                     <span class="schedule-export-menu-section">Alternativos ativos em {{ data_visualizada_formatada }}</span>
                     {% for grupo in grupos_horarios_temporarios_ativos %}

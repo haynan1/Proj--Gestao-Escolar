@@ -72,15 +72,26 @@ def _periodos_turma(turma):
 
 
 def _normalize_color_mode(color_mode):
-    return color_mode if color_mode in {'disciplina', 'professor', 'none'} else 'disciplina'
+    return color_mode if color_mode in {'disciplina', 'professor', 'professor_destaque', 'none'} else 'disciplina'
 
 
 def _aula_color(aula, color_mode):
+    if color_mode == 'professor_destaque':
+        return None
     if color_mode == 'professor':
         return _hex_color(aula.get('professor_cor', '#22c55e'))
     if color_mode == 'disciplina':
         return _hex_color(aula.get('disciplina_cor', '#22c55e'))
     return None
+
+
+def _is_highlighted_professor(aula, professor_id):
+    if not aula or not professor_id:
+        return False
+    try:
+        return int(aula.get('professor_id') or 0) == int(professor_id)
+    except (TypeError, ValueError):
+        return False
 
 
 def _schedule_cell(aula, styles, color_mode):
@@ -393,23 +404,26 @@ def _matrix_cell_style(name, font_size, leading, color=INK, bold=False):
     )
 
 
-def _matrix_text(aula, color_mode, font_size, leading):
+def _matrix_text(aula, color_mode, font_size, leading, highlight_professor_id=None, highlight_color='#22c55e'):
     if not aula:
         return ''
 
     cor = _aula_color(aula, color_mode)
-    disciplina_cor = cor or '#0f172a'
+    nome_cor = _hex_color(highlight_color) if (
+        color_mode == 'professor_destaque'
+        and _is_highlighted_professor(aula, highlight_professor_id)
+    ) else (cor or '#0f172a')
     style = _matrix_cell_style('MatrixCell', font_size, leading)
-    disciplina_nome = escape(str(aula['disciplina_nome']).upper())
     professor_nome = escape(str(aula['professor_nome']).upper())
+    disciplina_nome = escape(str(aula['disciplina_nome']).upper())
     return Paragraph(
-        f"<font color='{disciplina_cor}'><b>{disciplina_nome}</b></font>"
-        f" <font color='#64748b'>- {professor_nome}</font>",
+        f"<font color='{nome_cor}'><b>{professor_nome}</b></font>"
+        f" <font color='#64748b'>- {disciplina_nome}</font>",
         style,
     )
 
 
-def _matrix_table(turmas, idx, styles, color_mode='none'):
+def _matrix_table(turmas, idx, styles, color_mode='none', highlight_professor_id=None, highlight_color='#22c55e'):
     color_mode = _normalize_color_mode(color_mode)
     max_periodos = max([len(_periodos_turma(turma)) for turma in turmas] or [5])
     data_rows = len(DIAS) * max_periodos
@@ -430,7 +444,14 @@ def _matrix_table(turmas, idx, styles, color_mode='none'):
             row = [dia if periodo == 1 else '', f'{periodo}º']
             for turma in turmas:
                 aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
-                row.append(_matrix_text(aula, color_mode, font_size, leading))
+                row.append(_matrix_text(
+                    aula,
+                    color_mode,
+                    font_size,
+                    leading,
+                    highlight_professor_id=highlight_professor_id,
+                    highlight_color=highlight_color,
+                ))
             table_data.append(row)
 
     table = Table(
@@ -484,6 +505,8 @@ def _matrix_table(turmas, idx, styles, color_mode='none'):
                 aula = idx.get(turma['id'], {}).get(dia, {}).get(periodo)
                 if aula:
                     cor = _aula_color(aula, color_mode)
+                    if color_mode == 'professor_destaque' and _is_highlighted_professor(aula, highlight_professor_id):
+                        cor = _hex_color(highlight_color)
                     table_style.append((
                         'BACKGROUND',
                         (col_idx, row_idx),
@@ -496,7 +519,7 @@ def _matrix_table(turmas, idx, styles, color_mode='none'):
     return table
 
 
-def exportar_pdf_matriz(escola, aulas, turmas, color_mode='none'):
+def exportar_pdf_matriz(escola, aulas, turmas, color_mode='none', highlight_professor_id=None, highlight_color='#22c55e'):
     """Gera PDF com todas as turmas em uma unica pagina."""
     tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
     tmp.close()
@@ -534,7 +557,14 @@ def exportar_pdf_matriz(escola, aulas, turmas, color_mode='none'):
         Paragraph(f"Grade geral de horarios - {escape(escola['nome'])}", title_style),
         Paragraph(f"Todas as turmas em uma pagina | Atualizado em {generated_at}", subtitle_style),
         Spacer(1, 0.12 * cm),
-        _matrix_table(turmas, idx, styles, color_mode=color_mode),
+        _matrix_table(
+            turmas,
+            idx,
+            styles,
+            color_mode=color_mode,
+            highlight_professor_id=highlight_professor_id,
+            highlight_color=highlight_color,
+        ),
     ]
 
     doc.build(story)

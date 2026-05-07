@@ -1433,6 +1433,145 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
     outline: none;
 }
 
+.schedule-export-link-grid {
+    display: grid;
+    gap: 0.18rem;
+}
+
+.schedule-highlight-export-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    min-width: min(380px, calc(100vw - 3rem));
+    margin: 0.25rem 0 0;
+    padding: 0.7rem;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.08), rgba(15, 23, 42, 0.2));
+}
+
+.schedule-highlight-export-title {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 0.12rem;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 900;
+}
+
+.schedule-highlight-export-title strong {
+    font-size: 0.86rem;
+    font-weight: 950;
+}
+
+.schedule-highlight-professor-grid {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    max-height: 176px;
+    overflow: auto;
+    padding: 0.35rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.26);
+}
+
+.schedule-highlight-professor-grid label {
+    display: block;
+    grid-column: auto;
+    min-width: 0;
+}
+
+.schedule-highlight-professor-grid input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.schedule-highlight-professor-grid span {
+    display: block;
+    min-height: 30px;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.3);
+    color: var(--text);
+    font-size: 0.76rem;
+    font-weight: 850;
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.16s, border-color 0.16s, color 0.16s, box-shadow 0.16s;
+}
+
+.schedule-highlight-professor-grid span:hover,
+.schedule-highlight-professor-grid input:focus-visible + span {
+    border-color: rgba(34, 197, 94, 0.45);
+    color: var(--green-light);
+    background: rgba(34, 197, 94, 0.1);
+    outline: none;
+}
+
+.schedule-highlight-professor-grid input:checked + span {
+    border-color: rgba(34, 197, 94, 0.58);
+    color: var(--green-light);
+    background: rgba(34, 197, 94, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.18);
+}
+
+.schedule-highlight-color-palette {
+    display: grid;
+    grid-template-columns: repeat(10, 18px);
+    gap: 0.35rem;
+    align-items: center;
+    min-height: 34px;
+    padding: 0.38rem 0.45rem;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.schedule-highlight-color-palette label {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.schedule-highlight-color-palette input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.schedule-highlight-color-palette span {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    border-radius: 5px;
+    background: var(--highlight-swatch);
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.36);
+    transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+
+.schedule-highlight-color-palette span:hover,
+.schedule-highlight-color-palette input:focus-visible + span {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14);
+}
+
+.schedule-highlight-color-palette input:checked + span {
+    border-color: #ffffff;
+    box-shadow:
+        0 0 0 2px rgba(15, 23, 42, 0.72),
+        0 0 0 4px var(--highlight-swatch);
+}
+
 [data-theme="light"] .schedule-color-mode {
     background: #f8fafc;
     border-color: #e2e8f0;

@@ -1944,7 +1944,22 @@ def ocupacao_professor(escola_id, prof_id):
 
 def _export_color_mode():
     mode = request.args.get('color_mode', 'disciplina')
-    return mode if mode in {'disciplina', 'professor', 'none'} else 'disciplina'
+    return mode if mode in {'disciplina', 'professor', 'professor_destaque', 'none'} else 'disciplina'
+
+
+def _export_highlight_color():
+    color = str(request.args.get('highlight_color') or '#22c55e').strip()
+    try:
+        if len(color) == 7 and color.startswith('#'):
+            int(color[1:], 16)
+            return color
+    except ValueError:
+        pass
+    return '#22c55e'
+
+
+def _export_highlight_professor_id():
+    return request.args.get('highlight_professor_id', type=int)
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/exportar/excel')
@@ -1993,7 +2008,26 @@ def exportar_pdf_geral_route(escola_id):
     turno_atual = _active_turno()
     aulas = listar_aulas(escola['id'], turno_atual)
     turmas = listar_turmas(escola['id'], turno_atual)
-    filepath = exportar_pdf_matriz(escola, aulas, turmas, color_mode=_export_color_mode())
+    color_mode = _export_color_mode()
+    highlight_professor_id = _export_highlight_professor_id()
+    if color_mode == 'professor_destaque':
+        professores = listar_professores(escola['id'], turno_atual)
+        professor_destacado = next(
+            (professor for professor in professores if int(professor['id']) == int(highlight_professor_id or 0)),
+            None,
+        )
+        if not professor_destacado:
+            flash('Selecione um professor valido para destacar na grade completa.', 'error')
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
+
+    filepath = exportar_pdf_matriz(
+        escola,
+        aulas,
+        turmas,
+        color_mode=color_mode,
+        highlight_professor_id=highlight_professor_id,
+        highlight_color=_export_highlight_color(),
+    )
     return _send_temp_file(filepath, f'horario-geral-{turno_atual}.pdf')
 
 
