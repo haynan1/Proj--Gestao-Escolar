@@ -105,10 +105,23 @@
                 <h2 id="schedule-balance-title">Carga horária</h2>
                 <p class="text-muted text-sm">Compare a capacidade da grade com as aulas cadastradas por turma.</p>
             </div>
-            <span class="balance-badge balance-badge-{{ horario_balance.total_status }}">
-                {{ horario_balance.total_status_label }}
-            </span>
+            <div class="schedule-balance-actions">
+                <span class="balance-badge balance-badge-{{ horario_balance.total_status }}">
+                    {{ horario_balance.total_status_label }}
+                </span>
+                <div class="ai-audit-menu">
+                    <button type="button" class="ai-audit-trigger" aria-label="Opcoes de analise por IA"
+                        aria-haspopup="true" aria-expanded="false">
+                        ?
+                    </button>
+                    <div class="ai-audit-menu-content">
+                        <button type="button" data-ai-audit-action="open">IA</button>
+                        <button type="button" data-ai-audit-action="copy">Copiar</button>
+                    </div>
+                </div>
+            </div>
         </div>
+        <textarea id="ai-audit-payload" class="ai-audit-payload" readonly>{{ ai_audit_text }}</textarea>
 
         <div class="schedule-balance-summary">
             <div>

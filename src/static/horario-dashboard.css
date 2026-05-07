@@ -124,6 +124,101 @@
     margin-bottom: 0.25rem;
 }
 
+.schedule-balance-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 0 auto;
+}
+
+.ai-audit-menu {
+    position: relative;
+    display: inline-flex;
+}
+
+.ai-audit-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    border: 1px solid rgba(148, 163, 184, 0.38);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.16);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.86rem;
+    font-weight: 900;
+    line-height: 1;
+    transition: background 0.16s, border-color 0.16s, color 0.16s;
+}
+
+.ai-audit-trigger:hover,
+.ai-audit-trigger:focus-visible,
+.ai-audit-menu.is-open .ai-audit-trigger {
+    border-color: rgba(34, 197, 94, 0.75);
+    background: rgba(34, 197, 94, 0.16);
+    color: var(--green-light);
+    outline: none;
+}
+
+.ai-audit-menu-content {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    z-index: 30;
+    display: none;
+    min-width: 132px;
+    padding: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg2);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+}
+
+.ai-audit-menu.is-open .ai-audit-menu-content,
+.ai-audit-menu:focus-within .ai-audit-menu-content {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.ai-audit-menu-content button {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 34px;
+    padding: 0.45rem 0.65rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 800;
+    text-align: left;
+}
+
+.ai-audit-menu-content button:hover,
+.ai-audit-menu-content button:focus-visible {
+    background: var(--bg3);
+    color: var(--text);
+    outline: none;
+}
+
+.ai-audit-payload {
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .schedule-balance-summary {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -350,6 +445,10 @@
 
     .schedule-balance-header {
         flex-direction: column;
+    }
+
+    .schedule-balance-actions {
+        align-self: flex-start;
     }
 
     .schedule-balance-summary {

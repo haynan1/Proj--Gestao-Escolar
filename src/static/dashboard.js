@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initDashboardColorPickers();
         initProfessorForms();
         initResourceForms();
+        closeAiAuditMenu();
 
         const target = document.getElementById(targetId);
         requestAnimationFrame(() => {
@@ -111,6 +112,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 target.scrollIntoView({ block: 'start', inline: 'nearest' });
             }
         });
+    };
+
+    const closeAiAuditMenu = () => {
+        const menu = document.querySelector('.ai-audit-menu');
+        const trigger = menu?.querySelector('.ai-audit-trigger');
+        if (!menu) return;
+        menu.classList.remove('is-open');
+        trigger?.setAttribute('aria-expanded', 'false');
+    };
+
+    const copyAiAuditPayload = async () => {
+        const payload = document.getElementById('ai-audit-payload')?.value || '';
+        if (!payload.trim()) {
+            throw new Error('Sem dados para copiar.');
+        }
+
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+            await navigator.clipboard.writeText(payload);
+            return;
+        }
+
+        const temp = document.createElement('textarea');
+        temp.value = payload;
+        temp.setAttribute('readonly', '');
+        temp.style.position = 'fixed';
+        temp.style.left = '-9999px';
+        temp.style.top = '0';
+        document.body.appendChild(temp);
+        temp.select();
+        const copied = document.execCommand('copy');
+        temp.remove();
+        if (!copied) throw new Error('Falha ao copiar.');
+    };
+
+    const notifyAiAuditCopy = (message, type = 'success') => {
+        if (typeof showToast === 'function') {
+            showToast(message, type);
+        } else {
+            alert(message);
+        }
     };
 
     const syncCargaRows = (form) => {
@@ -258,7 +299,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initResourceForms();
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', async (e) => {
+        const aiAuditTrigger = e.target.closest('.ai-audit-trigger');
+        if (aiAuditTrigger) {
+            const menu = aiAuditTrigger.closest('.ai-audit-menu');
+            const isOpen = menu?.classList.toggle('is-open');
+            aiAuditTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            return;
+        }
+
+        const aiAuditAction = e.target.closest('[data-ai-audit-action]');
+        if (aiAuditAction) {
+            const action = aiAuditAction.dataset.aiAuditAction;
+            const shouldOpenAi = action === 'open';
+            closeAiAuditMenu();
+            if (shouldOpenAi) {
+                window.open('https://chatgpt.com/g/g-69fbfd0d34bc8191b3646131992a571c-flowter', '_blank', 'noopener');
+            }
+            try {
+                await copyAiAuditPayload();
+                notifyAiAuditCopy(shouldOpenAi ? 'Dados copiados para a IA.' : 'Dados copiados.', 'success');
+            } catch (error) {
+                notifyAiAuditCopy('Não foi possível copiar os dados.', 'error');
+            }
+            return;
+        }
+
+        if (!e.target.closest('.ai-audit-menu')) {
+            closeAiAuditMenu();
+        }
+
         const scrollTopButton = e.target.closest('.mobile-modal-scroll-top');
         if (scrollTopButton) {
             const modal = scrollTopButton.closest('.modal-professor');

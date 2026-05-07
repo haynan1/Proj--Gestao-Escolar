@@ -144,6 +144,61 @@ def _build_horario_balance(turmas, professores):
     }
 
 
+def _build_ai_audit_text(escola, turno_label, horario_balance, professores):
+    linhas = [
+        'Analise os dados abaixo e indique onde estão os erros de carga horária.',
+        'Compare o dashboard de erros das turmas com as aulas cadastradas por professor.',
+        '',
+        f"Escola: {escola.get('nome') or '-'}",
+        f'Turno: {turno_label}',
+        '',
+        'Resumo geral da carga horária:',
+        f"- Horários permitidos: {horario_balance['total_permitido']}",
+        f"- Aulas cadastradas: {horario_balance['total_cadastrado']}",
+        f"- Diferença: {horario_balance['total_diferenca']}",
+        f"- Status: {horario_balance['total_status_label']}",
+        '',
+        'Dashboard de erros por turma:',
+    ]
+
+    if horario_balance.get('turmas'):
+        for turma in horario_balance['turmas']:
+            linhas.append(
+                f"- {turma['nome']}: permitidos {turma['permitido']}, "
+                f"cadastrados {turma['cadastrado']}, diferença {turma['diferenca']}, "
+                f"status {turma['status_label']}"
+            )
+    else:
+        linhas.append('- Nenhuma turma cadastrada.')
+
+    linhas.extend(['', 'Professores, turmas, matérias e aulas cadastradas:'])
+
+    if professores:
+        for professor in professores:
+            linhas.extend([
+                '',
+                f"Professor: {professor.get('nome') or '-'}",
+                f"Turmas vinculadas: {professor.get('turmas_nomes') or '-'}",
+                f"Matérias vinculadas: {professor.get('disciplinas_nomes') or '-'}",
+                'Aulas por turma e matéria:',
+            ])
+
+            cargas = professor.get('cargas_lista') or []
+            if cargas:
+                for carga in cargas:
+                    linhas.append(
+                        f"- {carga.get('turma_nome') or '-'} / "
+                        f"{carga.get('disciplina_nome') or '-'}: "
+                        f"{int(carga.get('aulas_semana') or 0)} aulas/semana"
+                    )
+            else:
+                linhas.append('- Sem aulas detalhadas cadastradas.')
+    else:
+        linhas.append('- Nenhum professor cadastrado.')
+
+    return '\n'.join(linhas)
+
+
 def _json_error(message, status_code=400, code='bad_request'):
     response = jsonify({
         'status': 'erro',
@@ -796,6 +851,8 @@ def dashboard(escola_id):
     professores = listar_professores(escola_id, turno_atual)
     turmas = listar_turmas(escola_id, turno_atual)
     horario_balance = _build_horario_balance(turmas, professores)
+    turno_atual_label = _turno_label(turno_atual)
+    ai_audit_text = _build_ai_audit_text(escola, turno_atual_label, horario_balance, professores)
     return render_template(
         'dashboard.html',
         escola=escola,
@@ -804,8 +861,9 @@ def dashboard(escola_id):
         turmas=turmas,
         turnos=TURNOS,
         turno_atual=turno_atual,
-        turno_atual_label=_turno_label(turno_atual),
+        turno_atual_label=turno_atual_label,
         horario_balance=horario_balance,
+        ai_audit_text=ai_audit_text,
         dias_semana=DIAS_SEMANA,
         cores_professor=CORES_PROFESSOR,
         cor_disciplina_padrao=COR_DISCIPLINA_PADRAO,
