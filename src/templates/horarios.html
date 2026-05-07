@@ -24,8 +24,17 @@
 {% block nav_links %}
 <a href="{{ url_for('escola.home') }}">Início</a>
 <a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}">Dashboard</a>
-<a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}" class="active">Horários</a>
-<a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">Relatórios</a>
+<div class="navbar-menu">
+    <button type="button" class="navbar-menu-trigger active" aria-haspopup="true" aria-expanded="false">
+        Módulos
+        <span aria-hidden="true">▾</span>
+    </button>
+    <div class="navbar-menu-content">
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}" class="active">Horários</a>
+        <a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">Relatórios</a>
+        <a href="{{ url_for('dashboard.prontuario', escola_id=escola.id, turno=turno_atual) }}">Prontuário</a>
+    </div>
+</div>
 {% endblock %}
 
 {% set can_manage_schedule = has_permission('manage_schedule') %}

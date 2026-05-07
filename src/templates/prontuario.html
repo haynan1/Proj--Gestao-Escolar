@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Prontuário - {{ escola.nome }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ static_url('relatorios.css') }}" />
+{% endblock %}
+
+{% block body_attrs %}data-escola-id="{{ escola.id }}" data-turno="{{ turno_atual }}"{% endblock %}
+
+{% block nav_links %}
+<a href="{{ url_for('escola.home') }}">Início</a>
+<a href="{{ url_for('dashboard.dashboard', escola_id=escola.id, turno=turno_atual) }}">Dashboard</a>
+<div class="navbar-menu">
+    <button type="button" class="navbar-menu-trigger active" aria-haspopup="true" aria-expanded="false">
+        Módulos
+        <span aria-hidden="true">▾</span>
+    </button>
+    <div class="navbar-menu-content">
+        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}">Horários</a>
+        <a href="{{ url_for('dashboard.relatorios', escola_id=escola.id, turno=turno_atual) }}">Relatórios</a>
+        <a href="{{ url_for('dashboard.prontuario', escola_id=escola.id, turno=turno_atual) }}" class="active">Prontuário</a>
+    </div>
+</div>
+{% endblock %}
+
+{% set can_manage_reports = has_permission('manage_reports') %}
+
+{% block content %}
+<div class="container reports-page prontuario-page">
+    <div class="reports-header">
+        <div>
+            <h1 class="reports-title">Prontuário pedagógico</h1>
+            <p class="text-muted text-sm mt-1">{{ escola.nome }} · {{ turno_atual_label }}</p>
+        </div>
+        <form method="GET" action="{{ url_for('dashboard.prontuario', escola_id=escola.id) }}" class="prontuario-filter">
+            <input type="hidden" name="turno" value="{{ turno_atual }}">
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-control">
+                <option value="">Todos</option>
+                {% for status_id, status_nome in status_options.items() %}
+                <option value="{{ status_id }}" {% if status_filtro == status_id %}selected{% endif %}>{{ status_nome }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary">Filtrar</button>
+        </form>
+    </div>
+
+    <div class="reports-access-strip">
+        <span class="reports-context-pill reports-month-pill">{{ resumo.abertos }} aberto(s)</span>
+        <span class="reports-context-pill {{ 'can-edit' if can_manage_reports else 'read-only' }}">
+            {{ 'Registro liberado' if can_manage_reports else 'Somente leitura e feedback' }}
+        </span>
+    </div>
+
+    <nav class="turno-switcher" aria-label="Selecionar turno">
+        {% for turno in turnos %}
+        <a href="{{ url_for('dashboard.prontuario', escola_id=escola.id, turno=turno.id, status=status_filtro) }}"
+            class="turno-switcher-link {% if turno.id == turno_atual %}active{% endif %}">
+            {{ turno.nome }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="reports-summary" aria-label="Resumo do prontuário">
+        <div class="report-stat-card report-stat-info">
+            <span>Registros</span>
+            <strong>{{ resumo.total }}</strong>
+            <small>Visíveis no filtro atual</small>
+        </div>
+        <div class="report-stat-card report-stat-warning">
+            <span>Em aberto</span>
+            <strong>{{ resumo.abertos }}</strong>
+            <small>Aguardando retorno</small>
+        </div>
+        <div class="report-stat-card">
+            <span>Acompanhando</span>
+            <strong>{{ resumo.acompanhamento }}</strong>
+            <small>Com feedback iniciado</small>
+        </div>
+        <div class="report-stat-card report-stat-critical">
+            <span>Prioritários</span>
+            <strong>{{ resumo.prioritarios }}</strong>
+            <small>Precisam de atenção próxima</small>
+        </div>
+    </section>
+
+    <div class="reports-grid prontuario-grid">
+        <section class="reports-panel reports-form-panel">
+            <div class="reports-section-heading">
+                <div>
+                    <h2>Novo acompanhamento</h2>
+                    <p>Registre um ponto de atenção do aluno e marque o professor que precisa retornar.</p>
+                </div>
+            </div>
+
+            {% if can_manage_reports and turmas %}
+            <form method="POST" action="{{ url_for('dashboard.criar_prontuario_route', escola_id=escola.id) }}" class="reports-form">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="turno" value="{{ turno_atual }}">
+
+                <div class="form-group">
+                    <label class="form-label" for="aluno_nome">Aluno</label>
+                    <input id="aluno_nome" name="aluno_nome" type="text" class="form-control" placeholder="Nome do aluno" required>
+                </div>
+
+                <div class="reports-inline-fields">
+                    <div class="form-group">
+                        <label class="form-label" for="turma_id">Turma</label>
+                        <select id="turma_id" name="turma_id" class="form-control" required>
+                            <option value="">Selecione</option>
+                            {% for turma in turmas %}
+                            <option value="{{ turma.id }}">{{ turma.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="prioridade">Prioridade</label>
+                        <select id="prioridade" name="prioridade" class="form-control">
+                            {% for prioridade_id, prioridade_nome in prioridade_options.items() %}
+                            <option value="{{ prioridade_id }}" {% if prioridade_id == 'media' %}selected{% endif %}>{{ prioridade_nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="reports-inline-fields">
+                    <div class="form-group">
+                        <label class="form-label" for="professor_marcado_id">Professor marcado</label>
+                        <select id="professor_marcado_id" name="professor_marcado_id" class="form-control">
+                            <option value="">Sem professor específico</option>
+                            {% for professor in professores %}
+                            <option value="{{ professor.id }}">{{ professor.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="data_registro">Data</label>
+                        <input id="data_registro" name="data_registro" type="date" class="form-control" value="{{ hoje }}" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="observacao">Ponto de atenção</label>
+                    <textarea id="observacao" name="observacao" class="form-control reports-textarea"
+                        placeholder="Ex.: necessita reforço em leitura; combinar estratégia com o professor marcado." required></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary reports-submit">Salvar acompanhamento</button>
+            </form>
+            {% elif can_manage_reports %}
+            <div class="reports-empty compact">Cadastre turmas neste turno antes de criar acompanhamentos.</div>
+            {% else %}
+            <div class="reports-empty compact">Seu perfil pode visualizar e registrar feedback, mas não cria novos acompanhamentos.</div>
+            {% endif %}
+        </section>
+
+        <section class="reports-panel">
+            <div class="reports-section-heading">
+                <div>
+                    <h2>Fila de atenção</h2>
+                    <p>Registros abertos ou prioritários aparecem com destaque no histórico.</p>
+                </div>
+            </div>
+
+            {% if registros %}
+            <div class="prontuario-attention-list">
+                {% for registro in registros[:5] %}
+                <div class="reports-teacher-row">
+                    <span class="reports-teacher-dot" style="background: {{ registro.professor_cor or '#38bdf8' }}"></span>
+                    <div>
+                        <strong>{{ registro.aluno_nome }}</strong>
+                        <small>{{ registro.turma_nome }} · {{ status_options.get(registro.status, registro.status) }}</small>
+                    </div>
+                    <b>{{ prioridade_options.get(registro.prioridade, registro.prioridade) }}</b>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="reports-empty compact">Nenhum acompanhamento no filtro atual.</div>
+            {% endif %}
+        </section>
+    </div>
+
+    <section class="reports-panel reports-history">
+        <div class="reports-section-heading">
+            <div>
+                <h2>Histórico de acompanhamentos</h2>
+                <p>Feedbacks ficam anexados ao registro do aluno para continuidade pedagógica.</p>
+            </div>
+        </div>
+
+        {% if registros %}
+        <div class="prontuario-list">
+            {% for registro in registros %}
+            <article class="prontuario-card priority-{{ registro.prioridade }}">
+                <div class="prontuario-card-main">
+                    <div class="prontuario-card-title">
+                        <span class="report-type-pill {{ 'absence' if registro.prioridade == 'alta' else 'note' }}">
+                            {{ prioridade_options.get(registro.prioridade, registro.prioridade) }}
+                        </span>
+                        <h3>{{ registro.aluno_nome }}</h3>
+                    </div>
+                    <p class="prontuario-meta">
+                        {{ registro.turma_nome }} · {{ registro.data_formatada }} ·
+                        {{ status_options.get(registro.status, registro.status) }}
+                        {% if registro.professor_nome %} · marcado: {{ registro.professor_nome }}{% endif %}
+                    </p>
+                    <p class="prontuario-note">{{ registro.observacao }}</p>
+                    {% if registro.feedback %}
+                    <div class="prontuario-feedback">
+                        <strong>Feedback</strong>
+                        <p>{{ registro.feedback }}</p>
+                        <small>{{ registro.feedback_por_nome or 'Professor' }}{% if registro.feedback_formatado_em %} · {{ registro.feedback_formatado_em }}{% endif %}</small>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <form method="POST" action="{{ url_for('dashboard.feedback_prontuario_route', escola_id=escola.id, prontuario_id=registro.id) }}" class="prontuario-feedback-form">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="turno" value="{{ turno_atual }}">
+                    <label class="form-label" for="feedback-{{ registro.id }}">Feedback do professor</label>
+                    <textarea id="feedback-{{ registro.id }}" name="feedback" class="form-control" placeholder="Retorno, estratégia combinada ou próximo passo..." required>{{ registro.feedback or '' }}</textarea>
+                    <div class="prontuario-feedback-actions">
+                        <select name="status" class="form-control" aria-label="Status do acompanhamento">
+                            {% for status_id, status_nome in status_options.items() %}
+                            <option value="{{ status_id }}" {% if registro.status == status_id %}selected{% endif %}>{{ status_nome }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-secondary btn-sm">Salvar feedback</button>
+                    </div>
+                </form>
+
+                {% if can_manage_reports %}
+                <form method="POST" action="{{ url_for('dashboard.arquivar_prontuario_route', escola_id=escola.id, prontuario_id=registro.id) }}"
+                    class="prontuario-archive-form" onsubmit="return confirm('Arquivar este acompanhamento?')">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="turno" value="{{ turno_atual }}">
+                    <button type="submit" class="btn-icon-danger" title="Arquivar acompanhamento" aria-label="Arquivar acompanhamento">×</button>
+                </form>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="reports-empty">
+            <strong>Nenhum acompanhamento encontrado.</strong>
+            <span>Quando um aluno precisar de atenção, o registro aparecerá aqui.</span>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

@@ -185,6 +185,10 @@
     color: #fbbf24;
 }
 
+.report-stat-critical strong {
+    color: #fb7185;
+}
+
 .reports-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
@@ -547,11 +551,138 @@
     text-align: left;
 }
 
+.prontuario-filter {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) auto;
+    align-items: end;
+    gap: 0.55rem;
+    min-width: min(100%, 340px);
+}
+
+.prontuario-filter .form-label {
+    grid-column: 1 / -1;
+    margin-bottom: -0.25rem;
+}
+
+.prontuario-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+}
+
+.prontuario-attention-list {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.prontuario-list {
+    display: grid;
+    gap: 0.8rem;
+}
+
+.prontuario-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.62fr) auto;
+    gap: 0.9rem;
+    align-items: start;
+    padding: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-left: 4px solid #38bdf8;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.42);
+}
+
+.prontuario-card.priority-alta {
+    border-left-color: #fb7185;
+}
+
+.prontuario-card.priority-media {
+    border-left-color: #facc15;
+}
+
+.prontuario-card-main {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.prontuario-card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+}
+
+.prontuario-card-title h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.prontuario-meta,
+.prontuario-note,
+.prontuario-feedback p,
+.prontuario-feedback small {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+.prontuario-note {
+    color: var(--text);
+}
+
+.prontuario-feedback {
+    display: grid;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+    padding: 0.7rem;
+    border: 1px solid rgba(34, 197, 94, 0.18);
+    border-radius: 8px;
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.prontuario-feedback strong {
+    color: #86efac;
+    font-size: 0.82rem;
+}
+
+.prontuario-feedback-form {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.prontuario-feedback-form textarea {
+    min-height: 92px;
+    resize: vertical;
+}
+
+.prontuario-feedback-actions {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) auto;
+    gap: 0.45rem;
+    align-items: center;
+}
+
+.prontuario-archive-form {
+    margin: 0;
+}
+
 [data-theme="light"] .report-stat-card,
 [data-theme="light"] .reports-panel,
 [data-theme="light"] .reports-teacher-row,
-[data-theme="light"] .reports-layer-card {
+[data-theme="light"] .reports-layer-card,
+[data-theme="light"] .prontuario-card {
     background: #ffffff;
+}
+
+[data-theme="light"] .prontuario-feedback {
+    background: #dcfce7;
+    border-color: #86efac;
+}
+
+[data-theme="light"] .prontuario-feedback strong {
+    color: #166534;
 }
 
 [data-theme="light"] .report-stat-card {
@@ -609,6 +740,11 @@
         align-items: stretch;
     }
 
+    .prontuario-card {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
     .reports-layer-metrics,
     .reports-layer-actions {
         justify-content: flex-start;
@@ -636,6 +772,11 @@
     }
 
     .reports-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .prontuario-filter,
+    .prontuario-feedback-actions {
         grid-template-columns: 1fr;
     }
 

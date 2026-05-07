@@ -172,3 +172,38 @@ CREATE TABLE IF NOT EXISTS relatorios_professores (
     CONSTRAINT fk_relatorios_prof_excluido_por
         FOREIGN KEY (excluido_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prontuarios_alunos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
+    aluno_nome VARCHAR(255) NOT NULL,
+    turma_id INT NOT NULL,
+    professor_marcado_id INT NULL,
+    prioridade VARCHAR(20) NOT NULL DEFAULT 'media',
+    status VARCHAR(30) NOT NULL DEFAULT 'aberto',
+    observacao TEXT NOT NULL,
+    feedback TEXT NULL,
+    data_registro DATE NOT NULL,
+    criado_por_usuario_id INT NULL,
+    feedback_por_usuario_id INT NULL,
+    feedback_em TIMESTAMP NULL DEFAULT NULL,
+    excluido_em TIMESTAMP NULL DEFAULT NULL,
+    excluido_por_usuario_id INT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_prontuarios_escola_turno_status (escola_id, turno, status),
+    KEY idx_prontuarios_turma_data (turma_id, data_registro),
+    KEY idx_prontuarios_professor_status (professor_marcado_id, status),
+    CONSTRAINT fk_prontuarios_escola
+        FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_prontuarios_turma
+        FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_prontuarios_professor
+        FOREIGN KEY (professor_marcado_id) REFERENCES professores(id) ON DELETE SET NULL,
+    CONSTRAINT fk_prontuarios_criado_por
+        FOREIGN KEY (criado_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+    CONSTRAINT fk_prontuarios_feedback_por
+        FOREIGN KEY (feedback_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+    CONSTRAINT fk_prontuarios_excluido_por
+        FOREIGN KEY (excluido_por_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

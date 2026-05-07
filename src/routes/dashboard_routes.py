@@ -54,6 +54,15 @@ from models.professor import (
     deletar_professor,
     listar_professores,
 )
+from models.prontuario import (
+    PRIORIDADES_PRONTUARIO,
+    STATUS_PRONTUARIO,
+    ProntuarioValidationError,
+    arquivar_prontuario,
+    criar_prontuario,
+    listar_prontuarios,
+    registrar_feedback_prontuario,
+)
 from models.relatorio_professor import (
     TIPOS_OCORRENCIA,
     RelatorioProfessorValidationError,
@@ -858,6 +867,121 @@ def relatorios(escola_id):
         hoje=_data_atual(),
         can_manage_schedule=user_has_permission(g.user, 'manage_schedule'),
     )
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/prontuario')
+@login_required
+def prontuario(escola_id):
+    escola, failure = _guard_school(escola_id, permission='view_school')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    status_filtro = request.args.get('status') or ''
+    turmas = listar_turmas(escola['id'], turno_atual)
+    professores = listar_professores(escola['id'], turno_atual)
+    registros = listar_prontuarios(escola['id'], turno_atual, status_filtro)
+    for registro in registros:
+        registro['data_formatada'] = _format_date_br(registro.get('data_registro'))
+        registro['feedback_formatado_em'] = _format_date_br(registro.get('feedback_em'))
+
+    resumo = {
+        'total': len(registros),
+        'abertos': sum(1 for item in registros if item.get('status') == 'aberto'),
+        'acompanhamento': sum(1 for item in registros if item.get('status') == 'em_acompanhamento'),
+        'prioritarios': sum(1 for item in registros if item.get('prioridade') == 'alta'),
+    }
+
+    return render_template(
+        'prontuario.html',
+        escola=escola,
+        turmas=turmas,
+        professores=professores,
+        registros=registros,
+        resumo=resumo,
+        turnos=TURNOS,
+        turno_atual=turno_atual,
+        turno_atual_label=_turno_label(turno_atual),
+        status_filtro=status_filtro,
+        status_options=STATUS_PRONTUARIO,
+        prioridade_options=PRIORIDADES_PRONTUARIO,
+        hoje=_data_atual(),
+    )
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/prontuario/criar', methods=['POST'])
+@login_required
+def criar_prontuario_route(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_reports')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    try:
+        criar_prontuario(
+            escola['id'],
+            turno_atual,
+            request.form.get('aluno_nome'),
+            request.form.get('turma_id'),
+            request.form.get('observacao'),
+            request.form.get('professor_marcado_id'),
+            request.form.get('prioridade'),
+            g.user.get('id'),
+            request.form.get('data_registro'),
+        )
+        flash('Acompanhamento adicionado ao prontuario.', 'success')
+    except ProntuarioValidationError as exc:
+        flash(str(exc), 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao criar prontuario da escola %s.', escola['id'])
+        flash('Nao foi possivel criar o acompanhamento agora.', 'error')
+
+    return redirect(url_for('dashboard.prontuario', escola_id=escola_id, turno=turno_atual))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/prontuario/<int:prontuario_id>/feedback', methods=['POST'])
+@login_required
+def feedback_prontuario_route(escola_id, prontuario_id):
+    escola, failure = _guard_school(escola_id, permission='view_school')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    try:
+        atualizado = registrar_feedback_prontuario(
+            prontuario_id,
+            escola['id'],
+            turno_atual,
+            request.form.get('feedback'),
+            request.form.get('status'),
+            g.user.get('id'),
+        )
+        flash('Feedback registrado.' if atualizado else 'Acompanhamento nao encontrado.', 'success' if atualizado else 'error')
+    except ProntuarioValidationError as exc:
+        flash(str(exc), 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao registrar feedback do prontuario %s da escola %s.', prontuario_id, escola['id'])
+        flash('Nao foi possivel registrar o feedback agora.', 'error')
+
+    return redirect(url_for('dashboard.prontuario', escola_id=escola_id, turno=turno_atual))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/prontuario/<int:prontuario_id>/arquivar', methods=['POST'])
+@login_required
+def arquivar_prontuario_route(escola_id, prontuario_id):
+    escola, failure = _guard_school(escola_id, permission='manage_reports')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    try:
+        removido = arquivar_prontuario(prontuario_id, escola['id'], turno_atual, g.user.get('id'))
+        flash('Acompanhamento arquivado.' if removido else 'Acompanhamento nao encontrado.', 'success' if removido else 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao arquivar prontuario %s da escola %s.', prontuario_id, escola['id'])
+        flash('Nao foi possivel arquivar o acompanhamento agora.', 'error')
+
+    return redirect(url_for('dashboard.prontuario', escola_id=escola_id, turno=turno_atual))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/relatorios/professores', methods=['POST'])

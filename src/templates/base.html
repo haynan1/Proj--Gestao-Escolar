@@ -44,17 +44,29 @@
         </a>
         <div class="navbar-links">
             {% block nav_links %}{% endblock %}
-            {% if current_user and has_permission('manage_users') %}
-            <a href="{{ url_for('admin.usuarios') }}"
-                class="{% if request.endpoint in ['admin.usuarios'] %}active{% endif %}">
-                Usuarios
-            </a>
-            {% endif %}
-            {% if current_user and has_permission('admin_access') %}
-            <a href="{{ url_for('admin.backups') }}"
-                class="{% if request.endpoint and request.endpoint.startswith('admin.backups') %}active{% endif %}">
-                Backups
-            </a>
+            {% if current_user and (has_permission('manage_users') or has_permission('admin_access')) %}
+            <div class="navbar-menu">
+                <button type="button"
+                    class="navbar-menu-trigger {% if request.endpoint and request.endpoint.startswith('admin.') %}active{% endif %}"
+                    aria-haspopup="true" aria-expanded="false">
+                    Admin
+                    <span aria-hidden="true">▾</span>
+                </button>
+                <div class="navbar-menu-content">
+                    {% if has_permission('manage_users') %}
+                    <a href="{{ url_for('admin.usuarios') }}"
+                        class="{% if request.endpoint in ['admin.usuarios'] %}active{% endif %}">
+                        Usuários
+                    </a>
+                    {% endif %}
+                    {% if has_permission('admin_access') %}
+                    <a href="{{ url_for('admin.backups') }}"
+                        class="{% if request.endpoint and request.endpoint.startswith('admin.backups') %}active{% endif %}">
+                        Backups
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
             {% if current_user %}
             <span class="navbar-user">
