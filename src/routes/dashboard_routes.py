@@ -144,10 +144,15 @@ def _build_horario_balance(turmas, professores):
     }
 
 
-def _build_ai_audit_text(escola, turno_label, horario_balance, professores):
+def _build_ai_audit_text(escola, turno_id, turno_label, horario_balance, professores):
     linhas = [
+        f'RELATÓRIO ESPECÍFICO DO TURNO: {turno_label} ({turno_id})',
+        '',
         'Analise os dados abaixo e indique onde estão os erros de carga horária.',
+        'Estes dados são exclusivos deste turno. Ignore manhã, tarde ou noite se não forem o turno indicado acima.',
         'Compare o dashboard de erros das turmas com as aulas cadastradas por professor.',
+        'Ao avaliar nomes parecidos de matérias, considere sempre o conjunto Turma + Matéria.',
+        'Não aponte duplicidade apenas por diferença de maiúsculas/minúsculas quando as matérias estiverem em turmas diferentes.',
         '',
         f"Escola: {escola.get('nome') or '-'}",
         f'Turno: {turno_label}',
@@ -171,28 +176,25 @@ def _build_ai_audit_text(escola, turno_label, horario_balance, professores):
     else:
         linhas.append('- Nenhuma turma cadastrada.')
 
-    linhas.extend(['', 'Professores, turmas, matérias e aulas cadastradas:'])
+    linhas.extend([
+        '',
+        'Cargas cadastradas por professor:',
+        'Formato: Professor | Turma | Matéria | Aulas por semana',
+    ])
 
     if professores:
         for professor in professores:
-            linhas.extend([
-                '',
-                f"Professor: {professor.get('nome') or '-'}",
-                f"Turmas vinculadas: {professor.get('turmas_nomes') or '-'}",
-                f"Matérias vinculadas: {professor.get('disciplinas_nomes') or '-'}",
-                'Aulas por turma e matéria:',
-            ])
-
             cargas = professor.get('cargas_lista') or []
             if cargas:
                 for carga in cargas:
                     linhas.append(
-                        f"- {carga.get('turma_nome') or '-'} / "
-                        f"{carga.get('disciplina_nome') or '-'}: "
-                        f"{int(carga.get('aulas_semana') or 0)} aulas/semana"
+                        f"- {professor.get('nome') or '-'} | "
+                        f"{carga.get('turma_nome') or '-'} | "
+                        f"{carga.get('disciplina_nome') or '-'} | "
+                        f"{int(carga.get('aulas_semana') or 0)}"
                     )
             else:
-                linhas.append('- Sem aulas detalhadas cadastradas.')
+                linhas.append(f"- {professor.get('nome') or '-'} | - | - | Sem aulas detalhadas cadastradas")
     else:
         linhas.append('- Nenhum professor cadastrado.')
 
@@ -852,7 +854,7 @@ def dashboard(escola_id):
     turmas = listar_turmas(escola_id, turno_atual)
     horario_balance = _build_horario_balance(turmas, professores)
     turno_atual_label = _turno_label(turno_atual)
-    ai_audit_text = _build_ai_audit_text(escola, turno_atual_label, horario_balance, professores)
+    ai_audit_text = _build_ai_audit_text(escola, turno_atual, turno_atual_label, horario_balance, professores)
     return render_template(
         'dashboard.html',
         escola=escola,
@@ -992,7 +994,7 @@ def criar_prontuario_route(escola_id):
         flash(str(exc), 'error')
     except Exception:
         current_app.logger.exception('Erro ao criar prontuario da escola %s.', escola['id'])
-        flash('Nao foi possivel criar o acompanhamento agora.', 'error')
+        flash('Não foi possível criar o acompanhamento agora.', 'error')
 
     return redirect(url_for('dashboard.prontuario', escola_id=escola_id, turno=turno_atual))
 
@@ -1019,7 +1021,7 @@ def feedback_prontuario_route(escola_id, prontuario_id):
         flash(str(exc), 'error')
     except Exception:
         current_app.logger.exception('Erro ao registrar feedback do prontuario %s da escola %s.', prontuario_id, escola['id'])
-        flash('Nao foi possivel registrar o feedback agora.', 'error')
+        flash('Não foi possível registrar o feedback agora.', 'error')
 
     return redirect(url_for('dashboard.prontuario', escola_id=escola_id, turno=turno_atual))
 
@@ -1037,7 +1039,7 @@ def arquivar_prontuario_route(escola_id, prontuario_id):
         flash('Acompanhamento arquivado.' if removido else 'Acompanhamento nao encontrado.', 'success' if removido else 'error')
     except Exception:
         current_app.logger.exception('Erro ao arquivar prontuario %s da escola %s.', prontuario_id, escola['id'])
-        flash('Nao foi possivel arquivar o acompanhamento agora.', 'error')
+        flash('Não foi possível arquivar o acompanhamento agora.', 'error')
 
     return redirect(url_for('dashboard.prontuario', escola_id=escola_id, turno=turno_atual))
 
@@ -1522,7 +1524,7 @@ def gerar_temporario(escola_id):
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
     dias_selecionados = _dias_letivos_no_intervalo(data_inicio_parsed, data_fim_parsed)
     if _date_range_has_weekend(data_inicio_parsed, data_fim_parsed):
-        flash('Nao e permitido criar camadas temporarias para sabado ou domingo.', 'error')
+        flash('Não é permitido criar camadas temporárias para sábado ou domingo.', 'error')
         if turma_id:
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
         if turma_id_contexto and turno_atual == request.args.get('turno'):
@@ -1563,13 +1565,13 @@ def gerar_temporario(escola_id):
         and (not turma_id or int(aula.get('turma_id') or 0) == int(turma_id))
     ]
     if not aulas_no_alcance:
-        flash('Nao ha aulas oficiais no alcance selecionado para gerar alternativo.', 'error')
+        flash('Não há aulas oficiais no alcance selecionado para gerar alternativo.', 'error')
         if turma_id:
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
 
     if periodo_bloqueado and not any(int(aula.get('periodo') or 0) == int(periodo_bloqueado) for aula in aulas_no_alcance):
-        flash('Nao ha aula oficial nesse periodo para o alcance selecionado.', 'error')
+        flash('Não há aula oficial nesse período para o alcance selecionado.', 'error')
         if turma_id:
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, **redirect_values))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', **redirect_values))
@@ -1656,8 +1658,8 @@ def gerar_temporario(escola_id):
     except Exception:
         current_app.logger.exception('Erro ao gerar horario temporario da escola %s.', escola['id'])
         flash(
-            'Nao foi possivel gerar o horario alternativo agora. '
-            'Verifique se as aulas, professores e turmas estao consistentes e tente novamente.',
+            'Não foi possível gerar o horário alternativo agora. '
+            'Verifique se as aulas, professores e turmas estão consistentes e tente novamente.',
             'error',
         )
 

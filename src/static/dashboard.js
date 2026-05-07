@@ -122,17 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
         trigger?.setAttribute('aria-expanded', 'false');
     };
 
-    const copyAiAuditPayload = async () => {
+    const AI_AUDIT_URL = 'https://chatgpt.com/g/g-69fbfd0d34bc8191b3646131992a571c-flowter';
+
+    const getAiAuditPayload = () => {
         const payload = document.getElementById('ai-audit-payload')?.value || '';
         if (!payload.trim()) {
             throw new Error('Sem dados para copiar.');
         }
+        return payload;
+    };
 
-        if (navigator.clipboard?.writeText && window.isSecureContext) {
-            await navigator.clipboard.writeText(payload);
-            return;
-        }
-
+    const copyAiAuditPayloadWithSelection = (payload) => {
         const temp = document.createElement('textarea');
         temp.value = payload;
         temp.setAttribute('readonly', '');
@@ -143,7 +143,20 @@ document.addEventListener('DOMContentLoaded', () => {
         temp.select();
         const copied = document.execCommand('copy');
         temp.remove();
-        if (!copied) throw new Error('Falha ao copiar.');
+        return copied;
+    };
+
+    const copyAiAuditPayload = async () => {
+        const payload = getAiAuditPayload();
+
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+            await navigator.clipboard.writeText(payload);
+            return;
+        }
+
+        if (!copyAiAuditPayloadWithSelection(payload)) {
+            throw new Error('Falha ao copiar.');
+        }
     };
 
     const notifyAiAuditCopy = (message, type = 'success') => {
@@ -152,6 +165,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             alert(message);
         }
+    };
+
+    const openAiAuditWindow = () => {
+        const aiWindow = window.open('about:blank', '_blank');
+
+        if (!aiWindow) return null;
+
+        aiWindow.opener = null;
+        aiWindow.document.title = 'Abrindo Flowter...';
+        aiWindow.document.body.innerHTML = '<p style="font-family: sans-serif;">Abrindo Flowter...</p>';
+
+        return {
+            navigate: () => {
+                aiWindow.location.href = AI_AUDIT_URL;
+            },
+            close: () => {
+                aiWindow.close();
+            },
+        };
     };
 
     const syncCargaRows = (form) => {
@@ -313,13 +345,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const action = aiAuditAction.dataset.aiAuditAction;
             const shouldOpenAi = action === 'open';
             closeAiAuditMenu();
-            if (shouldOpenAi) {
-                window.open('https://chatgpt.com/g/g-69fbfd0d34bc8191b3646131992a571c-flowter', '_blank', 'noopener');
-            }
+            let aiWindow = null;
             try {
+                if (shouldOpenAi) {
+                    const payload = getAiAuditPayload();
+                    if (copyAiAuditPayloadWithSelection(payload)) {
+                        window.open(AI_AUDIT_URL, '_blank', 'noopener');
+                        notifyAiAuditCopy('Dados copiados para a IA.', 'success');
+                        return;
+                    }
+
+                    aiWindow = openAiAuditWindow();
+                    await copyAiAuditPayload();
+                    if (aiWindow) {
+                        aiWindow.navigate();
+                    } else {
+                        window.open(AI_AUDIT_URL, '_blank', 'noopener');
+                    }
+                    notifyAiAuditCopy('Dados copiados para a IA.', 'success');
+                    return;
+                }
+
                 await copyAiAuditPayload();
-                notifyAiAuditCopy(shouldOpenAi ? 'Dados copiados para a IA.' : 'Dados copiados.', 'success');
+                notifyAiAuditCopy('Dados copiados.', 'success');
             } catch (error) {
+                aiWindow?.close();
                 notifyAiAuditCopy('Não foi possível copiar os dados.', 'error');
             }
             return;
