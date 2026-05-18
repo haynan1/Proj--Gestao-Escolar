@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
+import logging
 import os
 
+import mysql.connector
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from access_control import ROLE_ADMIN, ROLE_COORDINATOR, ROLE_STAFF, normalize_role
@@ -30,12 +32,16 @@ def criar_usuario(nome: str, email: str, senha: str, role: str = ROLE_STAFF, ema
         )
         conn.commit()
         return True, 'Usuario criado com sucesso.'
-    except Exception as exc:
+    except mysql.connector.Error as exc:
         conn.rollback()
-        mensagem = str(exc)
-        if 'Duplicate entry' in mensagem and 'usuarios.email' in mensagem:
+        if exc.errno == 1062 and 'usuarios.email' in str(exc):
             return False, 'Ja existe um usuario cadastrado com este e-mail.'
-        return False, mensagem
+        logging.getLogger(__name__).error('Erro ao criar usuario: %s', exc)
+        return False, 'Erro interno ao criar usuario. Tente novamente.'
+    except Exception:
+        conn.rollback()
+        logging.getLogger(__name__).exception('Erro inesperado ao criar usuario.')
+        raise
     finally:
         conn.close()
 

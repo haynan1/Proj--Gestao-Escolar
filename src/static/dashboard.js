@@ -84,6 +84,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (current && next) current.replaceWith(next);
     };
 
+    const flushFlashToToasts = (flashContainer) => {
+        if (!flashContainer || typeof showToast !== 'function') return;
+        flashContainer.querySelectorAll('.alert').forEach(alert => {
+            const type = alert.classList.contains('alert-success') ? 'success' : 'error';
+            const bodyEl = alert.querySelector('.alert-body');
+            const message = (bodyEl ? bodyEl.textContent : alert.textContent).trim();
+            if (message) showToast(message, type);
+        });
+        flashContainer.innerHTML = '';
+    };
+
     const applyDashboardHtml = (html, targetId, scrollPosition) => {
         const nextDoc = new DOMParser().parseFromString(html, 'text/html');
         const currentFlash = document.querySelector('body > .container');
@@ -97,6 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ['modal-disc', 'modal-disc-edit', 'modal-prof', 'modal-prof-edit', 'modal-turma', 'modal-turma-edit'].forEach((id) => {
             replaceElementFromDocument(`#${id}`, nextDoc);
         });
+
+        flushFlashToToasts(document.querySelector('body > .container'));
 
         applyDynamicColors();
         initDashboardColorPickers();

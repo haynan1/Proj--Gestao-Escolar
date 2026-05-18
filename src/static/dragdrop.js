@@ -435,51 +435,6 @@ window.FlowterSchedule.initDragDrop = initDragDrop;
 window.FlowterSchedule.clearProfessorOccupationCache = () => ocupacaoProfessorCache.clear();
 
 
-function showToast(msg, type = 'success') {
-    const existing = document.getElementById('toast-container');
-    if (existing) existing.remove();
-
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.style.cssText = `
-        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-        display: flex; flex-direction: column; gap: 8px;
-    `;
-
-    const toast = document.createElement('div');
-    const colors = {
-        success: { bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.4)', color: '#4ade80' },
-        error: { bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', color: '#f87171' },
-        warning: { bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.4)', color: '#fbbf24' },
-    };
-    const c = colors[type] || colors.success;
-
-    toast.style.cssText = `
-        background: ${c.bg}; border: 1px solid ${c.border}; color: ${c.color};
-        padding: 12px 20px; border-radius: 10px; font-size: 0.875rem; font-weight: 500;
-        backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        animation: toastIn 0.3s ease;
-    `;
-    toast.textContent = msg;
-
-    if (!document.getElementById('toast-style')) {
-        const style = document.createElement('style');
-        style.id = 'toast-style';
-        style.textContent = `
-            @keyframes toastIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
-            @keyframes toastOut { from { opacity:1; } to { opacity:0; transform: translateY(10px); } }
-        `;
-        document.head.appendChild(style);
-    }
-
-    container.appendChild(toast);
-    document.body.appendChild(container);
-
-    setTimeout(() => {
-        toast.style.animation = 'toastOut 0.3s ease forwards';
-        setTimeout(() => container.remove(), 300);
-    }, 3000);
-}
 
 
 document.addEventListener('DOMContentLoaded', () => {

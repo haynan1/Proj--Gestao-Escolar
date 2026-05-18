@@ -2746,3 +2746,100 @@ tr:hover td {
         min-width: 0;
     }
 }
+
+/* ─── Toast Notifications ────────────────────────────────────────────────── */
+#toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 360px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.45;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    transform: translateX(calc(100% + 1.5rem));
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.toast.toast-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-prefix {
+    flex-shrink: 0;
+    font-weight: 700;
+}
+
+.toast-success {
+    background: rgba(34, 197, 94, 0.18);
+    border-color: rgba(34, 197, 94, 0.35);
+    color: #4ade80;
+}
+
+.toast-error {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+
+.toast-warning {
+    background: rgba(234, 179, 8, 0.18);
+    border-color: rgba(234, 179, 8, 0.35);
+    color: #fbbf24;
+}
+
+[data-theme="light"] .toast-success {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .toast-error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .toast-warning {
+    background: #fefce8;
+    border-color: #fde68a;
+    color: #854d0e;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+@media (max-width: 640px) {
+    #toast-container {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+        max-width: none;
+    }
+
+    .toast {
+        transform: translateY(calc(100% + 1rem));
+    }
+
+    .toast.toast-visible {
+        transform: translateY(0);
+    }
+}

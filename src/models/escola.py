@@ -1,6 +1,8 @@
 from datetime import datetime
+import logging
 import re
 
+import mysql.connector
 from access_control import user_has_permission
 from database.connection import get_connection
 from models.turno import normalizar_turno
@@ -64,6 +66,9 @@ def definir_horario_turno_travado(escola_id, turno, travado):
         conn.close()
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 def criar_escola(user_id, nome):
     conn = get_connection()
     try:
@@ -79,9 +84,14 @@ def criar_escola(user_id, nome):
         )
         conn.commit()
         return True, "Escola criada com sucesso."
-    except Exception as exc:
+    except mysql.connector.Error as exc:
         conn.rollback()
-        return False, str(exc)
+        _LOGGER.error('Erro ao criar escola: %s', exc)
+        return False, 'Erro interno ao criar escola. Tente novamente.'
+    except Exception:
+        conn.rollback()
+        _LOGGER.exception('Erro inesperado ao criar escola.')
+        raise
     finally:
         conn.close()
 
@@ -112,9 +122,14 @@ def atualizar_nome_escola(escola_id, nome):
         )
         conn.commit()
         return True, 'Nome da escola atualizado com sucesso.'
-    except Exception as exc:
+    except mysql.connector.Error as exc:
         conn.rollback()
-        return False, str(exc)
+        _LOGGER.error('Erro ao atualizar nome de escola: %s', exc)
+        return False, 'Erro interno ao atualizar nome. Tente novamente.'
+    except Exception:
+        conn.rollback()
+        _LOGGER.exception('Erro inesperado ao atualizar nome de escola.')
+        raise
     finally:
         conn.close()
 

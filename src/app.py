@@ -1,5 +1,7 @@
+import logging
 import os
 import sys
+from datetime import timedelta
 from urllib.parse import urlsplit
 
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,12 +34,24 @@ app = Flask(
     template_folder='templates',
     static_folder='static',
 )
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-change-me')
+_secret_key = os.getenv('FLASK_SECRET_KEY', '').strip()
+_WEAK_KEYS = {'', 'change_this_secret_key', 'dev-secret-change-me'}
+if _secret_key in _WEAK_KEYS:
+    logging.getLogger(__name__).warning(
+        'FLASK_SECRET_KEY nao configurada ou usa valor padrao inseguro. '
+        'Defina uma chave forte no .env antes do deploy em producao.'
+    )
+    if not _secret_key:
+        _secret_key = 'dev-only-insecure-fallback'
+app.secret_key = _secret_key
+
+_session_lifetime_hours = int(os.getenv('SESSION_LIFETIME_HOURS', '8'))
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_SECURE=_get_bool_env('SESSION_COOKIE_SECURE', default=False),
     REMEMBER_COOKIE_SECURE=_get_bool_env('SESSION_COOKIE_SECURE', default=False),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=_session_lifetime_hours),
     VERIFY_EMAIL_TOKEN_MAX_AGE=int(os.getenv('VERIFY_EMAIL_TOKEN_MAX_AGE', str(60 * 60 * 24))),
     RESET_PASSWORD_TOKEN_MAX_AGE=int(os.getenv('RESET_PASSWORD_TOKEN_MAX_AGE', str(60 * 60))),
     APP_BASE_URL=os.getenv('APP_BASE_URL', '').strip(),
@@ -51,6 +65,15 @@ if app_base_url:
         app.config['SERVER_NAME'] = parsed_base_url.netloc
 
 app.before_request(csrf_protect)
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
 
 
 @app.context_processor
@@ -84,7 +107,7 @@ create_tables()
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', '5000'))
-    debug = _get_bool_env('FLASK_DEBUG', default=True)
+    debug = _get_bool_env('FLASK_DEBUG', default=False)
 
     print("=" * 50)
     print("  Flowter")

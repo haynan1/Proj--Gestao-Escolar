@@ -1,5 +1,7 @@
+import logging
 import re
 
+import mysql.connector
 from database.connection import get_connection
 from models.turno import normalizar_turno
 
@@ -278,6 +280,9 @@ def _anexar_vinculos(professores):
     return _anexar_cargas(_anexar_turmas(_anexar_disciplinas(professores)))
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None, turno=None):
     turno = normalizar_turno(turno)
     disciplina_ids = _normalizar_ids(disciplina_ids)
@@ -299,9 +304,14 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
         _sincronizar_cargas_professor(conn, cursor.lastrowid, escola_id, cargas, turno)
         conn.commit()
         return True, "Professor criado com sucesso."
-    except Exception as e:
+    except mysql.connector.Error as exc:
         conn.rollback()
-        return False, str(e)
+        _LOGGER.error('Erro ao criar professor: %s', exc)
+        return False, 'Erro interno ao criar professor. Tente novamente.'
+    except Exception:
+        conn.rollback()
+        _LOGGER.exception('Erro inesperado ao criar professor.')
+        raise
     finally:
         conn.close()
 
@@ -322,7 +332,8 @@ def listar_professores(escola_id, turno=None):
     result = []
     for row in rows:
         item = dict(row)
-        item['dias_lista'] = item['dias_disponiveis'].split(',')
+        raw = (item.get('dias_disponiveis') or '').strip()
+        item['dias_lista'] = [d for d in raw.split(',') if d.strip()]
         result.append(item)
     return _anexar_vinculos(result)
 
@@ -349,7 +360,8 @@ def buscar_professor(professor_id, escola_id=None):
 
     if row:
         item = dict(row)
-        item['dias_lista'] = item['dias_disponiveis'].split(',')
+        raw = (item.get('dias_disponiveis') or '').strip()
+        item['dias_lista'] = [d for d in raw.split(',') if d.strip()]
         return _anexar_vinculos([item])[0]
     return None
 
