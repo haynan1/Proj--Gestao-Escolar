@@ -58,12 +58,14 @@ def _validar_capacidade_demandas(demandas, turmas):
     demanda_por_turma = defaultdict(int)
     demanda_por_professor = defaultdict(int)
     professores_por_id = {}
+    turmas_por_professor = defaultdict(set)
 
     for demanda in demandas:
         demanda_por_turma[demanda['turma_id']] += demanda['qtd']
         professor = demanda['professor']
         professores_por_id[professor['id']] = professor
         demanda_por_professor[professor['id']] += demanda['qtd']
+        turmas_por_professor[professor['id']].add(demanda['turma_id'])
 
     erros = []
     for turma in turmas:
@@ -89,6 +91,22 @@ def _validar_capacidade_demandas(demandas, turmas):
             erros.append(
                 f"{professor['nome']}: {demanda_total} aulas configuradas para limite de {max_aulas}"
             )
+
+        dias_lista = professor.get('dias_lista', [])
+        if dias_lista:
+            turmas_ids_prof = turmas_por_professor[professor_id]
+            max_periodos = max(
+                (len(_periodos_turma(turmas_por_id[t_id])) for t_id in turmas_ids_prof if t_id in turmas_por_id),
+                default=5,
+            )
+            capacidade_dias = len(dias_lista) * max_periodos
+            if demanda_total > capacidade_dias:
+                nomes_dias = ', '.join(dias_lista)
+                erros.append(
+                    f"{professor['nome']}: {demanda_total} aulas configuradas, mas disponível em apenas "
+                    f"{len(dias_lista)} dia(s) ({nomes_dias}) — máximo {capacidade_dias} aulas possíveis. "
+                    f"Reduza as cargas ou reative o dia."
+                )
 
     return erros
 
