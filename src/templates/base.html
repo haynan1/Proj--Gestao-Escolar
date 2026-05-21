@@ -92,9 +92,16 @@
     <div class="container" style="padding-top:1rem; padding-bottom:0;">
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">
+        <div class="alert alert-{{ category }}" role="alert">
             <span class="alert-prefix">{% if category == 'success' %}+{% else %}!{% endif %}</span>
             <span class="alert-body">{{ message }}</span>
+            {% if category == 'error' and session.get('grade_erros') and session.grade_erros.escola_id %}
+            <a href="{{ url_for('dashboard.download_erros_grade', escola_id=session.grade_erros.escola_id) }}"
+               class="alert-download-btn" title="Baixar relatório de erros em PDF">
+                ↓ Relatório PDF
+            </a>
+            {% endif %}
+            <button class="alert-close" aria-label="Fechar" onclick="this.closest('.alert').remove()">×</button>
         </div>
         {% endfor %}
         {% endwith %}
@@ -164,6 +171,14 @@
             window.addEventListener('scroll', updateBackToTop, { passive: true });
             backToTop.addEventListener('click', () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            document.querySelectorAll('.alert').forEach((alert) => {
+                const dismiss = () => {
+                    alert.classList.add('alert-dismiss');
+                    setTimeout(() => alert.remove(), 500);
+                };
+                setTimeout(dismiss, 60000);
             });
         });
     </script>

@@ -607,6 +607,205 @@ def exportar_pdf(escola, aulas, turmas, disciplinas, color_mode='disciplina', tr
     return tmp.name
 
 
+def exportar_erros_grade_pdf(escola, pendencias, melhor_total, total_esperado, turno_label=''):
+    """Gera PDF didático com o relatório de pendências da geração de grade."""
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    tmp.close()
+
+    doc = SimpleDocTemplate(
+        tmp.name,
+        pagesize=A4,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.2 * cm,
+        bottomMargin=1.2 * cm,
+    )
+
+    base = getSampleStyleSheet()
+    RED = colors.HexColor('#ef4444')
+    AMBER = colors.HexColor('#f59e0b')
+    AMBER_BG = colors.HexColor('#fffbeb')
+    AMBER_BORDER = colors.HexColor('#fcd34d')
+    RED_BG = colors.HexColor('#fef2f2')
+    RED_BORDER = colors.HexColor('#fecaca')
+    GREEN_BG = colors.HexColor('#f0fdf4')
+
+    st = {
+        'eyebrow': ParagraphStyle('Eyebrow', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=8, textColor=RED, spaceAfter=3),
+        'title': ParagraphStyle('Title', parent=base['Title'],
+            fontName='Helvetica-Bold', fontSize=20, leading=24, textColor=INK,
+            alignment=TA_LEFT, spaceAfter=4),
+        'subtitle': ParagraphStyle('Subtitle', parent=base['Normal'],
+            fontSize=9, textColor=MUTED, spaceAfter=14),
+        'section': ParagraphStyle('Section', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=11, textColor=INK,
+            spaceBefore=14, spaceAfter=6),
+        'body': ParagraphStyle('Body', parent=base['Normal'],
+            fontSize=9, leading=13, textColor=INK),
+        'body_muted': ParagraphStyle('BodyMuted', parent=base['Normal'],
+            fontSize=8.5, leading=12, textColor=MUTED),
+        'cell': ParagraphStyle('Cell', parent=base['Normal'],
+            fontSize=8.5, leading=11, textColor=INK),
+        'cell_red': ParagraphStyle('CellRed', parent=base['Normal'],
+            fontSize=8.5, leading=11, textColor=RED, fontName='Helvetica-Bold'),
+        'tip': ParagraphStyle('Tip', parent=base['Normal'],
+            fontSize=8.5, leading=12, textColor=colors.HexColor('#92400e')),
+    }
+
+    generated_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    faltantes = total_esperado - melhor_total
+    pct = round((melhor_total / total_esperado) * 100) if total_esperado else 0
+    turno_str = f' — {escape(turno_label.capitalize())}' if turno_label else ''
+
+    story = [
+        Paragraph('RELATÓRIO DE ERROS', st['eyebrow']),
+        Paragraph('Geração de Grade Incompleta', st['title']),
+        Paragraph(
+            f"{escape(escola['nome'])}{turno_str} &nbsp;·&nbsp; Gerado em {generated_at}",
+            st['subtitle'],
+        ),
+    ]
+
+    summary_data = [
+        [
+            Paragraph('Aulas alocadas', st['body_muted']),
+            Paragraph('Aulas pendentes', st['body_muted']),
+            Paragraph('Taxa de sucesso', st['body_muted']),
+            Paragraph('Conflitos únicos', st['body_muted']),
+        ],
+        [
+            Paragraph(f'<b>{melhor_total}</b> de {total_esperado}', st['cell']),
+            Paragraph(f'<font color="#ef4444"><b>{faltantes}</b></font>', st['cell_red']),
+            Paragraph(f'<b>{pct}%</b>', st['cell']),
+            Paragraph(f'<b>{len(pendencias)}</b>', st['cell']),
+        ],
+    ]
+    summary_table = Table(
+        summary_data,
+        colWidths=[4.0 * cm, 4.0 * cm, 4.0 * cm, 4.0 * cm],
+        rowHeights=[0.7 * cm, 1.0 * cm],
+    )
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('BOX', (0, 0), (-1, -1), 0.6, LINE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.3, LINE),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (1, 0), (1, 1), RED_BG),
+        ('BACKGROUND', (2, 0), (2, 1), GREEN_BG),
+    ]))
+    story.extend([summary_table, Spacer(1, 0.4 * cm)])
+
+    story.append(Paragraph('O que não foi alocado', st['section']))
+    story.append(Paragraph(
+        'Cada linha abaixo representa uma combinação de turma, disciplina e professor '
+        'que o algoritmo não conseguiu encaixar no horário. '
+        'A coluna <b>Aulas</b> indica quantas aulas faltam.',
+        st['body_muted'],
+    ))
+    story.append(Spacer(1, 0.25 * cm))
+
+    rows = [[
+        Paragraph('<b>Turma</b>', st['cell']),
+        Paragraph('<b>Disciplina</b>', st['cell']),
+        Paragraph('<b>Professor</b>', st['cell']),
+        Paragraph('<b>Aulas</b>', st['cell']),
+    ]]
+    for p in pendencias:
+        rows.append([
+            Paragraph(escape(str(p.get('turma_nome') or p.get('turma_id', ''))), st['cell']),
+            Paragraph(escape(str(p['disciplina_nome'])), st['cell']),
+            Paragraph(escape(str(p['professor_nome'])), st['cell']),
+            Paragraph(
+                f'<font color="#ef4444"><b>{p["faltantes"]}</b></font>',
+                st['cell_red'],
+            ),
+        ])
+
+    pending_table = Table(
+        rows,
+        colWidths=[3.5 * cm, 5.5 * cm, 5.5 * cm, 2.0 * cm],
+        repeatRows=1,
+    )
+    pending_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.3, LINE),
+        ('BOX', (0, 0), (-1, -1), 0.6, NAVY),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (3, 0), (3, -1), 'CENTER'),
+        *[
+            ('BACKGROUND', (0, i), (-1, i), RED_BG)
+            for i in range(1, len(rows))
+        ],
+    ]))
+    story.append(pending_table)
+    story.append(Spacer(1, 0.5 * cm))
+
+    professores_com_problema = sorted({p['professor_nome'] for p in pendencias})
+
+    story.append(Paragraph('Como resolver', st['section']))
+
+    tips = [
+        (
+            'Verifique a disponibilidade dos professores',
+            f"Os professores <b>{', '.join(escape(n) for n in professores_com_problema)}</b> "
+            "têm aulas pendentes. Confirme se os dias disponíveis cadastrados são suficientes "
+            "para absorver todas as demandas."
+        ),
+        (
+            'Revise a carga horária',
+            "Compare o total de aulas configurado por turma com os slots disponíveis na semana. "
+            "Se a carga total supera os períodos × dias, o algoritmo nunca conseguirá alocar tudo."
+        ),
+        (
+            'Distribua melhor os professores',
+            "Se um professor leciona muitas turmas, pode não sobrar espaço para todas. "
+            "Considere redistribuir algumas disciplinas entre professores."
+        ),
+        (
+            'Gere com grade incompleta',
+            "Você pode gerar o horário com a opção 'Permitir grade incompleta' ativada, "
+            "aplicar manualmente as aulas pendentes e depois travar o turno."
+        ),
+    ]
+
+    for i, (titulo, descricao) in enumerate(tips):
+        tip_data = [[
+            Paragraph(f'<b>{i + 1}</b>', ParagraphStyle('Num', fontName='Helvetica-Bold',
+                fontSize=11, textColor=AMBER, alignment=TA_CENTER, leading=14)),
+            [
+                Paragraph(f'<b>{escape(titulo)}</b>', st['body']),
+                Spacer(1, 2),
+                Paragraph(descricao, st['body_muted']),
+            ],
+        ]]
+        tip_table = Table(tip_data, colWidths=[1.0 * cm, 15.5 * cm])
+        tip_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), AMBER_BG),
+            ('BOX', (0, 0), (-1, -1), 0.5, AMBER_BORDER),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (0, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ]))
+        story.extend([tip_table, Spacer(1, 0.2 * cm)])
+
+    doc.build(story)
+    return tmp.name
+
+
 def exportar_relatorio_mensal_pdf(
     escola,
     turno_label,

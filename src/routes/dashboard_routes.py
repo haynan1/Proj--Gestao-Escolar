@@ -12,13 +12,14 @@ from flask import (
     render_template,
     request,
     send_file,
+    session,
     url_for,
 )
 
 from access_control import forbid_without_school_permission, user_has_permission
 from auth import login_required
 from exports.excel_export import exportar_excel
-from exports.pdf_export import exportar_pdf, exportar_pdf_matriz, exportar_relatorio_mensal_pdf
+from exports.pdf_export import exportar_erros_grade_pdf, exportar_pdf, exportar_pdf_matriz, exportar_relatorio_mensal_pdf
 from models.aula import (
     ScheduleConflictError,
     ScheduleValidationError,
@@ -655,7 +656,7 @@ def _montar_aulas_alternativas_do_dia(
     substitutas = {}
     turmas_para_regerar = [turma_id] if turma_id else sorted({slot[0] for slot in precisa_substituir})
     for turma_regerar_id in turmas_para_regerar:
-        sucesso, _, aulas_geradas = montar_horario_gerado(
+        _result_temp = montar_horario_gerado(
             escola_id,
             turma_regerar_id,
             turno,
@@ -663,9 +664,10 @@ def _montar_aulas_alternativas_do_dia(
             slots_bloqueados=slots_bloqueados,
             permitir_grade_incompleta=True,
         )
-        if not sucesso:
+        _sucesso_temp, _, aulas_geradas_temp = _result_temp[0], _result_temp[1], _result_temp[2]
+        if not _sucesso_temp:
             continue
-        for aula in aulas_geradas:
+        for aula in aulas_geradas_temp:
             if aula.get('dia') != dia:
                 continue
             slot = (aula['turma_id'], aula['periodo'])
@@ -1658,7 +1660,7 @@ def gerar(escola_id):
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
     try:
-        sucesso, msg, total = gerar_horario(escola['id'], turma_id, turno_atual)
+        sucesso, msg, total, erros = gerar_horario(escola['id'], turma_id, turno_atual)
     except Exception:
         current_app.logger.exception(
             'Erro inesperado ao gerar horário da escola %s, turma %s.',
@@ -1670,10 +1672,59 @@ def gerar(escola_id):
             'Não foi possível gerar o horário agora. '
             'Verifique se as aulas, professores e turmas estão consistentes e tente novamente.'
         )
+        erros = None
+
+    session.pop('grade_erros', None)
+    if not sucesso and erros:
+        session['grade_erros'] = {
+            'escola_id': escola['id'],
+            'turno': turno_atual,
+            'pendencias': erros['pendencias'],
+            'melhor_total': erros['melhor_total'],
+            'total_esperado': erros['total_esperado'],
+        }
+
     flash(msg, 'success' if sucesso else 'error')
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/erros/pdf')
+@login_required
+def download_erros_grade(escola_id):
+    escola, failure = _guard_school(escola_id, permission='view_school')
+    if failure:
+        return failure
+
+    erros = session.get('grade_erros')
+    if not erros or erros.get('escola_id') != escola_id:
+        flash('Nenhum relatório de erros disponível.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+    import os
+    tmp = exportar_erros_grade_pdf(
+        escola,
+        erros['pendencias'],
+        erros['melhor_total'],
+        erros['total_esperado'],
+        erros.get('turno', ''),
+    )
+    try:
+        return send_file(
+            tmp,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='erros-grade.pdf',
+        )
+    finally:
+        @after_this_request
+        def _cleanup(response):
+            try:
+                os.unlink(tmp)
+            except Exception:
+                pass
+            return response
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario/gerar', methods=['POST'])

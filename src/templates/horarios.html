@@ -406,7 +406,7 @@
                             <tr>
                                 <th style="min-width:90px;">Período / Dia</th>
                                 {% for dia in dias %}
-                                <th>{{ dia }}</th>
+                                <th data-day-header="{{ dia }}">{{ dia }}</th>
                                 {% endfor %}
                             </tr>
                         </thead>
@@ -454,7 +454,8 @@
                                             data-professor-nome="{{ aula.professor_nome }}"
                                             data-color="{{ aula.disciplina_cor or '' }}"
                                             data-disciplina-color="{{ aula.disciplina_cor or '' }}"
-                                            data-professor-color="{{ aula.professor_cor or '' }}">
+                                            data-professor-color="{{ aula.professor_cor or '' }}"
+                                            data-professor-dias="{{ aula.dias_disponiveis or '' }}">
                                             <div class="disc-nome">{{ aula.disciplina_nome }}</div>
                                             <div class="prof-nome text-muted">{{ aula.professor_nome }}</div>
                                         </div>
@@ -522,6 +523,10 @@
                 <span class="schedule-legend-dot legend-swap"></span>
                 Troca inválida: professor do destino ocupado
             </span>
+            <span class="schedule-legend-item">
+                <span class="schedule-legend-dot legend-unavailable"></span>
+                Dia indisponível para este professor
+            </span>
         </div>
         {% endif %}
 
@@ -531,7 +536,7 @@
                     <tr>
                         <th style="min-width:90px;">Período / Dia</th>
                         {% for dia in dias %}
-                        <th>{{ dia }}</th>
+                        <th data-day-header="{{ dia }}">{{ dia }}</th>
                         {% endfor %}
                     </tr>
                 </thead>
@@ -580,7 +585,8 @@
                                     data-professor-nome="{{ aula.professor_nome }}"
                                     data-color="{{ aula.disciplina_cor or '' }}"
                                     data-disciplina-color="{{ aula.disciplina_cor or '' }}"
-                                    data-professor-color="{{ aula.professor_cor or '' }}">
+                                    data-professor-color="{{ aula.professor_cor or '' }}"
+                                    data-professor-dias="{{ aula.dias_disponiveis or '' }}">
                                     <div class="disc-nome">{{ aula.disciplina_nome }}</div>
                                     <div class="prof-nome text-muted">{{ aula.professor_nome }}</div>
                                 </div>

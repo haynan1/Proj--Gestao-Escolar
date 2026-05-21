@@ -1875,6 +1875,11 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
     background: rgba(249, 115, 22, 0.18);
 }
 
+.schedule-legend-dot.legend-unavailable {
+    color: #64748b;
+    background: rgba(100, 116, 139, 0.18);
+}
+
 [data-theme="light"] .schedule-drag-legend {
     background: #f8fafc;
     border-color: #e2e8f0;
@@ -2492,6 +2497,26 @@ img.card-horarios-empty-icon {
 
 .grade-cell .cross-class-label {
     background: #ef4444;
+}
+
+/* Professor unavailable days */
+.grade-cell.professor-unavailable {
+    background-color: rgba(100, 116, 139, 0.08) !important;
+    border: 2px dashed rgba(100, 116, 139, 0.3) !important;
+    position: relative;
+    overflow: visible;
+    cursor: not-allowed;
+}
+
+.grade-cell.professor-unavailable .unavailable-label {
+    background: #475569;
+}
+
+th[data-day-header].day-unavailable {
+    color: #94a3b8 !important;
+    opacity: 0.55;
+    text-decoration: line-through;
+    text-decoration-color: rgba(148, 163, 184, 0.5);
 }
 
 .aula-card.dragging {

@@ -275,6 +275,14 @@ def _resumir_pendencias(pendencias, turmas):
     return '; '.join(partes)
 
 
+def _enriquecer_pendencias(pendencias, turmas):
+    turmas_por_id = {turma['id']: turma for turma in turmas}
+    return [
+        {**p, 'turma_nome': turmas_por_id.get(p['turma_id'], {}).get('nome', str(p['turma_id']))}
+        for p in pendencias
+    ]
+
+
 def montar_horario_gerado(
     escola_id,
     turma_id_especifica=None,
@@ -358,6 +366,9 @@ def montar_horario_gerado(
                 f"Melhor tentativa: {melhor_total} de {total_esperado} aulas. "
                 f"Pendências: {_resumir_pendencias(melhores_pendencias, turmas)}.",
                 [],
+                _enriquecer_pendencias(melhores_pendencias, turmas),
+                melhor_total,
+                total_esperado,
             )
 
         grade = melhor_grade
@@ -400,11 +411,19 @@ def montar_horario_gerado(
 def gerar_horario(escola_id, turma_id_especifica=None, turno=None):
     """
     Gera automaticamente a grade de horários para uma escola ou turma específica.
-    Retorna (sucesso: bool, mensagem: str, total_aulas: int)
+    Retorna (sucesso: bool, mensagem: str, total_aulas: int, erros: dict|None)
+    erros = {'pendencias': list, 'melhor_total': int, 'total_esperado': int} quando grade incompleta.
     """
-    sucesso, mensagem, aulas_geradas = montar_horario_gerado(escola_id, turma_id_especifica, turno)
+    result = montar_horario_gerado(escola_id, turma_id_especifica, turno)
+    sucesso, mensagem, aulas_geradas = result[0], result[1], result[2]
+
     if not sucesso:
-        return False, mensagem, 0
+        erros = (
+            {'pendencias': result[3], 'melhor_total': result[4], 'total_esperado': result[5]}
+            if len(result) > 3
+            else None
+        )
+        return False, mensagem, 0, erros
 
     salvar_aulas(escola_id, aulas_geradas, turma_id_especifica, turno)
-    return True, mensagem, len(aulas_geradas)
+    return True, mensagem, len(aulas_geradas), None

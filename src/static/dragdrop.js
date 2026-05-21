@@ -163,11 +163,38 @@ function limparDestaques() {
         cell.classList.remove('conflict-busy');
         cell.classList.remove('professor-busy');
         cell.classList.remove('professor-origin');
+        cell.classList.remove('professor-unavailable');
         cell.classList.remove('drag-over');
         cell.classList.remove('swap-target');
         cell.querySelectorAll('.conflict-label').forEach((label) => label.remove());
     });
     limparMarcadoresDeTroca();
+    document.querySelectorAll('.grade-day-header.day-unavailable').forEach((h) => {
+        h.classList.remove('day-unavailable');
+    });
+}
+
+
+function destacarDiasIndisponiveis(diasDisponiveis) {
+    if (!diasDisponiveis || diasDisponiveis.length === 0) return;
+
+    document.querySelectorAll('.grade-cell').forEach((cell) => {
+        const dia = cell.dataset.dia;
+        if (!dia || diasDisponiveis.includes(dia)) return;
+        cell.classList.add('professor-unavailable');
+        if (!cell.querySelector('.unavailable-label')) {
+            const label = criarMarcadorOcupacao('Indisponível');
+            label.classList.add('unavailable-label');
+            cell.appendChild(label);
+        }
+    });
+
+    document.querySelectorAll('[data-day-header]').forEach((header) => {
+        const dia = header.dataset.dayHeader;
+        if (dia && !diasDisponiveis.includes(dia)) {
+            header.classList.add('day-unavailable');
+        }
+    });
 }
 
 
@@ -303,6 +330,9 @@ function initDragDrop() {
             e.dataTransfer.setData('text/plain', draggedAulaId);
 
             const profId = card.dataset.professorId;
+            const diasRaw = card.dataset.professorDias || '';
+            const diasDisponiveis = diasRaw.split(',').map((d) => d.trim()).filter(Boolean);
+            destacarDiasIndisponiveis(diasDisponiveis);
             if (profId) {
                 await destacarConflitos(profId, dragToken);
             } else {
@@ -438,13 +468,5 @@ window.FlowterSchedule.clearProfessorOccupationCache = () => ocupacaoProfessorCa
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.alert').forEach((alert) => {
-        setTimeout(() => {
-            alert.style.transition = 'opacity 0.5s';
-            alert.style.opacity = '0';
-            setTimeout(() => alert.remove(), 500);
-        }, 4000);
-    });
-
     initDragDrop();
 });
