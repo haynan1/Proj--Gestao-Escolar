@@ -1,12 +1,13 @@
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
 import mysql.connector
+import mysql.connector.pooling
 from dotenv import load_dotenv
 from mysql.connector import Error
-from mysql.connector.connection import MySQLConnection
 from mysql.connector.errorcode import ER_BAD_DB_ERROR
 
 
@@ -14,10 +15,13 @@ LOGGER = logging.getLogger(__name__)
 SRC_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = SRC_DIR.parent
 DEFAULT_DB_PORT = 3306
+_POOL_SIZE = 10
+
+_pool: mysql.connector.pooling.MySQLConnectionPool | None = None
+_pool_lock = threading.Lock()
 
 
 def _load_environment() -> None:
-    """Load environment variables from .env when present."""
     env_path = PROJECT_ROOT / '.env'
     load_dotenv(env_path, override=False)
 
@@ -70,7 +74,6 @@ def _create_database_if_missing(config: dict[str, Any]) -> None:
     connection = mysql.connector.connect(**_server_connection_config(config))
     cursor = connection.cursor()
     database_name = config['database']
-
     try:
         cursor.execute(
             f"CREATE DATABASE IF NOT EXISTS `{database_name}` "
@@ -82,8 +85,63 @@ def _create_database_if_missing(config: dict[str, Any]) -> None:
         connection.close()
 
 
+def _build_pool() -> mysql.connector.pooling.MySQLConnectionPool:
+    config = _get_database_config()
+
+    LOGGER.info(
+        "Inicializando pool de conexoes MySQL (size=%d) em %s:%s, schema '%s'.",
+        _POOL_SIZE,
+        config['host'],
+        config['port'],
+        config['database'],
+    )
+
+    try:
+        return mysql.connector.pooling.MySQLConnectionPool(
+            pool_name="gestao_pool",
+            pool_size=_POOL_SIZE,
+            pool_reset_session=True,
+            **config,
+        )
+    except Error as exc:
+        if exc.errno == ER_BAD_DB_ERROR:
+            LOGGER.warning(
+                "Schema '%s' nao existe. Criando automaticamente.",
+                config['database'],
+            )
+            try:
+                _create_database_if_missing(config)
+                return mysql.connector.pooling.MySQLConnectionPool(
+                    pool_name="gestao_pool",
+                    pool_size=_POOL_SIZE,
+                    pool_reset_session=True,
+                    **config,
+                )
+            except Error as create_exc:
+                raise RuntimeError(
+                    "Nao foi possivel criar o banco MySQL/MariaDB automaticamente. "
+                    "Verifique as permissoes do usuario configurado."
+                ) from create_exc
+
+        raise RuntimeError(
+            "Erro ao conectar no banco MySQL/MariaDB. "
+            "Verifique host, porta, usuario, senha e nome do banco."
+        ) from exc
+
+
+def _get_pool() -> mysql.connector.pooling.MySQLConnectionPool:
+    global _pool
+    if _pool is not None:
+        return _pool
+    with _pool_lock:
+        if _pool is not None:
+            return _pool
+        _pool = _build_pool()
+        return _pool
+
+
 class DatabaseConnection:
-    def __init__(self, connection: MySQLConnection):
+    def __init__(self, connection):
         self._connection = connection
 
     def cursor(self, dictionary: bool = False):
@@ -105,34 +163,10 @@ class DatabaseConnection:
 
 
 def get_connection() -> DatabaseConnection:
-    config = _get_database_config()
-    LOGGER.info(
-        "Tentando conectar ao banco MySQL/MariaDB em %s:%s, schema '%s'.",
-        config['host'],
-        config['port'],
-        config['database'],
-    )
-
     try:
-        connection = mysql.connector.connect(**config)
-        return DatabaseConnection(connection)
+        return DatabaseConnection(_get_pool().get_connection())
     except Error as exc:
-        if exc.errno == ER_BAD_DB_ERROR:
-            LOGGER.warning(
-                "Schema '%s' nao existe. Criando automaticamente.",
-                config['database'],
-            )
-            try:
-                _create_database_if_missing(config)
-                connection = mysql.connector.connect(**config)
-                return DatabaseConnection(connection)
-            except Error as create_exc:
-                raise RuntimeError(
-                    "Nao foi possivel criar o banco MySQL/MariaDB automaticamente. "
-                    "Verifique as permissoes do usuario configurado."
-                ) from create_exc
-
         raise RuntimeError(
-            "Erro ao conectar no banco MySQL/MariaDB. "
-            "Verifique host, porta, usuario, senha e nome do banco."
+            "Erro ao obter conexao do pool MySQL/MariaDB. "
+            "Verifique se o banco esta acessivel e se o pool nao esta esgotado."
         ) from exc

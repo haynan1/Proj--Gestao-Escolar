@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 from mysql.connector import errorcode
 from mysql.connector.errors import ProgrammingError
@@ -7,6 +8,8 @@ from werkzeug.security import generate_password_hash
 
 from access_control import ROLE_ADMIN, ROLE_STAFF
 from database.connection import get_connection
+
+_SAFE_IDENTIFIER_RE = re.compile(r'^[a-zA-Z0-9_]+$')
 
 
 LOGGER = logging.getLogger(__name__)
@@ -400,7 +403,10 @@ def _ensure_school_owner_column(cursor):
                LIMIT 1"""
         ).fetchone()
         if row and row['index_name'] != 'uq_escolas_usuario_nome':
-            cursor.execute(f"ALTER TABLE escolas DROP INDEX {row['index_name']}")
+            index_name = row['index_name']
+            if not _SAFE_IDENTIFIER_RE.match(index_name):
+                raise RuntimeError(f"Nome de index com caracteres inesperados: {index_name!r}")
+            cursor.execute(f"ALTER TABLE escolas DROP INDEX `{index_name}`")
         cursor.execute(
             "ALTER TABLE escolas ADD CONSTRAINT uq_escolas_usuario_nome UNIQUE (user_id, nome)"
         )
@@ -777,7 +783,17 @@ def _ensure_bootstrap_admin(cursor):
     )
 
 
+def _get_bool_env(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
 def _ensure_system_test_user(cursor):
+    if not _get_bool_env('ENABLE_TEST_USER', False):
+        return
+
     email = os.getenv('AUTH_TEST_USER_EMAIL', DEFAULT_TEST_USER_EMAIL).strip().lower()
     password = os.getenv('AUTH_TEST_USER_PASSWORD', DEFAULT_TEST_USER_PASSWORD).strip()
     name = os.getenv('AUTH_TEST_USER_NAME', DEFAULT_TEST_USER_NAME).strip() or DEFAULT_TEST_USER_NAME

@@ -83,13 +83,15 @@ def buscar_usuario_por_id(usuario_id: int):
         conn.close()
 
 
-def listar_usuarios():
+def listar_usuarios(limit: int = 500):
     conn = get_connection()
     try:
         rows = conn.execute(
             """SELECT id, nome, email, role, email_verificado, ultimo_login_em, criado_em
                FROM usuarios
-               ORDER BY nome, email"""
+               ORDER BY nome, email
+               LIMIT %s""",
+            (limit,),
         ).fetchall()
         return [_serialize_user(row) for row in rows]
     finally:

@@ -7,13 +7,13 @@ from urllib.parse import urlsplit
 SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SRC_DIR)
 
-# Garante que o diretório src está no path
 sys.path.insert(0, SRC_DIR)
 
 from flask import Flask, send_from_directory, url_for
 from dotenv import load_dotenv
 from auth import csrf_protect
 from database.schema import create_tables
+from extensions import limiter
 from routes.auth_routes import auth_bp
 from routes.admin_routes import admin_bp
 from routes.escola_routes import escola_bp
@@ -64,6 +64,7 @@ if app_base_url:
         app.config['PREFERRED_URL_SCHEME'] = parsed_base_url.scheme
         app.config['SERVER_NAME'] = parsed_base_url.netloc
 
+limiter.init_app(app)
 app.before_request(csrf_protect)
 
 
@@ -73,6 +74,15 @@ def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
     return response
 
 
@@ -109,8 +119,6 @@ if __name__ == '__main__':
     port = int(os.getenv('PORT', '5000'))
     debug = _get_bool_env('FLASK_DEBUG', default=False)
 
-    print("=" * 50)
-    print("  Flowter")
-    print(f"  Acesse: http://localhost:{port}")
-    print("=" * 50)
+    _startup_log = logging.getLogger(__name__)
+    _startup_log.info("Flowter iniciando em http://localhost:%d (debug=%s)", port, debug)
     app.run(debug=debug, host='0.0.0.0', port=port)

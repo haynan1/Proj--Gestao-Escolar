@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 from flask import Blueprint, current_app, flash, g, redirect, render_template, request, session, url_for
 
 from access_control import get_role_label, user_has_permission
+from extensions import limiter
 from auth import (
     SESSION_USER_ID_KEY,
     generate_csrf_token,
@@ -57,6 +58,7 @@ def inject_auth_helpers():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("20 per minute; 100 per hour", methods=["POST"])
 def login():
     if g.get('user'):
         return redirect(get_safe_redirect_target())
@@ -89,6 +91,7 @@ def login():
 
 
 @auth_bp.route('/cadastro', methods=['GET', 'POST'])
+@limiter.limit("5 per minute; 20 per hour", methods=["POST"])
 def cadastro():
     if g.get('user'):
         return redirect(get_safe_redirect_target())
@@ -121,6 +124,7 @@ def cadastro():
 
 
 @auth_bp.route('/reenviar-verificacao', methods=['GET', 'POST'])
+@limiter.limit("5 per minute; 20 per hour", methods=["POST"])
 def resend_verification():
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
@@ -164,6 +168,7 @@ def verify_email(token):
 
 
 @auth_bp.route('/esqueci-senha', methods=['GET', 'POST'])
+@limiter.limit("5 per minute; 20 per hour", methods=["POST"])
 def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
