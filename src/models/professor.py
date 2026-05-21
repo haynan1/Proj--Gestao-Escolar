@@ -188,7 +188,10 @@ def _anexar_turmas(professores):
         rows = conn.execute(
             f"""SELECT pt.professor_id, t.id AS turma_id, t.nome AS turma_nome
                 FROM professores_turmas pt
+                JOIN professores p ON p.id = pt.professor_id
                 JOIN turmas t ON t.id = pt.turma_id
+                              AND t.escola_id = p.escola_id
+                              AND t.turno = p.turno
                 WHERE pt.professor_id IN ({placeholders})
                 ORDER BY t.nome""",
             tuple(professor_ids),
@@ -229,8 +232,13 @@ def _anexar_cargas(professores):
                        d.cor AS disciplina_cor,
                        pc.aulas_semana
                 FROM professores_cargas pc
+                JOIN professores p ON p.id = pc.professor_id
                 JOIN turmas t ON t.id = pc.turma_id
+                             AND t.escola_id = p.escola_id
+                             AND t.turno = p.turno
                 JOIN disciplinas d ON d.id = pc.disciplina_id
+                                  AND d.escola_id = p.escola_id
+                                  AND d.turno = p.turno
                 WHERE pc.professor_id IN ({placeholders})
                 ORDER BY t.nome, d.nome""",
             tuple(professor_ids),
@@ -275,7 +283,10 @@ def _anexar_disciplinas(professores):
                        d.nome AS disciplina_nome,
                        d.cor AS disciplina_cor
                 FROM professores_disciplinas pd
+                JOIN professores p ON p.id = pd.professor_id
                 JOIN disciplinas d ON d.id = pd.disciplina_id
+                                  AND d.escola_id = p.escola_id
+                                  AND d.turno = p.turno
                 WHERE pd.professor_id IN ({placeholders})
                 ORDER BY d.nome""",
             tuple(professor_ids),

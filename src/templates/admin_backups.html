@@ -77,6 +77,13 @@
                                     class="btn btn-secondary btn-sm">
                                     Horarios
                                 </a>
+                                {% if backup.backup_de_escola_id %}
+                                <form method="POST" action="{{ url_for('admin.recriar_backup', escola_id=backup.id) }}"
+                                    onsubmit="return confirm('Recriar este backup a partir da escola original? A copia atual sera substituida.')">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-secondary btn-sm">Recriar</button>
+                                </form>
+                                {% endif %}
                                 <form method="POST" action="{{ url_for('admin.deletar_backup', escola_id=backup.id) }}"
                                     onsubmit="return confirm('Excluir definitivamente o backup {{ backup.nome }}? A escola original nao sera alterada.')">
                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">

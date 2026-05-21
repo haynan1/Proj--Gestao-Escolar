@@ -326,10 +326,12 @@ def duplicar_escola_oculta(escola_id):
             "SELECT * FROM disciplinas WHERE escola_id = %s ORDER BY id",
             (escola_id,),
         ).fetchall()
+        disciplina_turnos = {}
         for disciplina in disciplinas:
+            disciplina_turnos[disciplina['id']] = disciplina.get('turno') or 'matutino'
             cursor = conn.execute(
-                "INSERT INTO disciplinas (escola_id, nome, cor) VALUES (%s, %s, %s)",
-                (backup_id, disciplina['nome'], disciplina['cor']),
+                "INSERT INTO disciplinas (escola_id, turno, nome, cor) VALUES (%s, %s, %s, %s)",
+                (backup_id, disciplina_turnos[disciplina['id']], disciplina['nome'], disciplina['cor']),
             )
             disciplina_map[disciplina['id']] = cursor.lastrowid
 
@@ -338,10 +340,12 @@ def duplicar_escola_oculta(escola_id):
             "SELECT * FROM turmas WHERE escola_id = %s ORDER BY id",
             (escola_id,),
         ).fetchall()
+        turma_turnos = {}
         for turma in turmas:
+            turma_turnos[turma['id']] = turma.get('turno') or 'matutino'
             cursor = conn.execute(
-                "INSERT INTO turmas (escola_id, nome, aulas_por_dia) VALUES (%s, %s, %s)",
-                (backup_id, turma['nome'], turma.get('aulas_por_dia') or 5),
+                "INSERT INTO turmas (escola_id, turno, nome, aulas_por_dia) VALUES (%s, %s, %s, %s)",
+                (backup_id, turma_turnos[turma['id']], turma['nome'], turma.get('aulas_por_dia') or 5),
             )
             turma_map[turma['id']] = cursor.lastrowid
 
@@ -350,21 +354,26 @@ def duplicar_escola_oculta(escola_id):
             "SELECT * FROM professores WHERE escola_id = %s ORDER BY id",
             (escola_id,),
         ).fetchall()
+        professor_turnos = {}
         for professor in professores:
+            professor_turno = professor.get('turno') or 'matutino'
             disciplina_id = disciplina_map.get(professor['disciplina_id'])
-            if not disciplina_id:
+            if not disciplina_id or disciplina_turnos.get(professor['disciplina_id']) != professor_turno:
                 continue
+            professor_turnos[professor['id']] = professor_turno
             cursor = conn.execute(
                 """INSERT INTO professores (
                        escola_id,
+                       turno,
                        nome,
                        cor,
                        disciplina_id,
                        max_aulas_semana,
                        dias_disponiveis
-                   ) VALUES (%s, %s, %s, %s, %s, %s)""",
+                   ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
                 (
                     backup_id,
+                    professor_turno,
                     professor['nome'],
                     professor.get('cor') or '#3b82f6',
                     disciplina_id,
@@ -378,6 +387,7 @@ def duplicar_escola_oculta(escola_id):
             """SELECT pd.professor_id, pd.disciplina_id
                FROM professores_disciplinas pd
                JOIN professores p ON p.id = pd.professor_id
+               JOIN disciplinas d ON d.id = pd.disciplina_id AND d.turno = p.turno
                WHERE p.escola_id = %s""",
             (escola_id,),
         ).fetchall():
@@ -394,6 +404,7 @@ def duplicar_escola_oculta(escola_id):
             """SELECT pt.professor_id, pt.turma_id
                FROM professores_turmas pt
                JOIN professores p ON p.id = pt.professor_id
+               JOIN turmas t ON t.id = pt.turma_id AND t.turno = p.turno
                WHERE p.escola_id = %s""",
             (escola_id,),
         ).fetchall():
@@ -413,6 +424,8 @@ def duplicar_escola_oculta(escola_id):
                       pc.aulas_semana
                FROM professores_cargas pc
                JOIN professores p ON p.id = pc.professor_id
+               JOIN turmas t ON t.id = pc.turma_id AND t.turno = p.turno
+               JOIN disciplinas d ON d.id = pc.disciplina_id AND d.turno = p.turno
                WHERE p.escola_id = %s""",
             (escola_id,),
         ).fetchall():
@@ -437,18 +450,153 @@ def duplicar_escola_oculta(escola_id):
             turma_id = turma_map.get(aula['turma_id'])
             professor_id = professor_map.get(aula['professor_id'])
             disciplina_id = disciplina_map.get(aula['disciplina_id'])
-            if turma_id and professor_id and disciplina_id:
+            aula_turno = aula.get('turno') or 'matutino'
+            if (
+                turma_id and professor_id and disciplina_id
+                and turma_turnos.get(aula['turma_id']) == aula_turno
+                and professor_turnos.get(aula['professor_id']) == aula_turno
+                and disciplina_turnos.get(aula['disciplina_id']) == aula_turno
+            ):
                 conn.execute(
                     """INSERT INTO aulas (
                            escola_id,
+                           turno,
                            turma_id,
                            professor_id,
                            disciplina_id,
                            dia,
                            periodo
-                       ) VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (backup_id, turma_id, professor_id, disciplina_id, aula['dia'], aula['periodo']),
+                       ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        backup_id,
+                        aula_turno,
+                        turma_id,
+                        professor_id,
+                        disciplina_id,
+                        aula['dia'],
+                        aula['periodo'],
+                    ),
                 )
+
+        for aula_temp in conn.execute(
+            "SELECT * FROM horarios_temporarios WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall():
+            turma_id = turma_map.get(aula_temp['turma_id'])
+            aula_temp_turno = aula_temp.get('turno') or 'matutino'
+            professor_id = professor_map.get(aula_temp.get('professor_id'))
+            disciplina_id = disciplina_map.get(aula_temp.get('disciplina_id'))
+            if not turma_id or turma_turnos.get(aula_temp['turma_id']) != aula_temp_turno:
+                continue
+            conn.execute(
+                """INSERT INTO horarios_temporarios (
+                       escola_id,
+                       turno,
+                       turma_id,
+                       data_inicio,
+                       data_fim,
+                       dia,
+                       periodo,
+                       titulo,
+                       professor_id,
+                       disciplina_id,
+                       observacao
+                   ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    backup_id,
+                    aula_temp_turno,
+                    turma_id,
+                    aula_temp['data_inicio'],
+                    aula_temp['data_fim'],
+                    aula_temp['dia'],
+                    aula_temp['periodo'],
+                    aula_temp['titulo'],
+                    professor_id if professor_turnos.get(aula_temp.get('professor_id')) == aula_temp_turno else None,
+                    disciplina_id if disciplina_turnos.get(aula_temp.get('disciplina_id')) == aula_temp_turno else None,
+                    aula_temp.get('observacao'),
+                ),
+            )
+
+        for relatorio in conn.execute(
+            "SELECT * FROM relatorios_professores WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall():
+            relatorio_turno = relatorio.get('turno') or 'matutino'
+            professor_id = professor_map.get(relatorio.get('professor_id'))
+            conn.execute(
+                """INSERT INTO relatorios_professores (
+                       escola_id,
+                       turno,
+                       professor_id,
+                       professor_nome_snapshot,
+                       professor_cor_snapshot,
+                       data_ocorrencia,
+                       tipo,
+                       descricao,
+                       criado_por_usuario_id,
+                       excluido_em,
+                       excluido_por_usuario_id
+                   ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    backup_id,
+                    relatorio_turno,
+                    professor_id if professor_turnos.get(relatorio.get('professor_id')) == relatorio_turno else None,
+                    relatorio.get('professor_nome_snapshot') or '',
+                    relatorio.get('professor_cor_snapshot'),
+                    relatorio['data_ocorrencia'],
+                    relatorio['tipo'],
+                    relatorio['descricao'],
+                    relatorio.get('criado_por_usuario_id'),
+                    relatorio.get('excluido_em'),
+                    relatorio.get('excluido_por_usuario_id'),
+                ),
+            )
+
+        for prontuario in conn.execute(
+            "SELECT * FROM prontuarios_alunos WHERE escola_id = %s ORDER BY id",
+            (escola_id,),
+        ).fetchall():
+            turma_id = turma_map.get(prontuario['turma_id'])
+            prontuario_turno = prontuario.get('turno') or 'matutino'
+            professor_id = professor_map.get(prontuario.get('professor_marcado_id'))
+            if not turma_id or turma_turnos.get(prontuario['turma_id']) != prontuario_turno:
+                continue
+            conn.execute(
+                """INSERT INTO prontuarios_alunos (
+                       escola_id,
+                       turno,
+                       aluno_nome,
+                       turma_id,
+                       professor_marcado_id,
+                       prioridade,
+                       status,
+                       observacao,
+                       feedback,
+                       data_registro,
+                       criado_por_usuario_id,
+                       feedback_por_usuario_id,
+                       feedback_em,
+                       excluido_em,
+                       excluido_por_usuario_id
+                   ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    backup_id,
+                    prontuario_turno,
+                    prontuario['aluno_nome'],
+                    turma_id,
+                    professor_id if professor_turnos.get(prontuario.get('professor_marcado_id')) == prontuario_turno else None,
+                    prontuario.get('prioridade') or 'media',
+                    prontuario.get('status') or 'aberto',
+                    prontuario.get('observacao') or '',
+                    prontuario.get('feedback'),
+                    prontuario['data_registro'],
+                    prontuario.get('criado_por_usuario_id'),
+                    prontuario.get('feedback_por_usuario_id'),
+                    prontuario.get('feedback_em'),
+                    prontuario.get('excluido_em'),
+                    prontuario.get('excluido_por_usuario_id'),
+                ),
+            )
 
         conn.commit()
         return True, f'Backup oculto criado com sucesso: {nome_backup}.', backup_id
@@ -541,6 +689,31 @@ def restaurar_backup_oculto(escola_id):
         raise
     finally:
         conn.close()
+
+
+def recriar_backup_oculto(escola_id):
+    conn = get_connection()
+    try:
+        backup = conn.execute(
+            """SELECT id, backup_de_escola_id
+               FROM escolas
+               WHERE id = %s AND oculta = 1""",
+            (escola_id,),
+        ).fetchone()
+        if not backup:
+            return False, 'Backup oculto nao encontrado.', None
+        if not backup.get('backup_de_escola_id'):
+            return False, 'Backup sem escola original para recriar.', None
+        escola_original_id = backup['backup_de_escola_id']
+    finally:
+        conn.close()
+
+    sucesso, mensagem, novo_backup_id = duplicar_escola_oculta(escola_original_id)
+    if not sucesso:
+        return sucesso, mensagem, novo_backup_id
+
+    deletar_backup_oculto(escola_id)
+    return True, 'Backup recriado com turnos separados.', novo_backup_id
 
 
 def deletar_backup_oculto(escola_id):

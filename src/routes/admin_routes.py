@@ -8,6 +8,7 @@ from models.escola import (
     deletar_backup_oculto,
     listar_backups_ocultos,
     listar_escolas,
+    recriar_backup_oculto,
     restaurar_backup_oculto,
 )
 from models.user import (
@@ -68,6 +69,15 @@ def deletar_backup(escola_id):
         flash('Backup oculto excluido com sucesso.', 'success')
     else:
         flash('Backup oculto nao encontrado.', 'error')
+    return redirect(url_for('admin.backups'))
+
+
+@admin_bp.route('/backups/<int:escola_id>/recriar', methods=['POST'])
+@login_required
+@require_permission('admin_access')
+def recriar_backup(escola_id):
+    sucesso, mensagem, _novo_backup_id = recriar_backup_oculto(escola_id)
+    flash(mensagem, 'success' if sucesso else 'error')
     return redirect(url_for('admin.backups'))
 
 
