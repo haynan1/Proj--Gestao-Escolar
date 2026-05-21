@@ -64,6 +64,34 @@ def _normalizar_cargas(cargas):
     return normalizadas
 
 
+def _normalizar_cargas_turma(cargas):
+    normalizadas = []
+    vistos = set()
+    if not cargas:
+        return normalizadas
+
+    for carga in cargas:
+        try:
+            professor_id = int(carga.get('professor_id'))
+            disciplina_id = int(carga.get('disciplina_id'))
+            aulas_semana = int(carga.get('aulas_semana') or 0)
+        except (TypeError, ValueError, AttributeError):
+            continue
+
+        chave = (professor_id, disciplina_id)
+        if aulas_semana < 0 or chave in vistos:
+            continue
+
+        vistos.add(chave)
+        normalizadas.append({
+            'professor_id': professor_id,
+            'disciplina_id': disciplina_id,
+            'aulas_semana': aulas_semana,
+        })
+
+    return normalizadas
+
+
 def _professor_nome_existe(conn, escola_id, turno, nome, ignorar_id=None):
     params = [escola_id, turno, nome.strip()]
     filtro_ignorar = ''
@@ -292,7 +320,7 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
     conn = get_connection()
     try:
         if _professor_nome_existe(conn, escola_id, turno, nome):
-            return False, "Ja existe um professor com esse nome neste turno."
+            return False, "Já existe um professor com esse nome neste turno."
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
         cursor = conn.execute(
             """INSERT INTO professores (escola_id, turno, nome, cor, disciplina_id, max_aulas_semana, dias_disponiveis)
@@ -375,7 +403,7 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
     conn = get_connection()
     try:
         if _professor_nome_existe(conn, escola_id, turno, nome, professor_id):
-            raise ValueError("Ja existe um professor com esse nome neste turno.")
+            raise ValueError("Já existe um professor com esse nome neste turno.")
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
         conn.execute(
             """UPDATE professores
@@ -390,6 +418,103 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
         _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids, turno)
         _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids, turno)
         _sincronizar_cargas_professor(conn, professor_id, escola_id, cargas, turno)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def atualizar_cargas_turma(escola_id, turma_id, cargas, turno=None):
+    turno = normalizar_turno(turno)
+    cargas = _normalizar_cargas_turma(cargas)
+    professor_ids = sorted({carga['professor_id'] for carga in cargas})
+
+    conn = get_connection()
+    try:
+        turma = conn.execute(
+            """SELECT id
+               FROM turmas
+               WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (turma_id, escola_id, turno),
+        ).fetchone()
+        if not turma:
+            raise ValueError("Turma não encontrada neste turno.")
+
+        conn.execute(
+            """DELETE pc
+               FROM professores_cargas pc
+               JOIN professores p ON p.id = pc.professor_id
+               WHERE pc.turma_id = %s
+                 AND p.escola_id = %s
+                 AND p.turno = %s""",
+            (turma_id, escola_id, turno),
+        )
+
+        for carga in cargas:
+            if carga['aulas_semana'] <= 0:
+                continue
+
+            conn.execute(
+                """INSERT INTO professores_cargas (
+                       professor_id,
+                       turma_id,
+                       disciplina_id,
+                       aulas_semana
+                   )
+                   SELECT p.id, t.id, d.id, %s
+                   FROM professores p
+                   JOIN professores_turmas pt
+                     ON pt.professor_id = p.id
+                    AND pt.turma_id = %s
+                   JOIN professores_disciplinas pd
+                     ON pd.professor_id = p.id
+                    AND pd.disciplina_id = %s
+                   JOIN turmas t
+                     ON t.id = pt.turma_id
+                    AND t.escola_id = p.escola_id
+                    AND t.turno = p.turno
+                   JOIN disciplinas d
+                     ON d.id = pd.disciplina_id
+                    AND d.escola_id = p.escola_id
+                    AND d.turno = p.turno
+                   WHERE p.id = %s
+                     AND p.escola_id = %s
+                     AND p.turno = %s""",
+                (
+                    carga['aulas_semana'],
+                    turma_id,
+                    carga['disciplina_id'],
+                    carga['professor_id'],
+                    escola_id,
+                    turno,
+                ),
+            )
+
+        if professor_ids:
+            placeholders = ', '.join(['%s'] * len(professor_ids))
+            rows = conn.execute(
+                f"""SELECT p.id AS professor_id,
+                           COALESCE(SUM(pc.aulas_semana), 0) AS total_aulas
+                    FROM professores p
+                    LEFT JOIN professores_cargas pc ON pc.professor_id = p.id
+                    WHERE p.id IN ({placeholders})
+                      AND p.escola_id = %s
+                      AND p.turno = %s
+                    GROUP BY p.id""",
+                tuple(professor_ids + [escola_id, turno]),
+            ).fetchall()
+
+            for row in rows:
+                total_aulas = int(row.get('total_aulas') or 0)
+                conn.execute(
+                    """UPDATE professores
+                       SET max_aulas_semana = %s
+                       WHERE id = %s AND escola_id = %s AND turno = %s""",
+                    (total_aulas if total_aulas > 0 else 10, row['professor_id'], escola_id, turno),
+                )
+
         conn.commit()
     except Exception:
         conn.rollback()

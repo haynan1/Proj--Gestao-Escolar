@@ -12,6 +12,18 @@
     font-weight: 700;
 }
 
+.dashboard-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.dashboard-header-actions form {
+    margin: 0;
+}
+
 /* Substituição de estilos inline do dashboard.html */
 .dashboard-swatches {
     display: flex;
@@ -282,6 +294,164 @@
     color: #f87171;
 }
 
+.class-dashboard-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.class-dashboard-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.class-dashboard-header h2 {
+    font-size: 1.05rem;
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+}
+
+.class-dashboard-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.class-dashboard-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg3);
+    overflow: hidden;
+}
+
+.class-dashboard-card summary {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr);
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.class-dashboard-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.class-dashboard-card summary::before {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-weight: 900;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+}
+
+.class-dashboard-card[open] summary::before {
+    content: "-";
+}
+
+.class-dashboard-name {
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 800;
+    min-width: 0;
+    padding-left: 2.1rem;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.class-dashboard-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(92px, 1fr)) auto;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.class-dashboard-metrics > span:not(.balance-badge) {
+    display: grid;
+    gap: 0.12rem;
+    min-height: 44px;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.16);
+}
+
+.class-dashboard-metrics small {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.class-dashboard-metrics strong {
+    color: var(--text);
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.class-dashboard-body {
+    padding: 0 1rem 1rem;
+}
+
+.class-dashboard-table table {
+    min-width: 620px;
+}
+
+.class-dashboard-table tfoot th {
+    background: rgba(15, 23, 42, 0.18);
+    color: var(--text);
+    font-weight: 800;
+}
+
+.class-load-form {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.class-load-input {
+    width: 96px;
+    min-width: 96px;
+}
+
+.class-load-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.class-load-actions .btn {
+    flex: 0 0 auto;
+}
+
+.class-dashboard-note {
+    margin-top: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(234, 179, 8, 0.24);
+    border-radius: 8px;
+    background: rgba(234, 179, 8, 0.09);
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+.class-dashboard-note strong {
+    color: #facc15;
+}
+
 .carga-grid {
     max-height: 260px;
     overflow: auto;
@@ -413,6 +583,12 @@
         justify-content: center;
     }
 
+    .dashboard-header-actions,
+    .dashboard-header-actions form,
+    .dashboard-header-actions .btn {
+        width: 100%;
+    }
+
     .dashboard-header-title {
         font-size: 1.35rem;
         line-height: 1.2;
@@ -425,7 +601,8 @@
     }
 
     .card,
-    .schedule-balance-panel {
+    .schedule-balance-panel,
+    .class-dashboard-panel {
         padding: 1rem;
         border-radius: 10px;
     }
@@ -513,7 +690,43 @@
         border-spacing: 0;
     }
 
+    .class-dashboard-card summary {
+        grid-template-columns: 1fr;
+        align-items: start;
+        gap: 0.7rem;
+        padding: 0.75rem 0.85rem;
+    }
+
+    .class-dashboard-name {
+        grid-column: 1;
+    }
+
+    .class-dashboard-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-column: 1;
+        width: 100%;
+    }
+
+    .class-dashboard-metrics .balance-badge {
+        justify-self: start;
+    }
+
+    .class-dashboard-body {
+        padding: 0 0.85rem 0.85rem;
+    }
+
+    .class-load-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .class-load-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
     .schedule-balance-table table,
+    .class-dashboard-table table,
     .professores-table,
     .compact-resource-table {
         min-width: 0;
@@ -625,6 +838,7 @@
     }
 
     .schedule-balance-panel,
+    .class-dashboard-panel,
     .card {
         padding: 0.85rem;
     }

@@ -36,7 +36,7 @@ def criar_turma(escola_id, nome, aulas_por_dia=5, turno=None):
     conn = get_connection()
     try:
         if _turma_nome_existe(conn, escola_id, turno, nome):
-            return False, "Ja existe uma turma com esse nome neste turno."
+            return False, "Já existe uma turma com esse nome neste turno."
         conn.execute(
             "INSERT INTO turmas (escola_id, turno, nome, aulas_por_dia) VALUES (%s, %s, %s, %s)",
             (escola_id, turno, nome, aulas_por_dia)
@@ -80,7 +80,7 @@ def atualizar_turma(turma_id, escola_id, nome, aulas_por_dia=5, turno=None):
     conn = get_connection()
     try:
         if _turma_nome_existe(conn, escola_id, turno, nome, turma_id):
-            raise ValueError("Ja existe uma turma com esse nome neste turno.")
+            raise ValueError("Já existe uma turma com esse nome neste turno.")
         conn.execute(
             """UPDATE turmas
                SET nome = %s,

@@ -50,6 +50,7 @@ from models.professor import (
     CORES_PROFESSOR,
     COR_PROFESSOR_PADRAO,
     atualizar_professor,
+    atualizar_cargas_turma,
     criar_professor,
     deletar_professor,
     listar_professores,
@@ -142,6 +143,85 @@ def _build_horario_balance(turmas, professores):
         'total_status_label': total_status_label,
         'turmas': turmas_balance,
     }
+
+
+def _build_turma_dashboard(turmas, professores, horario_balance):
+    balance_por_turma = {
+        turma['id']: turma
+        for turma in horario_balance.get('turmas', [])
+    }
+    dashboard_por_turma = {}
+
+    for turma in turmas:
+        balance = balance_por_turma.get(turma['id'], {})
+        dashboard_por_turma[turma['id']] = {
+            'id': turma['id'],
+            'nome': turma['nome'],
+            'aulas_por_dia': int(turma.get('aulas_por_dia') or 5),
+            'permitido': balance.get('permitido', 0),
+            'total_aulas': balance.get('cadastrado', 0),
+            'diferenca': balance.get('diferenca', 0),
+            'status': balance.get('status', 'ok'),
+            'status_label': balance.get('status_label', 'Completo'),
+            'professor_ids': set(),
+            'professor_vinculo_ids': set(),
+            'cargas': [],
+            'professores_sem_carga': [],
+        }
+
+    for professor in professores:
+        professor_id = professor.get('id')
+        for turma_id in professor.get('turma_ids', []):
+            turma_dashboard = dashboard_por_turma.get(turma_id)
+            if turma_dashboard is not None:
+                turma_dashboard['professor_vinculo_ids'].add(professor_id)
+
+        for carga in professor.get('cargas_lista', []):
+            turma_id = carga.get('turma_id')
+            turma_dashboard = dashboard_por_turma.get(turma_id)
+            if turma_dashboard is None:
+                continue
+
+            aulas_semana = int(carga.get('aulas_semana') or 0)
+            if aulas_semana <= 0:
+                continue
+
+            turma_dashboard['professor_ids'].add(professor_id)
+            turma_dashboard['cargas'].append({
+                'professor_id': professor_id,
+                'professor_nome': professor.get('nome') or '-',
+                'professor_cor': professor.get('cor'),
+                'disciplina_id': carga.get('disciplina_id'),
+                'disciplina_nome': carga.get('disciplina_nome') or '-',
+                'disciplina_cor': carga.get('disciplina_cor'),
+                'aulas_semana': aulas_semana,
+            })
+
+
+    professores_por_id = {professor.get('id'): professor for professor in professores}
+    turma_dashboard = []
+    for turma in turmas:
+        item = dashboard_por_turma[turma['id']]
+        sem_carga_ids = item['professor_vinculo_ids'] - item['professor_ids']
+        item['total_professores'] = len(item['professor_ids'])
+        item['total_vinculados'] = len(item['professor_vinculo_ids'])
+        item['professores_sem_carga'] = [
+            professores_por_id[professor_id].get('nome') or '-'
+            for professor_id in sorted(
+                sem_carga_ids,
+                key=lambda pid: (professores_por_id.get(pid, {}).get('nome') or '').lower(),
+            )
+            if professor_id in professores_por_id
+        ]
+        item['cargas'].sort(key=lambda carga: (
+            carga['professor_nome'].lower(),
+            carga['disciplina_nome'].lower(),
+        ))
+        item['professor_ids'] = sorted(item['professor_ids'])
+        item['professor_vinculo_ids'] = sorted(item['professor_vinculo_ids'])
+        turma_dashboard.append(item)
+
+    return turma_dashboard
 
 
 def _build_ai_audit_text(escola, turno_id, turno_label, horario_balance, professores):
@@ -247,6 +327,34 @@ def _parse_cargas_professor(form):
         if aulas_semana > 0:
             cargas.append({
                 'turma_id': turma_id,
+                'disciplina_id': disciplina_id,
+                'aulas_semana': aulas_semana,
+            })
+
+    return cargas
+
+
+def _parse_cargas_turma(form):
+    cargas = []
+    prefixo = 'aulas_turma_'
+    for nome_campo, valor in form.items():
+        if not nome_campo.startswith(prefixo):
+            continue
+
+        partes = nome_campo[len(prefixo):].split('_')
+        if len(partes) != 2:
+            continue
+
+        try:
+            professor_id = int(partes[0])
+            disciplina_id = int(partes[1])
+            aulas_semana = int(valor or 0)
+        except ValueError:
+            continue
+
+        if aulas_semana >= 0:
+            cargas.append({
+                'professor_id': professor_id,
                 'disciplina_id': disciplina_id,
                 'aulas_semana': aulas_semana,
             })
@@ -841,6 +949,15 @@ def _guard_school(escola_id, permission='view_school', json_response=False):
     return escola, None
 
 
+def _dashboard_resource_locked(escola, turno):
+    return horario_turno_travado(escola, turno)
+
+
+def _redirect_dashboard_locked(escola_id, anchor='turma-dashboard'):
+    flash('Alterações travadas para este turno. Destrave antes de editar.', 'error')
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor=anchor))
+
+
 @dashboard_bp.route('/escola/<int:escola_id>/dashboard')
 @login_required
 def dashboard(escola_id):
@@ -853,6 +970,8 @@ def dashboard(escola_id):
     professores = listar_professores(escola_id, turno_atual)
     turmas = listar_turmas(escola_id, turno_atual)
     horario_balance = _build_horario_balance(turmas, professores)
+    turma_dashboard = _build_turma_dashboard(turmas, professores, horario_balance)
+    alteracoes_travadas = _dashboard_resource_locked(escola, turno_atual)
     turno_atual_label = _turno_label(turno_atual)
     ai_audit_text = _build_ai_audit_text(escola, turno_atual, turno_atual_label, horario_balance, professores)
     return render_template(
@@ -865,6 +984,8 @@ def dashboard(escola_id):
         turno_atual=turno_atual,
         turno_atual_label=turno_atual_label,
         horario_balance=horario_balance,
+        turma_dashboard=turma_dashboard,
+        alteracoes_travadas=alteracoes_travadas,
         ai_audit_text=ai_audit_text,
         dias_semana=DIAS_SEMANA,
         cores_professor=CORES_PROFESSOR,
@@ -1147,6 +1268,8 @@ def criar_disc(escola_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'disciplinas')
 
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '#22c55e').strip()
@@ -1164,6 +1287,8 @@ def editar_disc(escola_id, disc_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'disciplinas')
 
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '#22c55e').strip()
@@ -1182,6 +1307,8 @@ def deletar_disc(escola_id, disc_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'disciplinas')
 
     try:
         deletar_disciplina(disc_id, escola['id'])
@@ -1197,6 +1324,8 @@ def criar_prof(escola_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'professores')
 
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '').strip()
@@ -1227,6 +1356,8 @@ def editar_prof(escola_id, prof_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'professores')
 
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '').strip()
@@ -1246,7 +1377,7 @@ def editar_prof(escola_id, prof_id):
         except ValueError as exc:
             flash(str(exc), 'error')
     else:
-        flash('Preencha nome, disciplinas, dias disponiveis e pelo menos uma turma.', 'error')
+        flash('Preencha nome, disciplinas, dias disponíveis e pelo menos uma turma.', 'error')
     return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
 
 
@@ -1256,6 +1387,8 @@ def deletar_prof(escola_id, prof_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'professores')
 
     deletar_professor(prof_id, escola['id'])
     flash('Professor removido.', 'success')
@@ -1268,6 +1401,8 @@ def criar_turm(escola_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'turmas')
 
     nome = request.form.get('nome', '').strip()
     aulas_por_dia = request.form.get('aulas_por_dia', 5)
@@ -1285,6 +1420,8 @@ def editar_turm(escola_id, turma_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'turmas')
 
     nome = request.form.get('nome', '').strip()
     aulas_por_dia = request.form.get('aulas_por_dia', 5)
@@ -1297,12 +1434,54 @@ def editar_turm(escola_id, turma_id):
     return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='turmas'))
 
 
+@dashboard_bp.route('/escola/<int:escola_id>/turma/<int:turma_id>/cargas', methods=['POST'])
+@login_required
+def editar_cargas_turma(escola_id, turma_id):
+    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
+    if failure:
+        return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'turma-dashboard')
+
+    try:
+        atualizar_cargas_turma(escola['id'], turma_id, _parse_cargas_turma(request.form), _active_turno())
+        flash('Aulas da turma atualizadas.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'error')
+    except Exception:
+        current_app.logger.exception('Erro ao atualizar cargas da turma %s da escola %s.', turma_id, escola['id'])
+        flash('Não foi possível atualizar as aulas da turma agora.', 'error')
+
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='turma-dashboard'))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/dashboard/trava', methods=['POST'])
+@login_required
+def alternar_trava_dashboard(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    travar = request.form.get('acao') != 'destravar'
+    definir_horario_turno_travado(escola['id'], turno_atual, travar)
+    flash(
+        'Alterações travadas para este turno.'
+        if travar else
+        'Alterações destravadas para este turno.',
+        'success',
+    )
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, turno=turno_atual))
+
+
 @dashboard_bp.route('/escola/<int:escola_id>/turma/<int:turma_id>/deletar', methods=['POST'])
 @login_required
 def deletar_turm(escola_id, turma_id):
     escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'turmas')
 
     deletar_turma(turma_id, escola['id'])
     flash('Turma removida.', 'success')

@@ -45,6 +45,7 @@
 
 {% set can_manage_resources = has_permission('manage_school_resources') %}
 {% set can_manage_schedule = has_permission('manage_schedule') %}
+{% set can_edit_resources = can_manage_resources and not alteracoes_travadas %}
 {% macro edit_icon() -%}
 <svg class="btn-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
     <path d="M12 20h9" />
@@ -70,9 +71,23 @@
                 {% endif %}
             </p>
         </div>
-        <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}" class="btn btn-primary">
-            Gerar e ver horários de aulas
-        </a>
+        <div class="dashboard-header-actions">
+            {% if can_manage_resources %}
+            <form method="POST"
+                action="{{ url_for('dashboard.alternar_trava_dashboard', escola_id=escola.id, turno=turno_atual) }}"
+                onsubmit="return confirm('{{ 'Destravar alterações deste turno?' if alteracoes_travadas else 'Travar alterações deste turno?' }}')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="turno" value="{{ turno_atual }}">
+                <input type="hidden" name="acao" value="{{ 'destravar' if alteracoes_travadas else 'travar' }}">
+                <button type="submit" class="btn {% if alteracoes_travadas %}btn-danger{% else %}btn-secondary{% endif %}">
+                    {{ 'Destravar alterações' if alteracoes_travadas else 'Travar alterações' }}
+                </button>
+            </form>
+            {% endif %}
+            <a href="{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual) }}" class="btn btn-primary">
+                Gerar e ver horários de aulas
+            </a>
+        </div>
     </div>
 
     <nav class="turno-switcher" aria-label="Selecionar turno">
@@ -178,6 +193,129 @@
         {% endif %}
     </section>
 
+    <section class="class-dashboard-panel" id="turma-dashboard" aria-labelledby="class-dashboard-title">
+        <div class="class-dashboard-header">
+            <div>
+                <h2 id="class-dashboard-title">Visão por turma</h2>
+                <p class="text-muted text-sm">Abra uma turma para conferir apenas os professores e cargas dela.</p>
+            </div>
+        </div>
+
+        {% if turma_dashboard %}
+        <div class="class-dashboard-list">
+            {% for turma_info in turma_dashboard %}
+            <details class="class-dashboard-card">
+                <summary>
+                    <span class="class-dashboard-name">{{ turma_info.nome }}</span>
+                    <span class="class-dashboard-metrics">
+                        <span>
+                            <small>Professores</small>
+                            <strong>{{ turma_info.total_professores }}</strong>
+                        </span>
+                        <span>
+                            <small>Aulas</small>
+                            <strong>{{ turma_info.total_aulas }}</strong>
+                        </span>
+                        <span>
+                            <small>Diferença</small>
+                            <strong>{% if turma_info.diferenca > 0 %}+{% endif %}{{ turma_info.diferenca }}</strong>
+                        </span>
+                        <span class="balance-badge balance-badge-{{ turma_info.status }}">
+                            {{ turma_info.status_label }}
+                        </span>
+                    </span>
+                </summary>
+
+                <div class="class-dashboard-body">
+                    {% if turma_info.cargas %}
+                    <form method="POST"
+                        action="{{ url_for('dashboard.editar_cargas_turma', escola_id=escola.id, turma_id=turma_info.id, turno=turno_atual) }}"
+                        class="class-load-form">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <div class="table-wrap class-dashboard-table">
+                        <table class="responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Professor</th>
+                                    <th>Disciplina</th>
+                                    <th>Aulas/semana</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for carga in turma_info.cargas %}
+                                <tr>
+                                    <td data-label="Professor">
+                                        <div class="professor-identity">
+                                            {% if carga.professor_cor %}
+                                            <span class="professor-color-dot dot-dynamic" data-color="{{ carga.professor_cor }}"></span>
+                                            {% else %}
+                                            <span class="professor-color-dot color-dot-empty" title="Sem cor"></span>
+                                            {% endif %}
+                                            <span class="professor-name">{{ carga.professor_nome }}</span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Disciplina">
+                                        <span class="badge {% if carga.disciplina_cor %}badge-dynamic{% else %}badge-empty{% endif %}"
+                                            {% if carga.disciplina_cor %}data-color="{{ carga.disciplina_cor }}"{% endif %}>
+                                            {% if carga.disciplina_cor %}
+                                            <span class="color-dot dot-dynamic" data-color="{{ carga.disciplina_cor }}"></span>
+                                            {% else %}
+                                            <span class="color-dot color-dot-empty"></span>
+                                            {% endif %}
+                                            {{ carga.disciplina_nome }}
+                                        </span>
+                                    </td>
+                                    <td data-label="Aulas/semana">
+                                        {% if can_edit_resources %}
+                                        <input type="number"
+                                            class="form-control class-load-input"
+                                            name="aulas_turma_{{ carga.professor_id }}_{{ carga.disciplina_id }}"
+                                            value="{{ carga.aulas_semana }}"
+                                            min="0"
+                                            max="{{ turma_info.permitido or 30 }}">
+                                        {% else %}
+                                        {{ carga.aulas_semana }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="2">Total da turma</th>
+                                    <th>{{ turma_info.total_aulas }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% if can_edit_resources %}
+                    <div class="class-load-actions">
+                        <span class="text-muted text-sm">Alterações aqui atualizam a mesma carga exibida em Professores.</span>
+                        <button type="submit" class="btn btn-primary btn-sm">Salvar aulas da turma</button>
+                    </div>
+                    {% endif %}
+                    </form>
+                    {% else %}
+                    <p class="text-muted text-sm dashboard-empty-msg">
+                        Nenhuma aula cadastrada para esta turma. Adicione novas cargas pela aba de Professores.
+                    </p>
+                    {% endif %}
+
+                    {% if turma_info.professores_sem_carga %}
+                    <div class="class-dashboard-note">
+                        <strong>Vinculados sem carga:</strong>
+                        {{ turma_info.professores_sem_carga | join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted text-sm dashboard-empty-msg">Cadastre turmas para visualizar a conferência por turma.</p>
+        {% endif %}
+    </section>
+
     <div class="dashboard-grid">
         <div class="card disciplinas-card" id="disciplinas">
             <div class="card-header">
@@ -185,7 +323,7 @@
                     <img class="icon resource-icon" src="{{ static_url('favicon/diciplina.ico') }}" alt="" aria-hidden="true">
                     Disciplinas
                 </div>
-                {% if can_manage_resources %}
+                {% if can_edit_resources %}
                 <button class="btn btn-primary btn-sm" onclick="openModal('modal-disc')">+ Adicionar</button>
                 {% endif %}
             </div>
@@ -202,7 +340,7 @@
                         {% endif %}
                         <span class="disciplina-name">{{ d.nome }}</span>
                     </div>
-                    {% if can_manage_resources %}
+                    {% if can_edit_resources %}
                     <div class="disciplina-actions">
                         <button class="btn btn-secondary btn-sm btn-icon btn-edit-disc" title="Editar"
                             aria-label="Editar disciplina {{ d.nome }}"
@@ -231,7 +369,7 @@
                     <img class="icon resource-icon" src="{{ static_url('favicon/turma.ico') }}" alt="" aria-hidden="true">
                     Turmas
                 </div>
-                {% if can_manage_resources %}
+                {% if can_edit_resources %}
                 <button class="btn btn-primary btn-sm" onclick="openModal('modal-turma')">+ Adicionar</button>
                 {% endif %}
             </div>
@@ -242,7 +380,7 @@
                         <tr>
                             <th>Nome</th>
                             <th>Aulas/dia</th>
-                            {% if can_manage_resources %}<th style="width:80px;">Ações</th>{% endif %}
+                            {% if can_edit_resources %}<th style="width:80px;">Ações</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -250,7 +388,7 @@
                         <tr>
                             <td data-label="Nome">{{ t.nome }}</td>
                             <td data-label="Aulas/dia">{{ t.aulas_por_dia or 5 }}</td>
-                            {% if can_manage_resources %}
+                            {% if can_edit_resources %}
                             <td data-label="Ações">
                                 <div class="flex gap-2">
                                     <button class="btn btn-secondary btn-sm btn-icon btn-edit-turma" title="Editar"
@@ -289,7 +427,7 @@
                 </div>
                 <p class="text-muted text-sm mt-1">Consulte vínculos e cargas com mais espaço para leitura.</p>
             </div>
-            {% if can_manage_resources %}
+            {% if can_edit_resources %}
             <button class="btn btn-primary btn-sm" onclick="openModal('modal-prof')" {% if not disciplinas or not
                 turmas %}disabled title="Cadastre disciplinas e turmas primeiro" {% endif %}>
                 + Adicionar
@@ -305,7 +443,7 @@
                         <th>Disciplinas</th>
                         <th>Turmas</th>
                         <th>Aulas do professor</th>
-                        {% if can_manage_resources %}<th>Ações</th>{% endif %}
+                        {% if can_edit_resources %}<th>Ações</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -352,7 +490,7 @@
                             <span class="text-muted">Sem detalhamento</span>
                             {% endif %}
                         </td>
-                        {% if can_manage_resources %}
+                        {% if can_edit_resources %}
                         <td data-label="Ações">
                             <div class="flex gap-2 professores-actions">
                                 <button class="btn btn-secondary btn-sm btn-icon btn-edit-prof" title="Editar"

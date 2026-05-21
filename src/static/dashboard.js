@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboardScrollKey = `flowter:dashboard-scroll:${escolaId || 'default'}:${turno}`;
 
     const getResourceTargetFromAction = (action = '') => {
+        if (action.includes('/turma/') && action.includes('/cargas')) return 'turma-dashboard';
         if (action.includes('/professor/')) return 'professores';
         if (action.includes('/disciplina/')) return 'disciplinas';
         if (action.includes('/turma/')) return 'turmas';

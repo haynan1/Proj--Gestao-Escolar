@@ -44,7 +44,7 @@ def criar_disciplina(escola_id, nome, cor, turno=None):
     conn = get_connection()
     try:
         if _disciplina_nome_existe(conn, escola_id, turno, nome):
-            return False, "Ja existe uma disciplina com esse nome neste turno."
+            return False, "Já existe uma disciplina com esse nome neste turno."
         conn.execute(
             "INSERT INTO disciplinas (escola_id, turno, nome, cor) VALUES (%s, %s, %s, %s)",
             (escola_id, turno, nome, _normalizar_cor(cor))
@@ -87,7 +87,7 @@ def atualizar_disciplina(disciplina_id, escola_id, nome, cor, turno=None):
     conn = get_connection()
     try:
         if _disciplina_nome_existe(conn, escola_id, turno, nome, disciplina_id):
-            raise ValueError("Ja existe uma disciplina com esse nome neste turno.")
+            raise ValueError("Já existe uma disciplina com esse nome neste turno.")
         conn.execute(
             "UPDATE disciplinas SET nome = %s, cor = %s WHERE id = %s AND escola_id = %s AND turno = %s",
             (nome, _normalizar_cor(cor), disciplina_id, escola_id, turno)
