@@ -196,6 +196,30 @@ TABLE_STATEMENTS = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
+    CREATE TABLE IF NOT EXISTS grade_sugestao (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        escola_id INT NOT NULL,
+        turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
+        turma_id INT NOT NULL,
+        professor_id INT NOT NULL,
+        disciplina_id INT NOT NULL,
+        dia VARCHAR(20) NOT NULL,
+        periodo INT NOT NULL,
+        tem_conflito TINYINT(1) NOT NULL DEFAULT 0,
+        gerado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_grade_sugestao_turma_slot (turma_id, dia, periodo),
+        KEY idx_grade_sugestao_escola_turno (escola_id, turno),
+        CONSTRAINT fk_grade_sugestao_escola
+            FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
+        CONSTRAINT fk_grade_sugestao_turma
+            FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE,
+        CONSTRAINT fk_grade_sugestao_professor
+            FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE,
+        CONSTRAINT fk_grade_sugestao_disciplina
+            FOREIGN KEY (disciplina_id) REFERENCES disciplinas(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    """
     CREATE TABLE IF NOT EXISTS relatorios_professores (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
@@ -584,6 +608,7 @@ def _ensure_turno_columns(cursor):
         ('professores', 'escola_id'),
         ('aulas', 'escola_id'),
         ('horarios_temporarios', 'escola_id'),
+        ('grade_sugestao', 'escola_id'),
         ('relatorios_professores', 'escola_id'),
         ('prontuarios_alunos', 'escola_id'),
     )

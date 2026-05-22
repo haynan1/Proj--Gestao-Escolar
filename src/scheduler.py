@@ -531,6 +531,66 @@ def montar_horario_gerado(
     return True, f"Horário gerado com sucesso! {len(aulas_geradas)} aulas distribuídas.", aulas_geradas
 
 
+def gerar_sugestao(escola_id, turno=None):
+    """
+    Gera uma sugestão de grade completa relaxando todos os dias de disponibilidade dos professores.
+    Salva em grade_sugestao sem tocar no horário oficial.
+    Retorna (sucesso: bool, mensagem: str, total: int, ajustes: list)
+    """
+    from models.sugestao import salvar_sugestao
+
+    turno = normalizar_turno(turno)
+    professores = listar_professores(escola_id, turno)
+    turmas = listar_turmas(escola_id, turno)
+    disciplinas = listar_disciplinas(escola_id, turno)
+
+    if not professores:
+        return False, "Cadastre pelo menos um professor antes de gerar a sugestão.", 0, []
+    if not turmas:
+        return False, "Cadastre pelo menos uma turma antes de gerar a sugestão.", 0, []
+    if not disciplinas:
+        return False, "Cadastre pelo menos uma disciplina antes de gerar a sugestão.", 0, []
+
+    professor_original_dias = {p['id']: set(p.get('dias_lista') or []) for p in professores}
+    professor_ids_todos = {p['id'] for p in professores}
+    professores_ext = _professores_com_dias_estendidos(professores, professor_ids_todos)
+    professores_por_id = {p['id']: p for p in professores_ext}
+
+    demandas = _demandas_detalhadas(professores_ext, turmas, disciplinas)
+    if not demandas:
+        return False, "Nenhuma carga cadastrada para os professores.", 0, []
+
+    melhor_grade, _, melhor_total, total_esperado = _tentar_gerar(
+        professores_ext, turmas, disciplinas, demandas, None, None, 0,
+    )
+
+    if melhor_total == 0:
+        return False, "Não foi possível gerar nenhuma aula para a sugestão.", 0, []
+
+    aulas_geradas = _montar_aulas_geradas(melhor_grade, [t['id'] for t in turmas])
+
+    ocupacao = {}
+    for a in aulas_geradas:
+        key = (a['professor_id'], a['dia'], a['periodo'])
+        ocupacao[key] = ocupacao.get(key, 0) + 1
+
+    for a in aulas_geradas:
+        dias_orig = professor_original_dias.get(a['professor_id'], set())
+        key = (a['professor_id'], a['dia'], a['periodo'])
+        a['tem_conflito'] = ocupacao.get(key, 0) > 1 or a['dia'] not in dias_orig
+
+    ajustes = _extrair_ajustes(melhor_grade, professores_por_id)
+    salvar_sugestao(escola_id, aulas_geradas, turno)
+
+    completo = melhor_total >= total_esperado
+    msg = (
+        f"Sugestão gerada! {len(aulas_geradas)} aulas distribuídas."
+        if completo
+        else f"Sugestão parcial: {melhor_total} de {total_esperado} aulas distribuídas."
+    )
+    return True, msg, len(aulas_geradas), ajustes
+
+
 def gerar_horario(escola_id, turma_id_especifica=None, turno=None, completar_apenas=False, ajuste_minimo=False):
     """
     Gera automaticamente a grade de horários para uma escola ou turma específica.

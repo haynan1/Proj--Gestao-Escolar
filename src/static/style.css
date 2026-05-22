@@ -1025,6 +1025,157 @@ body {
     font-weight: 800;
 }
 
+.admin-db-export-card {
+    overflow: hidden;
+}
+
+.admin-db-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    list-style: none;
+    border-bottom: 1px solid transparent;
+}
+
+.admin-db-summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-db-summary > div {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.admin-db-summary-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 78px;
+    padding: 0.45rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(96, 165, 250, 0.12);
+    border: 1px solid rgba(96, 165, 250, 0.22);
+    color: #bfdbfe;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.admin-db-export-card[open] .admin-db-summary {
+    border-bottom-color: var(--border);
+}
+
+.admin-db-export-card[open] .admin-db-summary-action {
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.28);
+    color: var(--green-light);
+}
+
+.admin-db-export-card[open] .admin-db-summary-action::before {
+    content: "Fechar";
+}
+
+.admin-db-export-card[open] .admin-db-summary-action {
+    font-size: 0;
+}
+
+.admin-db-export-card[open] .admin-db-summary-action::before {
+    font-size: 0.78rem;
+}
+
+.admin-db-warning {
+    margin: 0 0 1rem;
+}
+
+.admin-db-export-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.admin-db-export-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+}
+
+.admin-db-export-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    padding: 0.4rem 0.7rem;
+    border-radius: 8px;
+    background: rgba(96, 165, 250, 0.14);
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    color: #bfdbfe;
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.admin-db-local-guide {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.admin-db-guide-step {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    padding: 0.95rem;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.22);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.admin-db-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.16);
+    border: 1px solid rgba(34, 197, 94, 0.28);
+    color: var(--green-light);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.admin-db-guide-step strong {
+    display: block;
+    color: var(--text);
+    font-size: 0.86rem;
+    margin-bottom: 0.35rem;
+}
+
+.admin-db-guide-step p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+.admin-db-command {
+    display: block;
+    width: 100%;
+    margin-top: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    background: rgba(2, 6, 23, 0.42);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    color: #dbeafe;
+    font-size: 0.76rem;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
@@ -2143,6 +2294,30 @@ tr:hover td {
         justify-content: center;
     }
 
+    .admin-db-export-row,
+    .admin-db-export-info {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-db-summary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-db-summary-action {
+        width: 100%;
+    }
+
+    .admin-db-export-row .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .admin-db-local-guide {
+        grid-template-columns: 1fr;
+    }
+
     .backup-row-actions {
         display: grid;
         grid-template-columns: 1fr;
@@ -2398,6 +2573,35 @@ tr:hover td {
 [data-theme="light"] .backup-guidance {
     background: #eff6ff;
     border-color: #bfdbfe;
+}
+
+[data-theme="light"] .admin-db-export-badge {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+}
+
+[data-theme="light"] .admin-db-summary-action {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+}
+
+[data-theme="light"] .admin-db-export-card[open] .admin-db-summary-action {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+[data-theme="light"] .admin-db-guide-step {
+    background: #f8fafc;
+    border-color: #d8e0ea;
+}
+
+[data-theme="light"] .admin-db-command {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #1e293b;
 }
 
 [data-theme="light"] .escola-card-icon,

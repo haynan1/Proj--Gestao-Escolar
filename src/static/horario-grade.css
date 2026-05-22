@@ -306,6 +306,38 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
     font-weight: 800;
 }
 
+.schedule-class-title-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.schedule-completar-form {
+    display: flex;
+}
+
+.schedule-completar-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 5px;
+    background: transparent;
+    color: rgba(34, 197, 94, 0.6);
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    flex-shrink: 0;
+}
+
+.schedule-completar-icon-btn:hover {
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.65);
+    background: rgba(34, 197, 94, 0.08);
+}
+
 .schedule-temporary-badge {
     display: grid;
     gap: 0.1rem;
@@ -1319,6 +1351,81 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
     border-color: rgba(34, 197, 94, 0.6);
 }
 
+.schedule-menu-action--suggestion {
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.schedule-menu-action--suggestion:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.6);
+}
+
+.schedule-sugestao-card {
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.schedule-sugestao-badge {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.schedule-sugestao-banner {
+    border-color: rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.schedule-view-toggle-suggestion {
+    color: #f59e0b;
+}
+
+.schedule-view-toggle-suggestion.active {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.aula-card-sugestao {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 6px;
+    padding: 0.35rem 0.45rem;
+    cursor: default;
+}
+
+.aula-card-sugestao-conflito {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 6px;
+    padding: 0.35rem 0.45rem;
+    cursor: default;
+}
+
+.aula-card-sugestao .disc-nome,
+.aula-card-sugestao-conflito .disc-nome {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+.aula-card-sugestao .prof-nome,
+.aula-card-sugestao-conflito .prof-nome {
+    font-size: 0.65rem;
+    line-height: 1.2;
+    margin-top: 0.15rem;
+}
+
+.schedule-sugestao-conflict-badge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #ef4444;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.15rem;
+}
+
 .schedule-menu-action--warn {
     color: #f59e0b;
     border-color: rgba(245, 158, 11, 0.35);
@@ -1965,8 +2072,12 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
 }
 
 .schedule-legend-dot.legend-unavailable {
-    color: #64748b;
-    background: rgba(100, 116, 139, 0.18);
+    background: rgba(139, 92, 246, 0.22);
+    border: 1.5px solid rgba(139, 92, 246, 0.6);
+}
+
+.legend-item-unavailable {
+    color: #a78bfa;
 }
 
 [data-theme="light"] .schedule-drag-legend {
@@ -2357,6 +2468,10 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
         gap: 0.25rem;
     }
 
+    .schedule-class-title-right {
+        gap: 0.5rem;
+    }
+
     .grade-container {
         overflow: visible;
     }
@@ -2547,18 +2662,22 @@ img.card-horarios-empty-icon {
 
 .conflict-label {
     position: absolute;
-    top: -20px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 0;
+    left: 0;
+    right: 0;
     background: #ef4444;
     color: white;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 4px;
+    border-radius: 4px 4px 0 0;
     white-space: nowrap;
-    z-index: 100;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    z-index: 10;
     pointer-events: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    letter-spacing: 0.02em;
 }
 
 .grade-cell.professor-busy .conflict-label {
@@ -2573,15 +2692,37 @@ img.card-horarios-empty-icon {
     background: #f97316;
 }
 
-.grade-cell.conflict-busy::after {
-    content: '!';
+.grade-cell.conflict-busy::after,
+.grade-cell.swap-conflict::after,
+.grade-cell.professor-busy::after {
+    content: '⚠';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.5rem;
-    opacity: 0.3;
+    top: 18px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.9rem;
     pointer-events: none;
+    z-index: 20;
+    border-radius: 0 0 5px 5px;
+}
+
+.grade-cell.conflict-busy::after {
+    color: #fecaca;
+    background: rgba(185, 28, 28, 0.78);
+}
+
+.grade-cell.swap-conflict::after {
+    color: #fed7aa;
+    background: rgba(194, 65, 12, 0.78);
+}
+
+.grade-cell.professor-busy::after {
+    color: #bfdbfe;
+    background: rgba(29, 78, 216, 0.78);
 }
 
 .grade-cell .cross-class-label {
@@ -2590,22 +2731,40 @@ img.card-horarios-empty-icon {
 
 /* Professor unavailable days */
 .grade-cell.professor-unavailable {
-    background-color: rgba(100, 116, 139, 0.08) !important;
-    border: 2px dashed rgba(100, 116, 139, 0.3) !important;
+    background-color: rgba(139, 92, 246, 0.07) !important;
+    border: 2px dashed rgba(139, 92, 246, 0.5) !important;
     position: relative;
-    overflow: visible;
+    overflow: hidden;
     cursor: not-allowed;
 }
 
 .grade-cell.professor-unavailable .unavailable-label {
-    background: #475569;
+    background: #7c3aed;
+}
+
+.grade-cell.professor-unavailable::after {
+    content: '⚠';
+    position: absolute;
+    top: 18px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.9rem;
+    pointer-events: none;
+    z-index: 20;
+    border-radius: 0 0 5px 5px;
+    color: #ddd6fe;
+    background: rgba(109, 40, 217, 0.78);
 }
 
 th[data-day-header].day-unavailable {
-    color: #94a3b8 !important;
-    opacity: 0.55;
+    color: #a78bfa !important;
+    opacity: 0.7;
     text-decoration: line-through;
-    text-decoration-color: rgba(148, 163, 184, 0.5);
+    text-decoration-color: rgba(139, 92, 246, 0.5);
 }
 
 .aula-card.dragging {

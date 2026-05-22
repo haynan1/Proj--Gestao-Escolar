@@ -105,38 +105,74 @@
         {% endif %}
     </div>
 
-    <div class="card mt-4">
-        <div class="card-header">
+    <details class="card mt-4 admin-db-export-card">
+        <summary class="admin-db-summary">
             <div>
-                <div class="card-title">Exportar banco de dados</div>
-                <p class="text-muted text-sm mt-1">
-                    Gera um dump SQL completo — ideal para restaurar o banco em localhost ou fazer backup manual.
-                    O arquivo contém todas as tabelas e dados, incluindo usuários com senhas em hash.
-                </p>
+                <span class="card-title">Exportar banco de dados</span>
+                <span class="text-muted text-sm mt-1">
+                    Dump SQL completo para restaurar o sistema em localhost ou fazer backup manual.
+                </span>
             </div>
-        </div>
+            <span class="admin-db-summary-action">Abrir</span>
+        </summary>
         <div class="card-body" style="padding: 1.25rem 1.5rem;">
+            <p class="text-muted text-sm admin-db-warning">
+                O arquivo contem todas as tabelas e dados, incluindo usuarios com senhas em hash.
+                Ele apenas importa informacoes para o MySQL local; nao substitui um arquivo dentro do projeto.
+            </p>
+
             <div class="admin-db-export-row">
                 <div class="admin-db-export-info">
                     <span class="admin-db-export-badge">SQL</span>
                     <div>
                         <strong style="font-size:0.875rem;">Dump completo (MySQL/MariaDB)</strong>
                         <p class="text-muted text-sm mt-1" style="margin:0;">
-                            Gerado via Python — não requer <code>mysqldump</code> instalado.
+                            Gerado via Python; nao requer <code>mysqldump</code> instalado.
                             Inclui <code>DROP TABLE IF EXISTS</code> e <code>CREATE TABLE</code>
-                            para importação limpa.
+                            para importacao limpa.
                         </p>
                     </div>
                 </div>
                 <a href="{{ url_for('admin.exportar_banco') }}" class="btn btn-secondary">
-                    ↓ Baixar dump SQL
+                    Baixar dump SQL
                 </a>
             </div>
-            <p class="text-muted text-sm mt-3" style="font-size:0.78rem;">
-                Para importar localmente:
-                <code>mysql -u root -p nome_do_banco &lt; flowter_dump.sql</code>
-            </p>
+
+            <div class="admin-db-local-guide mt-3">
+                <div class="admin-db-guide-step">
+                    <span class="admin-db-step-number">1</span>
+                    <div>
+                        <strong>Onde colocar o arquivo</strong>
+                        <p>
+                            Pode ficar em qualquer pasta. Para facilitar, salve o arquivo baixado na raiz deste projeto
+                            ou use a pasta padrao de downloads:
+                            <code>C:\Users\HAYNAN\Downloads</code>.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="admin-db-guide-step">
+                    <span class="admin-db-step-number">2</span>
+                    <div>
+                        <strong>Importar pelo PowerShell</strong>
+                        <p>Entre na pasta onde o arquivo foi salvo e rode o comando abaixo.</p>
+                        <code class="admin-db-command">cd "$env:USERPROFILE\Downloads"</code>
+                        <code class="admin-db-command">cmd /c "mysql -u root -p nome_do_banco &lt; flowter_dump.sql"</code>
+                    </div>
+                </div>
+
+                <div class="admin-db-guide-step">
+                    <span class="admin-db-step-number">3</span>
+                    <div>
+                        <strong>Nome do banco local</strong>
+                        <p>
+                            Troque <code>nome_do_banco</code> pelo valor do seu <code>DB_NAME</code> no arquivo
+                            <code>.env</code>. Se usar o exemplo do projeto, o nome e <code>gestao_escolar</code>.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+    </details>
 </div>
 {% endblock %}

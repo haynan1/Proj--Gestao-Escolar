@@ -72,9 +72,10 @@ from models.relatorio_professor import (
     deletar_relatorio_professor,
     listar_relatorios_professores,
 )
+from models.sugestao import listar_sugestao, limpar_sugestao, tem_sugestao
 from models.turma import atualizar_turma, criar_turma, deletar_turma, listar_turmas
 from models.turno import TURNOS, normalizar_turno
-from scheduler import gerar_horario, montar_horario_gerado
+from scheduler import gerar_horario, gerar_sugestao, montar_horario_gerado
 from utils.conflitos import PERIODOS
 
 
@@ -1505,7 +1506,7 @@ def horarios(escola_id):
     if view_mode != 'geral':
         view_mode = 'turma'
     visualizacao_horario = request.args.get('visualizacao', 'alternativo')
-    if visualizacao_horario not in {'oficial', 'alternativo'}:
+    if visualizacao_horario not in {'oficial', 'alternativo', 'sugestao'}:
         visualizacao_horario = 'alternativo'
     dia_visualizado = DIAS_SEMANA[data_visualizada.weekday()] if data_visualizada.weekday() < len(DIAS_SEMANA) else None
     turmas = listar_turmas(escola['id'], turno_atual)
@@ -1580,6 +1581,13 @@ def horarios(escola_id):
         chave_turma = f"{horario_temp['turma_id']}:{horario_temp['dia']}:{horario_temp['periodo']}"
         temporarios_por_turma_slot.setdefault(chave_turma, []).append(horario_temp)
 
+    aulas_sugestao = listar_sugestao(escola['id'], turno_atual) if visualizacao_horario == 'sugestao' else []
+    grade_sugestao_map = {}
+    for aula in aulas_sugestao:
+        tid = aula['turma_id']
+        grade_sugestao_map.setdefault(tid, {}).setdefault(aula['dia'], {})[aula['periodo']] = aula
+    existe_sugestao = tem_sugestao(escola['id'], turno_atual)
+
     return render_template(
         'horarios.html',
         escola=escola,
@@ -1605,6 +1613,8 @@ def horarios(escola_id):
         alternative_manual_options=_build_alternative_manual_options(professores_por_turno),
         alternative_occupied_slots=_build_alternative_occupied_slots(aulas_por_turno),
         alternative_official_lessons=_build_alternative_official_lessons(aulas_por_turno),
+        grade_sugestao=grade_sugestao_map,
+        existe_sugestao=existe_sugestao,
         view_mode=view_mode,
         visualizacao_horario=visualizacao_horario,
         turnos=TURNOS,
@@ -1707,6 +1717,45 @@ def gerar(escola_id):
     flash(msg, 'success' if sucesso else 'error')
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/sugestao/gerar', methods=['POST'])
+@login_required
+def gerar_sugestao_grade(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    try:
+        sucesso, msg, _, ajustes = gerar_sugestao(escola_id, turno_atual)
+    except Exception:
+        current_app.logger.exception('Erro ao gerar sugestão de grade para escola %s.', escola_id)
+        flash('Erro interno ao gerar a sugestão de grade.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, visualizacao='sugestao'))
+
+    if sucesso and ajustes:
+        session['grade_sugestao_ajustes'] = {
+            'escola_id': escola_id,
+            'turno': turno_atual,
+            'ajustes': ajustes,
+        }
+    flash(msg, 'success' if sucesso else 'error')
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, visualizacao='sugestao'))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/sugestao/limpar', methods=['POST'])
+@login_required
+def limpar_sugestao_grade(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    limpar_sugestao(escola_id, turno_atual)
+    session.pop('grade_sugestao_ajustes', None)
+    flash('Sugestão de grade removida.', 'success')
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
 
 
