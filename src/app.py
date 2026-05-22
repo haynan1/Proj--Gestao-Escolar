@@ -60,9 +60,8 @@ app.config.update(
 app_base_url = app.config.get('APP_BASE_URL', '')
 if app_base_url:
     parsed_base_url = urlsplit(app_base_url)
-    if parsed_base_url.scheme and parsed_base_url.netloc:
+    if parsed_base_url.scheme:
         app.config['PREFERRED_URL_SCHEME'] = parsed_base_url.scheme
-        app.config['SERVER_NAME'] = parsed_base_url.netloc
 
 limiter.init_app(app)
 app.before_request(csrf_protect)
