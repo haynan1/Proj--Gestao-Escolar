@@ -104,5 +104,39 @@
         </div>
         {% endif %}
     </div>
+
+    <div class="card mt-4">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Exportar banco de dados</div>
+                <p class="text-muted text-sm mt-1">
+                    Gera um dump SQL completo — ideal para restaurar o banco em localhost ou fazer backup manual.
+                    O arquivo contém todas as tabelas e dados, incluindo usuários com senhas em hash.
+                </p>
+            </div>
+        </div>
+        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+            <div class="admin-db-export-row">
+                <div class="admin-db-export-info">
+                    <span class="admin-db-export-badge">SQL</span>
+                    <div>
+                        <strong style="font-size:0.875rem;">Dump completo (MySQL/MariaDB)</strong>
+                        <p class="text-muted text-sm mt-1" style="margin:0;">
+                            Gerado via Python — não requer <code>mysqldump</code> instalado.
+                            Inclui <code>DROP TABLE IF EXISTS</code> e <code>CREATE TABLE</code>
+                            para importação limpa.
+                        </p>
+                    </div>
+                </div>
+                <a href="{{ url_for('admin.exportar_banco') }}" class="btn btn-secondary">
+                    ↓ Baixar dump SQL
+                </a>
+            </div>
+            <p class="text-muted text-sm mt-3" style="font-size:0.78rem;">
+                Para importar localmente:
+                <code>mysql -u root -p nome_do_banco &lt; flowter_dump.sql</code>
+            </p>
+        </div>
+    </div>
 </div>
 {% endblock %}

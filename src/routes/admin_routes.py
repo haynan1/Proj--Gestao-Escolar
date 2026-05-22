@@ -1,9 +1,12 @@
+import io
 import re
+from datetime import datetime
 
-from flask import Blueprint, flash, g, redirect, render_template, request, url_for
+from flask import Blueprint, Response, flash, g, redirect, render_template, request, url_for
 
 from access_control import ROLE_ADMIN, ROLE_COORDINATOR, ROLE_STAFF, require_permission
 from auth import login_required
+from database.connection import get_connection
 from models.escola import (
     deletar_backup_oculto,
     listar_backups_ocultos,
@@ -48,6 +51,100 @@ def usuarios():
 @require_permission('admin_access')
 def backups():
     return render_template('admin_backups.html', backups=listar_backups_ocultos())
+
+
+@admin_bp.route('/exportar-banco')
+@login_required
+@require_permission('admin_access')
+def exportar_banco():
+    """Gera e faz download de um dump SQL completo do banco de dados."""
+    try:
+        sql = _gerar_dump_sql()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('Erro ao gerar dump do banco.')
+        flash('Nao foi possivel gerar o dump do banco. Verifique os logs.', 'error')
+        return redirect(url_for('admin.backups'))
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'flowter_dump_{timestamp}.sql'
+    return Response(
+        sql,
+        mimetype='application/octet-stream',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+def _gerar_dump_sql():
+    """
+    Gera dump SQL completo do banco usando mysql-connector (sem mysqldump).
+    Retorna uma string com todo o SQL pronto para importar em outro MySQL.
+    """
+    conn = get_connection()
+    out = io.StringIO()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    out.write(f'-- Flowter Database Dump\n')
+    out.write(f'-- Gerado em: {now}\n')
+    out.write(f'-- Uso: importar em MySQL/MariaDB local via: mysql -u root -p nome_banco < arquivo.sql\n')
+    out.write('--\n\n')
+    out.write('SET FOREIGN_KEY_CHECKS = 0;\n')
+    out.write('SET NAMES utf8mb4;\n')
+    out.write('SET CHARACTER SET utf8mb4;\n\n')
+
+    try:
+        tables = [
+            row['Tables_in_' + _get_db_name(conn)] if _get_db_name(conn) else list(row.values())[0]
+            for row in conn.execute('SHOW TABLES').fetchall()
+        ]
+
+        for table in tables:
+            # DDL
+            ddl_row = conn.execute(f'SHOW CREATE TABLE `{table}`').fetchone()
+            create_sql = ddl_row['Create Table'] if ddl_row else ''
+            out.write(f'DROP TABLE IF EXISTS `{table}`;\n')
+            out.write(create_sql + ';\n\n')
+
+            # Dados
+            rows = conn.execute(f'SELECT * FROM `{table}`').fetchall()
+            if rows:
+                cols = ', '.join(f'`{c}`' for c in rows[0].keys())
+                out.write(f'INSERT INTO `{table}` ({cols}) VALUES\n')
+                value_lines = []
+                for row in rows:
+                    vals = ', '.join(_sql_value(v) for v in row.values())
+                    value_lines.append(f'  ({vals})')
+                out.write(',\n'.join(value_lines))
+                out.write(';\n\n')
+
+        out.write('SET FOREIGN_KEY_CHECKS = 1;\n')
+    finally:
+        conn.close()
+
+    return out.getvalue()
+
+
+def _get_db_name(conn):
+    row = conn.execute('SELECT DATABASE() AS db').fetchone()
+    return row['db'] if row else ''
+
+
+def _sql_value(value):
+    if value is None:
+        return 'NULL'
+    if isinstance(value, bool):
+        return '1' if value else '0'
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return repr(value)
+    if isinstance(value, (bytes, bytearray)):
+        return '0x' + value.hex()
+    # datetime, date, str e qualquer outro → string escapada
+    s = str(value)
+    s = s.replace('\\', '\\\\').replace("'", "\\'").replace('\0', '\\0')
+    s = s.replace('\n', '\\n').replace('\r', '\\r').replace('\x1a', '\\Z')
+    return f"'{s}'"
 
 
 @admin_bp.route('/backups/<int:escola_id>/restaurar', methods=['POST'])

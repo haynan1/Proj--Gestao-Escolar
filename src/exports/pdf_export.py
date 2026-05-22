@@ -806,6 +806,204 @@ def exportar_erros_grade_pdf(escola, pendencias, melhor_total, total_esperado, t
     return tmp.name
 
 
+def exportar_ajustes_grade_pdf(escola, turno_label, ajustes):
+    """
+    Gera PDF com o relatório de ajuste mínimo de regras aplicado na geração de grade.
+
+    ajustes: list[dict] com chaves professor_nome, dia, dias_originais (list[str])
+    """
+    tmp = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    tmp.close()
+
+    doc = SimpleDocTemplate(
+        tmp.name,
+        pagesize=A4,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.2 * cm,
+        bottomMargin=1.2 * cm,
+    )
+
+    base = getSampleStyleSheet()
+    AMBER       = colors.HexColor('#f59e0b')
+    AMBER_BG    = colors.HexColor('#fffbeb')
+    AMBER_DARK  = colors.HexColor('#92400e')
+    AMBER_BORDER= colors.HexColor('#fcd34d')
+    GREEN_BG    = colors.HexColor('#f0fdf4')
+    GREEN_DARK  = colors.HexColor('#166534')
+    BLUE_BG     = colors.HexColor('#eff6ff')
+    BLUE_BORDER = colors.HexColor('#bfdbfe')
+
+    st = {
+        'eyebrow': ParagraphStyle('Eyebrow2', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=8, textColor=AMBER, spaceAfter=3),
+        'title': ParagraphStyle('Title2', parent=base['Title'],
+            fontName='Helvetica-Bold', fontSize=20, leading=24, textColor=INK,
+            alignment=TA_LEFT, spaceAfter=4),
+        'subtitle': ParagraphStyle('Subtitle2', parent=base['Normal'],
+            fontSize=9, textColor=MUTED, spaceAfter=14),
+        'section': ParagraphStyle('Section2', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=11, textColor=INK,
+            spaceBefore=14, spaceAfter=6),
+        'body': ParagraphStyle('Body2', parent=base['Normal'],
+            fontSize=9, leading=13, textColor=INK),
+        'body_muted': ParagraphStyle('BodyMuted2', parent=base['Normal'],
+            fontSize=8.5, leading=12, textColor=MUTED),
+        'cell': ParagraphStyle('Cell2', parent=base['Normal'],
+            fontSize=8.5, leading=11, textColor=INK),
+        'cell_amber': ParagraphStyle('CellAmber2', parent=base['Normal'],
+            fontSize=8.5, leading=11, textColor=AMBER_DARK, fontName='Helvetica-Bold'),
+        'cell_green': ParagraphStyle('CellGreen2', parent=base['Normal'],
+            fontSize=8.5, leading=11, textColor=GREEN_DARK),
+    }
+
+    generated_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    turno_str = f' — {escape(turno_label.capitalize())}' if turno_label else ''
+
+    # Agrupa ajustes por professor para o resumo
+    por_professor = {}
+    for a in ajustes:
+        nome = a['professor_nome']
+        if nome not in por_professor:
+            por_professor[nome] = {
+                'dias_originais': a.get('dias_originais') or [],
+                'dias_ajustados': [],
+            }
+        por_professor[nome]['dias_ajustados'].append(a['dia'])
+
+    n_professores = len(por_professor)
+    n_ajustes = len(ajustes)
+
+    story = [
+        Paragraph('RELATÓRIO DE AJUSTE MÍNIMO', st['eyebrow']),
+        Paragraph('Horário Gerado com Regras Alternativas', st['title']),
+        Paragraph(
+            f"{escape(escola['nome'])}{turno_str} &nbsp;·&nbsp; Gerado em {generated_at}",
+            st['subtitle'],
+        ),
+    ]
+
+    # Painel de resumo
+    summary_data = [
+        [
+            Paragraph('Professores ajustados', st['body_muted']),
+            Paragraph('Dias fora da disponibilidade', st['body_muted']),
+            Paragraph('Demais professores', st['body_muted']),
+        ],
+        [
+            Paragraph(f'<font color="#f59e0b"><b>{n_professores}</b></font>', st['cell_amber']),
+            Paragraph(f'<font color="#f59e0b"><b>{n_ajustes}</b></font>', st['cell_amber']),
+            Paragraph('<font color="#166534"><b>Sem alteração</b></font>', st['cell_green']),
+        ],
+    ]
+    summary_table = Table(
+        summary_data,
+        colWidths=[5.5 * cm, 5.5 * cm, 5.5 * cm],
+        rowHeights=[0.7 * cm, 1.0 * cm],
+    )
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('BOX', (0, 0), (-1, -1), 0.6, LINE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.3, LINE),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, 0), (1, 1), AMBER_BG),
+        ('BACKGROUND', (2, 0), (2, 1), GREEN_BG),
+    ]))
+    story.extend([summary_table, Spacer(1, 0.4 * cm)])
+
+    # Intro explicativa
+    story.append(Paragraph('O que foi ajustado', st['section']))
+    story.append(Paragraph(
+        'O sistema manteve todas as regras cadastradas e relaxou os dias disponíveis '
+        '<b>apenas</b> dos professores listados abaixo — aqueles que estavam bloqueando '
+        'a geração do horário. Os demais professores seguem exatamente as restrições originais.',
+        st['body_muted'],
+    ))
+    story.append(Spacer(1, 0.25 * cm))
+
+    # Tabela detalhada dos ajustes
+    header = [
+        Paragraph('<b>Professor</b>', st['cell']),
+        Paragraph('<b>Disponibilidade cadastrada</b>', st['cell']),
+        Paragraph('<b>Dia(s) usado(s) fora da regra</b>', st['cell']),
+    ]
+    rows = [header]
+    for nome, dados in sorted(por_professor.items()):
+        dias_orig = ', '.join(dados['dias_originais']) if dados['dias_originais'] else 'Nenhum cadastrado'
+        dias_adj  = ', '.join(sorted(dados['dias_ajustados'], key=lambda d: DIAS.index(d) if d in DIAS else 99))
+        rows.append([
+            Paragraph(escape(nome), st['cell']),
+            Paragraph(escape(dias_orig), st['cell']),
+            Paragraph(f'<font color="#f59e0b"><b>{escape(dias_adj)}</b></font>', st['cell_amber']),
+        ])
+
+    detail_table = Table(rows, colWidths=[5.0 * cm, 5.5 * cm, 6.0 * cm], repeatRows=1)
+    detail_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.3, LINE),
+        ('BOX', (0, 0), (-1, -1), 0.6, NAVY),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        *[('BACKGROUND', (0, i), (-1, i), AMBER_BG) for i in range(1, len(rows))],
+    ]))
+    story.extend([detail_table, Spacer(1, 0.5 * cm)])
+
+    # Recomendações
+    story.append(Paragraph('Próximos passos recomendados', st['section']))
+    nomes_str = ', '.join(f'<b>{escape(n)}</b>' for n in sorted(por_professor))
+    recommendations = [
+        (
+            'Avalie se o ajuste é adequado',
+            f'O horário gerado é válido, mas os professores {nomes_str} foram alocados em '
+            'dias fora da disponibilidade cadastrada. Confirme com cada um se o ajuste é viável.'
+        ),
+        (
+            'Atualize a disponibilidade no Dashboard',
+            'Se os professores confirmarem a disponibilidade nos dias ajustados, adicione esses '
+            'dias na tela de Dashboard → Professores para que futuras gerações já incluam a regra correta.'
+        ),
+        (
+            'Faça ajustes manuais se necessário',
+            'Caso algum ajuste não seja viável, use o modo de edição manual do horário para '
+            'mover essas aulas para dias compatíveis antes de travar o turno.'
+        ),
+    ]
+    for i, (titulo, descricao) in enumerate(recommendations):
+        tip_data = [[
+            Paragraph(f'<b>{i + 1}</b>', ParagraphStyle(f'Num{i}', fontName='Helvetica-Bold',
+                fontSize=11, textColor=AMBER, alignment=TA_CENTER, leading=14)),
+            [
+                Paragraph(f'<b>{escape(titulo)}</b>', st['body']),
+                Spacer(1, 2),
+                Paragraph(descricao, st['body_muted']),
+            ],
+        ]]
+        tip_table = Table(tip_data, colWidths=[1.0 * cm, 15.5 * cm])
+        tip_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), BLUE_BG),
+            ('BOX', (0, 0), (-1, -1), 0.5, BLUE_BORDER),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (0, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ]))
+        story.extend([tip_table, Spacer(1, 0.2 * cm)])
+
+    doc.build(story)
+    return tmp.name
+
+
 def exportar_relatorio_mensal_pdf(
     escola,
     turno_label,

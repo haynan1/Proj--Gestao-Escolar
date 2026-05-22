@@ -583,6 +583,9 @@ def _ensure_turno_columns(cursor):
         ('turmas', 'escola_id'),
         ('professores', 'escola_id'),
         ('aulas', 'escola_id'),
+        ('horarios_temporarios', 'escola_id'),
+        ('relatorios_professores', 'escola_id'),
+        ('prontuarios_alunos', 'escola_id'),
     )
     for table_name, after_column in turno_columns:
         if not _column_exists(cursor, table_name, 'turno'):
@@ -907,11 +910,11 @@ def create_tables():
         _ensure_school_owner_column(conn)
         _ensure_school_backup_columns(conn)
         _ensure_school_schedule_lock_column(conn)
-        _ensure_report_history_columns(conn)
         _ensure_prontuario_table(conn)
         _ensure_user_school_links(conn)
         _ensure_turno_columns(conn)
         _ensure_turma_period_columns(conn)
+        _ensure_report_history_columns(conn)
         _ensure_disciplina_color_column(conn)
         _ensure_professor_color_column(conn)
         _ensure_bootstrap_admin(conn)

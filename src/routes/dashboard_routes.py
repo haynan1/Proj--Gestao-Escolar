@@ -19,7 +19,7 @@ from flask import (
 from access_control import forbid_without_school_permission, user_has_permission
 from auth import login_required
 from exports.excel_export import exportar_excel
-from exports.pdf_export import exportar_erros_grade_pdf, exportar_pdf, exportar_pdf_matriz, exportar_relatorio_mensal_pdf
+from exports.pdf_export import exportar_ajustes_grade_pdf, exportar_erros_grade_pdf, exportar_pdf, exportar_pdf_matriz, exportar_relatorio_mensal_pdf
 from models.aula import (
     ScheduleConflictError,
     ScheduleValidationError,
@@ -1654,13 +1654,22 @@ def gerar(escola_id):
 
     turma_id = request.form.get('turma_id', type=int)
     turno_atual = _active_turno()
+    completar_apenas = request.form.get('completar_apenas') == '1' and bool(turma_id)
+    ajuste_minimo = request.form.get('ajuste_minimo') == '1'
+
     if horario_turno_travado(escola, turno_atual):
         flash('Geracao oficial travada. Destrave este turno antes de gerar um novo horario oficial.', 'error')
         if turma_id:
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
     try:
-        sucesso, msg, total, erros = gerar_horario(escola['id'], turma_id, turno_atual)
+        sucesso, msg, total, erros, ajustes = gerar_horario(
+            escola['id'],
+            turma_id,
+            turno_atual,
+            completar_apenas=completar_apenas,
+            ajuste_minimo=ajuste_minimo,
+        )
     except Exception:
         current_app.logger.exception(
             'Erro inesperado ao gerar horário da escola %s, turma %s.',
@@ -1673,15 +1682,26 @@ def gerar(escola_id):
             'Verifique se as aulas, professores e turmas estão consistentes e tente novamente.'
         )
         erros = None
+        ajustes = None
 
     session.pop('grade_erros', None)
+    session.pop('grade_ajustes', None)
+
     if not sucesso and erros:
         session['grade_erros'] = {
             'escola_id': escola['id'],
             'turno': turno_atual,
+            'turma_id': turma_id,
             'pendencias': erros['pendencias'],
             'melhor_total': erros['melhor_total'],
             'total_esperado': erros['total_esperado'],
+        }
+
+    if sucesso and ajustes:
+        session['grade_ajustes'] = {
+            'escola_id': escola['id'],
+            'turno': turno_atual,
+            'ajustes': ajustes,
         }
 
     flash(msg, 'success' if sucesso else 'error')
@@ -1716,6 +1736,42 @@ def download_erros_grade(escola_id):
             mimetype='application/pdf',
             as_attachment=True,
             download_name='erros-grade.pdf',
+        )
+    finally:
+        @after_this_request
+        def _cleanup(response):
+            try:
+                os.unlink(tmp)
+            except Exception:
+                pass
+            return response
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/ajustes/pdf')
+@login_required
+def download_ajustes_grade(escola_id):
+    import os
+    escola, failure = _guard_school(escola_id, permission='view_school')
+    if failure:
+        return failure
+
+    ajustes_session = session.get('grade_ajustes')
+    if not ajustes_session or ajustes_session.get('escola_id') != escola_id:
+        flash('Nenhum relatório de ajuste disponível.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+    turno_atual = ajustes_session.get('turno', '')
+    tmp = exportar_ajustes_grade_pdf(
+        escola,
+        _turno_label(turno_atual),
+        ajustes_session.get('ajustes') or [],
+    )
+    try:
+        return send_file(
+            tmp,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'ajuste-regras-{turno_atual}.pdf',
         )
     finally:
         @after_this_request
