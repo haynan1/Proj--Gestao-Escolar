@@ -62,10 +62,10 @@
                     Gerar
                 </button>
                 <div class="schedule-generate-menu" role="menu" aria-label="Opções de geração de horário">
-                    <span class="schedule-alt-menu-title">Gerar horários</span>
+                    <span class="schedule-alt-menu-title">Oficial</span>
                     {% if horario_oficial_travado %}
                     <div class="schedule-alt-menu-info" role="note">
-                        Geração oficial travada para este turno. Destrave para gerar outro horário oficial.
+                        Alterações travadas para este turno. Destrave para gerar ou editar a grade oficial.
                     </div>
                     {% endif %}
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
@@ -74,7 +74,7 @@
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
                         <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
-                            Gerar Horário da Turma
+                            Gerar turma atual
                         </button>
                     </form>
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
@@ -82,21 +82,21 @@
                         onsubmit="return confirm('Gerar novo horário para todas as turmas do turno {{ turno_atual_label }}? Todos os horários atuais deste turno serão substituídos.')">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
-                            Gerar Todas as Turmas
+                            Gerar todas as turmas
                         </button>
                     </form>
                     {% if session.get('grade_erros') and session.grade_erros.escola_id == escola.id and session.grade_erros.turno == turno_atual %}
-                    <span class="schedule-alt-menu-title schedule-alt-menu-section schedule-alt-menu-section--warn">Tentar resolver erro</span>
+                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Correção</span>
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('Tentar gerar com ajuste mínimo de regras? O sistema manterá ao máximo as restrições cadastradas e só relaxará o necessário para os professores bloqueantes.')">
+                        onsubmit="return confirm('Tentar gerar procurando a menor correção possível? O sistema pode alocar aulas fora da disponibilidade cadastrada, mas não altera o cadastro dos professores no Dashboard.')">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         {% if session.grade_erros.turma_id %}
                         <input type="hidden" name="turma_id" value="{{ session.grade_erros.turma_id }}">
                         {% endif %}
                         <input type="hidden" name="ajuste_minimo" value="1">
-                        <button type="submit" class="btn btn-secondary schedule-menu-action schedule-menu-action--warn" {% if horario_oficial_travado %}disabled{% endif %}>
-                            Gerar com ajuste mínimo de regras
+                        <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
+                            Gerar com menor correção possível
                         </button>
                     </form>
                     {% if session.grade_erros.turma_id %}
@@ -107,38 +107,20 @@
                         <input type="hidden" name="turma_id" value="{{ session.grade_erros.turma_id }}">
                         <input type="hidden" name="completar_apenas" value="1">
                         <input type="hidden" name="ajuste_minimo" value="1">
-                        <button type="submit" class="btn btn-secondary schedule-menu-action schedule-menu-action--warn" {% if horario_oficial_travado %}disabled{% endif %}>
-                            Completar com ajuste mínimo de regras
+                        <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
+                            Completar espaços com ajuste mínimo
                         </button>
                     </form>
                     {% endif %}
                     {% endif %}
+                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Alternativo</span>
                     <button type="button" class="btn btn-secondary schedule-menu-action" onclick="openModal('modal-horario-alternativo')">
-                        Gerar horário alternativo
+                        Criar camada temporária
                     </button>
-                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Sugestão de grade</span>
-                    <form method="POST" action="{{ url_for('dashboard.gerar_sugestao_grade', escola_id=escola.id) }}"
-                        class="schedule-menu-form"
-                        onsubmit="return confirm('Gerar sugestão de grade completa? As disponibilidades dos professores serão relaxadas para montar uma grade sem lacunas. O horário oficial não será alterado.')">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-secondary schedule-menu-action">
-                            Gerar sugestão de grade
-                        </button>
-                    </form>
-                    {% if existe_sugestao %}
-                    <form method="POST" action="{{ url_for('dashboard.limpar_sugestao_grade', escola_id=escola.id) }}"
-                        class="schedule-menu-form"
-                        onsubmit="return confirm('Remover a sugestão de grade?')">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-secondary schedule-menu-action">
-                            Remover sugestão
-                        </button>
-                    </form>
-                    {% endif %}
-                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Segurança</span>
+                    <span class="schedule-alt-menu-title schedule-alt-menu-section">Proteção</span>
                     <form method="POST" action="{{ url_for('dashboard.alternar_trava_horario', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('{{ 'Destravar a geração oficial deste turno?' if horario_oficial_travado else 'Travar a geração oficial deste turno?' }}')">
+                        onsubmit="return confirm('{{ 'Destravar alterações deste turno?' if horario_oficial_travado else 'Travar alterações deste turno?' }}')">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="turno" value="{{ turno_atual }}">
                         <input type="hidden" name="data_visualizada" value="{{ data_visualizada }}">
@@ -150,7 +132,7 @@
                         {% endif %}
                         <input type="hidden" name="acao" value="{{ 'destravar' if horario_oficial_travado else 'travar' }}">
                         <button type="submit" class="btn {% if horario_oficial_travado %}btn-danger{% else %}btn-secondary{% endif %} schedule-menu-action">
-                            {{ 'Destravar geração oficial' if horario_oficial_travado else 'Travar geração oficial' }}
+                            {{ 'Destravar alterações' if horario_oficial_travado else 'Travar alterações' }}
                         </button>
                     </form>
                 </div>
@@ -173,13 +155,6 @@
                             href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', data=data_visualizada, visualizacao='alternativo', menu='grade') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, data=data_visualizada, visualizacao='alternativo', menu='grade') }}{% endif %}">
                             Alternativos
                         </a>
-                        {% if existe_sugestao %}
-                        <a class="{% if visualizacao_horario == 'sugestao' %}active{% endif %} schedule-view-toggle-suggestion"
-                            data-keep-alt-menu-open
-                            href="{% if view_mode == 'geral' %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, view='geral', visualizacao='sugestao', menu='grade') }}{% else %}{{ url_for('dashboard.horarios', escola_id=escola.id, turno=turno_atual, turma_id=turma_selecionada_id, visualizacao='sugestao', menu='grade') }}{% endif %}">
-                            Sugestão
-                        </a>
-                        {% endif %}
                     </div>
                     {% if visualizacao_horario == 'alternativo' %}
                     <form method="GET" action="{{ url_for('dashboard.horarios', escola_id=escola.id) }}" class="schedule-view-date-form schedule-alt-date-form" role="menuitem">
@@ -415,16 +390,23 @@
         <div class="schedule-ajustes-icon" aria-hidden="true">⚠</div>
         <div class="schedule-ajustes-body">
             <div class="schedule-ajustes-header">
-                <strong>Horário gerado com ajuste mínimo de regras</strong>
-                <a href="{{ url_for('dashboard.download_ajustes_grade', escola_id=escola.id, turno=turno_atual) }}"
-                   class="btn btn-secondary btn-sm schedule-ajustes-pdf-btn"
-                   title="Baixar relatório de ajustes em PDF">
-                    ↓ Relatório PDF
-                </a>
+                <strong>Horário gerado com correção pontual</strong>
+                <div class="schedule-ajustes-actions">
+                    <a href="{{ url_for('dashboard.download_ajustes_grade', escola_id=escola.id, turno=turno_atual) }}"
+                       class="btn btn-secondary btn-sm schedule-ajustes-pdf-btn"
+                       title="Baixar relatório de ajustes em PDF">
+                        ↓ Relatório PDF
+                    </a>
+                    {% if has_permission('manage_school_resources') %}
+                    <button type="button" class="btn btn-primary btn-sm" onclick="openModal('modal-aplicar-ajustes-dashboard')" {% if horario_oficial_travado %}disabled{% endif %}>
+                        Aplicar no Dashboard
+                    </button>
+                    {% endif %}
+                </div>
             </div>
             <p class="text-muted text-sm mt-1">
-                As restrições de dias foram relaxadas apenas para os professores bloqueantes.
-                Considere atualizar a disponibilidade deles no Dashboard.
+                O cadastro dos professores no Dashboard não foi alterado. Apenas o horário oficial recebeu aulas em dias fora da disponibilidade cadastrada.
+                Confira os professores listados e atualize a disponibilidade deles no Dashboard quando fizer sentido.
             </p>
             <ul class="schedule-ajustes-list">
                 {% for ajuste in session.grade_ajustes.ajustes %}
@@ -440,40 +422,37 @@
     </div>
     {% endif %}
 
-    {% if visualizacao_horario == 'sugestao' and session.get('grade_sugestao_ajustes') and session.grade_sugestao_ajustes.escola_id == escola.id and session.grade_sugestao_ajustes.turno == turno_atual %}
-    <div class="schedule-ajustes-banner schedule-sugestao-banner">
-        <div class="schedule-ajustes-icon" aria-hidden="true">💡</div>
-        <div class="schedule-ajustes-body">
-            <div class="schedule-ajustes-header">
-                <strong>Sugestão gerada com disponibilidades relaxadas</strong>
+    {% if session.get('grade_ajustes') and session.grade_ajustes.escola_id == escola.id and session.grade_ajustes.turno == turno_atual and has_permission('manage_school_resources') %}
+    <div class="modal-overlay" id="modal-aplicar-ajustes-dashboard">
+        <div class="modal modal-confirm-adjustments">
+            <div class="modal-header">
+                <span class="modal-title">Aplicar ajustes no Dashboard?</span>
+                <button class="modal-close" type="button" onclick="closeModal('modal-aplicar-ajustes-dashboard')" aria-label="Fechar confirmação">x</button>
             </div>
-            <p class="text-muted text-sm mt-1">
-                Os professores abaixo foram alocados fora de seus dias cadastrados para completar a grade.
-                Esta é uma sugestão — o horário oficial não foi alterado.
+            <p class="text-muted text-sm">
+                Esta ação adiciona os dias abaixo à disponibilidade dos professores no Dashboard. O horário atual não será alterado.
             </p>
-            <ul class="schedule-ajustes-list">
-                {% for ajuste in session.grade_sugestao_ajustes.ajustes %}
-                <li>
-                    <strong>{{ ajuste.professor_nome }}</strong> foi alocado na
-                    <strong>{{ ajuste.dia }}</strong>
-                    — disponibilidade cadastrada:
-                    {{ ajuste.dias_originais | join(', ') if ajuste.dias_originais else 'nenhum dia cadastrado' }}
-                </li>
+            <ul class="schedule-confirm-adjustments-list">
+                {% for ajuste in session.grade_ajustes.ajustes %}
+                <li><strong>{{ ajuste.professor_nome }}</strong>: adicionar <strong>{{ ajuste.dia }}</strong></li>
                 {% endfor %}
             </ul>
+            <form method="POST" action="{{ url_for('dashboard.aplicar_ajustes_grade', escola_id=escola.id, turno=turno_atual) }}" class="schedule-confirm-adjustments-actions">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="turno" value="{{ turno_atual }}">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-aplicar-ajustes-dashboard')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Confirmar e aplicar</button>
+            </form>
         </div>
     </div>
     {% endif %}
 
     {% set turma_atual = turmas | selectattr('id', 'equalto', turma_selecionada_id) | first %}
     {% if view_mode == 'geral' %}
-    <div class="card {% if visualizacao_horario == 'sugestao' %}schedule-sugestao-card{% else %}schedule-all-card{% endif %}">
+    <div class="card schedule-all-card">
         <div class="card-header">
             <div class="card-title">
                 <img class="icon resource-icon" src="{{ static_url('favicon/turma.ico') }}" alt="" aria-hidden="true">
-                {% if visualizacao_horario == 'sugestao' %}
-                Sugestão de grade
-                {% else %}
                 Modo manual
                 {% if can_edit_official_schedule %}
                 <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id, turno=turno_atual) }}"
@@ -489,14 +468,10 @@
                     <button type="submit" class="btn btn-danger">Limpar</button>
                 </form>
                 {% endif %}
-                {% endif %}
             </div>
             <div class="horarios-card-meta">
-                {% if visualizacao_horario == 'sugestao' %}
-                <span class="schedule-period-badge schedule-sugestao-badge">Sugestão — horário oficial não alterado</span>
-                {% else %}
                 {% if horario_oficial_travado %}
-                <span class="schedule-lock-badge">Geração oficial travada</span>
+                <span class="schedule-lock-badge">Alterações travadas</span>
                 {% endif %}
                 {% if can_edit_official_schedule %}
                 <div class="schedule-trash-zone" data-schedule-trash aria-label="Arraste uma aula aqui para remover">
@@ -505,7 +480,6 @@
                 </div>
                 {% endif %}
                 <span class="schedule-period-badge">Modo manual</span>
-                {% endif %}
             </div>
         </div>
 
@@ -539,7 +513,7 @@
                             <tr>
                                 <th style="min-width:90px;">Período / Dia</th>
                                 {% for dia in dias %}
-                                <th data-day-header="{{ dia }}">{{ dia }}</th>
+                                <th class="grade-day-header" data-day-header="{{ dia }}">{{ dia }}</th>
                                 {% endfor %}
                             </tr>
                         </thead>
@@ -548,23 +522,6 @@
                             <tr>
                                 <th class="dia-header dia-header-cell">{{ p }}º Período</th>
                                 {% for dia in dias %}
-                                {% if visualizacao_horario == 'sugestao' %}
-                                {% set aula_sug = grade_sugestao.get(turma.id, {}).get(dia, {}).get(p) %}
-                                <td data-periodo-label="{{ dia }}">
-                                    <div class="grade-cell {% if not aula_sug %}empty{% endif %}">
-                                        {% if aula_sug %}
-                                        <div class="aula-card {% if aula_sug.tem_conflito %}aula-card-sugestao-conflito{% else %}aula-card-sugestao{% endif %}"
-                                            title="{% if aula_sug.tem_conflito %}Conflito: professor fora da disponibilidade ou duplicado{% endif %}">
-                                            {% if aula_sug.tem_conflito %}
-                                            <div class="schedule-sugestao-conflict-badge">Conflito</div>
-                                            {% endif %}
-                                            <div class="disc-nome">{{ aula_sug.disciplina_nome }}</div>
-                                            <div class="prof-nome text-muted">{{ aula_sug.professor_nome }}</div>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                {% else %}
                                 {% set aula = grade[turma.id][dia][p] %}
                                 {% set temp_slot_geral = temporarios_por_turma_slot.get(turma.id ~ ':' ~ dia ~ ':' ~ p, []) %}
                                 {% set aula_temp_geral = temp_slot_geral[0] if temp_slot_geral else none %}
@@ -619,7 +576,6 @@
                                         {% endif %}
                                     </div>
                                 </td>
-                                {% endif %}
                                 {% endfor %}
                             </tr>
                             {% endfor %}
@@ -639,7 +595,7 @@
             </div>
             <div class="horarios-card-meta">
                 {% if horario_oficial_travado %}
-                <span class="schedule-lock-badge">Geração oficial travada</span>
+                <span class="schedule-lock-badge">Alterações travadas</span>
                 {% endif %}
                 <div class="schedule-color-mode" aria-label="Escolha como colorir as aulas">
                     <span>Colorir por</span>
@@ -687,7 +643,7 @@
                     <tr>
                         <th style="min-width:90px;">Período / Dia</th>
                         {% for dia in dias %}
-                        <th data-day-header="{{ dia }}">{{ dia }}</th>
+                        <th class="grade-day-header" data-day-header="{{ dia }}">{{ dia }}</th>
                         {% endfor %}
                     </tr>
                 </thead>

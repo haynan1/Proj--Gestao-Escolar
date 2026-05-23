@@ -15,6 +15,7 @@ from models.turno import normalizar_turno
 
 
 MAX_TENTATIVAS_GRADE = 100
+MAX_TENTATIVAS_AJUSTE_MINIMO = 300
 
 
 def _nova_semente_aleatoria():
@@ -142,7 +143,17 @@ def _slot_bloqueado(slots_bloqueados, turma_id, dia, periodo):
     )
 
 
-def _alocar_demanda(grade, turma, disc, qtd, professores_disponiveis, tentativas_max, rng, slots_bloqueados=None, ignorar_dias=False):
+def _alocar_demanda(
+    grade,
+    turma,
+    disc,
+    qtd,
+    professores_disponiveis,
+    tentativas_max,
+    rng,
+    slots_bloqueados=None,
+    ignorar_dias=False,
+):
     turma_id = turma['id']
     periodos = _periodos_turma(turma)
     disc_id = disc['id']
@@ -233,7 +244,14 @@ def _montar_grade_existente(aulas, turmas, turma_id_ignorada=None):
     return grade
 
 
-def _gerar_grade_por_demandas(demandas, turmas, semente, grade_base=None, slots_bloqueados=None, ignorar_dias=False):
+def _gerar_grade_por_demandas(
+    demandas,
+    turmas,
+    semente,
+    grade_base=None,
+    slots_bloqueados=None,
+    ignorar_dias=False,
+):
     rng = random.Random(semente)
     grade = _copiar_grade(grade_base) if grade_base is not None else {t['id']: {} for t in turmas}
     pendencias = []
@@ -309,6 +327,88 @@ def _extrair_ajustes(grade, professores_por_id):
     return sorted(ajustes, key=lambda a: (a['professor_nome'], a['dia']))
 
 
+def _contar_aulas_ajustadas(grade, professores_por_id):
+    total = 0
+    for slots in grade.values():
+        for (dia, _periodo), aula in slots.items():
+            if not aula:
+                continue
+            prof = professores_por_id.get(aula.get('professor_id'))
+            if prof and '_dias_originais' in prof and dia not in prof['_dias_originais']:
+                total += 1
+    return total
+
+
+def _buscar_grade_com_menor_ajuste(
+    professores,
+    turmas,
+    disciplinas,
+    grade_base,
+    slots_bloqueados,
+    slots_base,
+    professor_ids_relaxados,
+    completar_apenas=False,
+):
+    """
+    Procura uma grade completa relaxando apenas disponibilidade de dias e escolhe
+    a tentativa que usa menos aulas fora dos dias cadastrados.
+    """
+    professores_alt = _professores_com_dias_estendidos(professores, professor_ids_relaxados)
+    professores_por_id_alt = {p['id']: p for p in professores_alt}
+    demandas_alt = _demandas_detalhadas(professores_alt, turmas, disciplinas)
+    demandas_alt_para_gerar = (
+        _ajustar_demandas_grade_existente(demandas_alt, grade_base)
+        if (completar_apenas and grade_base is not None)
+        else demandas_alt
+    )
+    total_esperado = sum(demanda['qtd'] for demanda in demandas_alt_para_gerar)
+    melhor_grade = None
+    melhores_pendencias = []
+    melhor_total = -1
+    melhor_ajustes = []
+    melhor_score = None
+    semente_base = _nova_semente_aleatoria()
+
+    for tentativa in range(MAX_TENTATIVAS_AJUSTE_MINIMO):
+        grade_tentativa, pendencias = _gerar_grade_por_demandas(
+            demandas_alt_para_gerar,
+            turmas,
+            semente_base + tentativa,
+            grade_base,
+            slots_bloqueados,
+        )
+        total_tentativa = sum(len(grade_tentativa.get(t['id'], {})) for t in turmas) - slots_base
+        if total_tentativa > melhor_total:
+            melhor_grade = grade_tentativa
+            melhores_pendencias = pendencias
+            melhor_total = total_tentativa
+
+        if total_tentativa < total_esperado:
+            continue
+
+        ajustes = _extrair_ajustes(grade_tentativa, professores_por_id_alt)
+        score = (
+            _contar_aulas_ajustadas(grade_tentativa, professores_por_id_alt),
+            len(ajustes),
+        )
+        if melhor_score is None or score < melhor_score:
+            melhor_grade = grade_tentativa
+            melhores_pendencias = []
+            melhor_total = total_tentativa
+            melhor_ajustes = ajustes
+            melhor_score = score
+            if score == (0, 0):
+                break
+
+    return (
+        melhor_grade,
+        melhores_pendencias,
+        melhor_total,
+        total_esperado,
+        melhor_ajustes if melhor_score is not None else None,
+    )
+
+
 def _ajustar_demandas_grade_existente(demandas, grade):
     """Subtrai aulas já posicionadas no grade das demandas — para modo completar."""
     resultado = []
@@ -351,7 +451,16 @@ def _enriquecer_pendencias(pendencias, turmas):
     ]
 
 
-def _tentar_gerar(professores, turmas, disciplinas, demandas_para_gerar, grade_base, slots_bloqueados, slots_base):
+def _tentar_gerar(
+    professores,
+    turmas,
+    disciplinas,
+    demandas_para_gerar,
+    grade_base,
+    slots_bloqueados,
+    slots_base,
+    ignorar_dias=False,
+):
     """Executa as MAX_TENTATIVAS_GRADE tentativas e devolve a melhor grade encontrada."""
     total_esperado = sum(demanda['qtd'] for demanda in demandas_para_gerar)
     melhor_grade = None
@@ -365,6 +474,7 @@ def _tentar_gerar(professores, turmas, disciplinas, demandas_para_gerar, grade_b
             semente_base + tentativa,
             grade_base,
             slots_bloqueados,
+            ignorar_dias=ignorar_dias,
         )
         total_tentativa = sum(len(grade_tentativa.get(t['id'], {})) for t in turmas) - slots_base
         if total_tentativa > melhor_total:
@@ -452,38 +562,53 @@ def montar_horario_gerado(
 
         if melhor_total < total_esperado:
             if ajuste_minimo and melhores_pendencias:
-                # Identifica professores bloqueantes e estende apenas os dias deles
                 professor_ids_pendentes = {p['professor_id'] for p in melhores_pendencias if p.get('professor_id')}
-                professores_alt = _professores_com_dias_estendidos(professores, professor_ids_pendentes)
-                professores_por_id_alt = {p['id']: p for p in professores_alt}
-                demandas_alt = _demandas_detalhadas(professores_alt, turmas, disciplinas)
-                demandas_alt_para_gerar = (
-                    _ajustar_demandas_grade_existente(demandas_alt, grade_base)
-                    if (completar_apenas and grade_base is not None)
-                    else demandas_alt
+                melhor_grade_ajuste, pend_ajuste, total_ajuste, total_esp_ajuste, ajustes = (
+                    _buscar_grade_com_menor_ajuste(
+                        professores,
+                        turmas,
+                        disciplinas,
+                        grade_base,
+                        slots_bloqueados,
+                        slots_base,
+                        professor_ids_pendentes,
+                        completar_apenas=completar_apenas,
+                    )
                 )
-                melhor_grade_alt, pend_alt, total_alt, total_esp_alt = _tentar_gerar(
-                    professores_alt, turmas, disciplinas, demandas_alt_para_gerar,
-                    grade_base, slots_bloqueados, slots_base,
-                )
-                if total_alt >= total_esp_alt:
-                    ajustes = _extrair_ajustes(melhor_grade_alt, professores_por_id_alt)
-                    aulas_geradas = _montar_aulas_geradas(melhor_grade_alt, [t['id'] for t in turmas])
+
+                if total_ajuste < total_esp_ajuste:
+                    professor_ids_todos = {p['id'] for p in professores}
+                    melhor_grade_ajuste, pend_ajuste, total_ajuste, total_esp_ajuste, ajustes = (
+                        _buscar_grade_com_menor_ajuste(
+                            professores,
+                            turmas,
+                            disciplinas,
+                            grade_base,
+                            slots_bloqueados,
+                            slots_base,
+                            professor_ids_todos,
+                            completar_apenas=completar_apenas,
+                        )
+                    )
+
+                if total_ajuste >= total_esp_ajuste:
+                    ajustes = ajustes or []
+                    aulas_geradas = _montar_aulas_geradas(melhor_grade_ajuste, [t['id'] for t in turmas])
                     if completar_apenas:
                         novas = len(aulas_geradas) - slots_base
-                        msg = f"Horário completado com ajuste mínimo! {novas} aula(s) adicionada(s)."
+                        msg = f"Horário completado com a menor correção encontrada! {novas} aula(s) adicionada(s)."
                     else:
-                        msg = f"Horário gerado com ajuste mínimo! {len(aulas_geradas)} aulas distribuídas."
+                        msg = f"Horário gerado com a menor correção encontrada! {len(aulas_geradas)} aulas distribuídas."
                     salvar_aulas(escola_id, aulas_geradas, turma_id_especifica, turno)
                     return True, msg, aulas_geradas, ajustes
-                # Ajuste mínimo também não resolveu — reporta falha normalmente
+
                 return (
                     False,
-                    "Não foi possível gerar nem com ajuste de dias. "
+                    "Não foi possível fechar a grade sem alterar limites estruturais. "
                     "Verifique as cargas e vínculos dos professores.",
                     [],
-                    _enriquecer_pendencias(pend_alt or melhores_pendencias, turmas),
-                    max(melhor_total, total_alt),
+                    _enriquecer_pendencias(pend_ajuste or melhores_pendencias, turmas),
+                    max(melhor_total, total_ajuste),
                     total_esperado,
                 )
 
@@ -529,66 +654,6 @@ def montar_horario_gerado(
         return True, f"Horário completado! {novas} aula(s) adicionada(s) aos espaços vazios.", aulas_geradas
 
     return True, f"Horário gerado com sucesso! {len(aulas_geradas)} aulas distribuídas.", aulas_geradas
-
-
-def gerar_sugestao(escola_id, turno=None):
-    """
-    Gera uma sugestão de grade completa relaxando todos os dias de disponibilidade dos professores.
-    Salva em grade_sugestao sem tocar no horário oficial.
-    Retorna (sucesso: bool, mensagem: str, total: int, ajustes: list)
-    """
-    from models.sugestao import salvar_sugestao
-
-    turno = normalizar_turno(turno)
-    professores = listar_professores(escola_id, turno)
-    turmas = listar_turmas(escola_id, turno)
-    disciplinas = listar_disciplinas(escola_id, turno)
-
-    if not professores:
-        return False, "Cadastre pelo menos um professor antes de gerar a sugestão.", 0, []
-    if not turmas:
-        return False, "Cadastre pelo menos uma turma antes de gerar a sugestão.", 0, []
-    if not disciplinas:
-        return False, "Cadastre pelo menos uma disciplina antes de gerar a sugestão.", 0, []
-
-    professor_original_dias = {p['id']: set(p.get('dias_lista') or []) for p in professores}
-    professor_ids_todos = {p['id'] for p in professores}
-    professores_ext = _professores_com_dias_estendidos(professores, professor_ids_todos)
-    professores_por_id = {p['id']: p for p in professores_ext}
-
-    demandas = _demandas_detalhadas(professores_ext, turmas, disciplinas)
-    if not demandas:
-        return False, "Nenhuma carga cadastrada para os professores.", 0, []
-
-    melhor_grade, _, melhor_total, total_esperado = _tentar_gerar(
-        professores_ext, turmas, disciplinas, demandas, None, None, 0,
-    )
-
-    if melhor_total == 0:
-        return False, "Não foi possível gerar nenhuma aula para a sugestão.", 0, []
-
-    aulas_geradas = _montar_aulas_geradas(melhor_grade, [t['id'] for t in turmas])
-
-    ocupacao = {}
-    for a in aulas_geradas:
-        key = (a['professor_id'], a['dia'], a['periodo'])
-        ocupacao[key] = ocupacao.get(key, 0) + 1
-
-    for a in aulas_geradas:
-        dias_orig = professor_original_dias.get(a['professor_id'], set())
-        key = (a['professor_id'], a['dia'], a['periodo'])
-        a['tem_conflito'] = ocupacao.get(key, 0) > 1 or a['dia'] not in dias_orig
-
-    ajustes = _extrair_ajustes(melhor_grade, professores_por_id)
-    salvar_sugestao(escola_id, aulas_geradas, turno)
-
-    completo = melhor_total >= total_esperado
-    msg = (
-        f"Sugestão gerada! {len(aulas_geradas)} aulas distribuídas."
-        if completo
-        else f"Sugestão parcial: {melhor_total} de {total_esperado} aulas distribuídas."
-    )
-    return True, msg, len(aulas_geradas), ajustes
 
 
 def gerar_horario(escola_id, turma_id_especifica=None, turno=None, completar_apenas=False, ajuste_minimo=False):

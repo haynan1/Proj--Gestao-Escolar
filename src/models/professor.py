@@ -437,6 +437,58 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
         conn.close()
 
 
+def adicionar_dias_disponiveis_professores(escola_id, turno, ajustes):
+    turno = normalizar_turno(turno)
+    dias_por_professor = {}
+    for ajuste in ajustes or []:
+        try:
+            professor_id = int(ajuste.get('professor_id'))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        dia = ajuste.get('dia')
+        if dia:
+            dias_por_professor.setdefault(professor_id, set()).add(dia)
+
+    if not dias_por_professor:
+        return 0
+
+    conn = get_connection()
+    try:
+        placeholders = ', '.join(['%s'] * len(dias_por_professor))
+        rows = conn.execute(
+            f"""SELECT id, dias_disponiveis
+                FROM professores
+                WHERE escola_id = %s
+                  AND turno = %s
+                  AND id IN ({placeholders})""",
+            tuple([escola_id, turno] + sorted(dias_por_professor)),
+        ).fetchall()
+
+        atualizados = 0
+        for row in rows:
+            professor_id = int(row['id'])
+            dias_atuais = [dia for dia in (row.get('dias_disponiveis') or '').split(',') if dia]
+            dias_novos = set(dias_atuais) | dias_por_professor.get(professor_id, set())
+            dias_ordenados = [dia for dia in ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'] if dia in dias_novos]
+            if dias_ordenados == dias_atuais:
+                continue
+            conn.execute(
+                """UPDATE professores
+                   SET dias_disponiveis = %s
+                   WHERE id = %s AND escola_id = %s AND turno = %s""",
+                (','.join(dias_ordenados), professor_id, escola_id, turno),
+            )
+            atualizados += 1
+
+        conn.commit()
+        return atualizados
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def atualizar_cargas_turma(escola_id, turma_id, cargas, turno=None):
     turno = normalizar_turno(turno)
     cargas = _normalizar_cargas_turma(cargas)

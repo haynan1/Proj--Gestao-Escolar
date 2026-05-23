@@ -50,6 +50,7 @@ from models.horario_temporario import (
 from models.professor import (
     CORES_PROFESSOR,
     COR_PROFESSOR_PADRAO,
+    adicionar_dias_disponiveis_professores,
     atualizar_professor,
     atualizar_cargas_turma,
     criar_professor,
@@ -72,10 +73,9 @@ from models.relatorio_professor import (
     deletar_relatorio_professor,
     listar_relatorios_professores,
 )
-from models.sugestao import listar_sugestao, limpar_sugestao, tem_sugestao
 from models.turma import atualizar_turma, criar_turma, deletar_turma, listar_turmas
 from models.turno import TURNOS, normalizar_turno
-from scheduler import gerar_horario, gerar_sugestao, montar_horario_gerado
+from scheduler import gerar_horario, montar_horario_gerado
 from utils.conflitos import PERIODOS
 
 
@@ -822,7 +822,7 @@ def _geracao_oficial_travada_json(escola, turno):
     if not horario_turno_travado(escola, turno):
         return None
     return _json_error(
-        'Geracao oficial travada. Destrave este turno antes de alterar o horario oficial.',
+        'Alteracoes travadas. Destrave este turno antes de alterar o horario oficial.',
         status_code=423,
         code='official_schedule_locked',
     )
@@ -1506,7 +1506,7 @@ def horarios(escola_id):
     if view_mode != 'geral':
         view_mode = 'turma'
     visualizacao_horario = request.args.get('visualizacao', 'alternativo')
-    if visualizacao_horario not in {'oficial', 'alternativo', 'sugestao'}:
+    if visualizacao_horario not in {'oficial', 'alternativo'}:
         visualizacao_horario = 'alternativo'
     dia_visualizado = DIAS_SEMANA[data_visualizada.weekday()] if data_visualizada.weekday() < len(DIAS_SEMANA) else None
     turmas = listar_turmas(escola['id'], turno_atual)
@@ -1581,13 +1581,6 @@ def horarios(escola_id):
         chave_turma = f"{horario_temp['turma_id']}:{horario_temp['dia']}:{horario_temp['periodo']}"
         temporarios_por_turma_slot.setdefault(chave_turma, []).append(horario_temp)
 
-    aulas_sugestao = listar_sugestao(escola['id'], turno_atual) if visualizacao_horario == 'sugestao' else []
-    grade_sugestao_map = {}
-    for aula in aulas_sugestao:
-        tid = aula['turma_id']
-        grade_sugestao_map.setdefault(tid, {}).setdefault(aula['dia'], {})[aula['periodo']] = aula
-    existe_sugestao = tem_sugestao(escola['id'], turno_atual)
-
     return render_template(
         'horarios.html',
         escola=escola,
@@ -1613,8 +1606,6 @@ def horarios(escola_id):
         alternative_manual_options=_build_alternative_manual_options(professores_por_turno),
         alternative_occupied_slots=_build_alternative_occupied_slots(aulas_por_turno),
         alternative_official_lessons=_build_alternative_official_lessons(aulas_por_turno),
-        grade_sugestao=grade_sugestao_map,
-        existe_sugestao=existe_sugestao,
         view_mode=view_mode,
         visualizacao_horario=visualizacao_horario,
         turnos=TURNOS,
@@ -1638,9 +1629,9 @@ def alternar_trava_horario(escola_id):
     travar = request.form.get('acao') != 'destravar'
     definir_horario_turno_travado(escola['id'], turno_atual, travar)
     flash(
-        'Geracao oficial travada para este turno.'
+        'Alteracoes travadas para este turno.'
         if travar else
-        'Geracao oficial destravada para este turno.',
+        'Alteracoes destravadas para este turno.',
         'success',
     )
 
@@ -1668,7 +1659,7 @@ def gerar(escola_id):
     ajuste_minimo = request.form.get('ajuste_minimo') == '1'
 
     if horario_turno_travado(escola, turno_atual):
-        flash('Geracao oficial travada. Destrave este turno antes de gerar um novo horario oficial.', 'error')
+        flash('Alteracoes travadas. Destrave este turno antes de gerar um novo horario oficial.', 'error')
         if turma_id:
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
@@ -1720,43 +1711,40 @@ def gerar(escola_id):
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
 
 
-@dashboard_bp.route('/escola/<int:escola_id>/horarios/sugestao/gerar', methods=['POST'])
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/ajustes/aplicar', methods=['POST'])
 @login_required
-def gerar_sugestao_grade(escola_id):
-    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+def aplicar_ajustes_grade(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
     if failure:
         return failure
 
-    turno_atual = _active_turno()
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    if _dashboard_resource_locked(escola, turno_atual):
+        flash('Alterações travadas para este turno. Destrave antes de atualizar o Dashboard.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turno=turno_atual))
+
+    ajustes_session = session.get('grade_ajustes')
+    if not ajustes_session or ajustes_session.get('escola_id') != escola['id'] or ajustes_session.get('turno') != turno_atual:
+        flash('Nenhum ajuste de grade disponível para aplicar.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turno=turno_atual))
+
     try:
-        sucesso, msg, _, ajustes = gerar_sugestao(escola_id, turno_atual)
+        atualizados = adicionar_dias_disponiveis_professores(
+            escola['id'],
+            turno_atual,
+            ajustes_session.get('ajustes') or [],
+        )
     except Exception:
-        current_app.logger.exception('Erro ao gerar sugestão de grade para escola %s.', escola_id)
-        flash('Erro interno ao gerar a sugestão de grade.', 'error')
-        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, visualizacao='sugestao'))
+        current_app.logger.exception('Erro ao aplicar ajustes de grade no Dashboard da escola %s.', escola['id'])
+        flash('Não foi possível aplicar os ajustes no Dashboard agora.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turno=turno_atual))
 
-    if sucesso and ajustes:
-        session['grade_sugestao_ajustes'] = {
-            'escola_id': escola_id,
-            'turno': turno_atual,
-            'ajustes': ajustes,
-        }
-    flash(msg, 'success' if sucesso else 'error')
-    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, visualizacao='sugestao'))
-
-
-@dashboard_bp.route('/escola/<int:escola_id>/horarios/sugestao/limpar', methods=['POST'])
-@login_required
-def limpar_sugestao_grade(escola_id):
-    escola, failure = _guard_school(escola_id, permission='manage_schedule')
-    if failure:
-        return failure
-
-    turno_atual = _active_turno()
-    limpar_sugestao(escola_id, turno_atual)
-    session.pop('grade_sugestao_ajustes', None)
-    flash('Sugestão de grade removida.', 'success')
-    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+    session.pop('grade_ajustes', None)
+    if atualizados:
+        flash(f'Ajustes aplicados no Dashboard: {atualizados} professor(es) atualizado(s).', 'success')
+    else:
+        flash('Os ajustes já estavam refletidos no Dashboard.', 'success')
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turno=turno_atual))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/erros/pdf')
@@ -2014,7 +2002,7 @@ def limpar_horarios(escola_id):
 
     turno_atual = _active_turno()
     if horario_turno_travado(escola, turno_atual):
-        flash('Geracao oficial travada. Destrave este turno antes de limpar o horario oficial.', 'error')
+        flash('Alteracoes travadas. Destrave este turno antes de limpar o horario oficial.', 'error')
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
 
     alvo = request.form.get('limpar_alvo', 'todas')
@@ -2163,15 +2151,16 @@ def deletar_temporario(escola_id, horario_id):
         return failure
 
     turma_id = request.form.get('turma_id', type=int)
+    turno_atual = _active_turno()
+    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
+    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
     try:
-        removido = deletar_horario_temporario(horario_id, escola['id'], _active_turno())
+        removido = deletar_horario_temporario(horario_id, escola['id'], turno_atual)
         flash('Horário temporário removido.' if removido else 'Horário temporário não encontrado.', 'success' if removido else 'error')
     except Exception:
         current_app.logger.exception('Erro ao remover horario temporario %s da escola %s.', horario_id, escola['id'])
         flash('Não foi possível remover o horário temporário agora.', 'error')
 
-    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
-    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada, visualizacao=visualizacao))
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, data=data_visualizada, visualizacao=visualizacao))
@@ -2184,10 +2173,15 @@ def deletar_temporario_grupo(escola_id):
     if failure:
         return failure
 
+    turno_atual = _active_turno()
+    turma_id = request.form.get('turma_id', type=int)
+    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
+    view_mode = request.form.get('view') or request.args.get('view')
+    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
     try:
         removidos = deletar_horarios_temporarios_grupo(
             escola['id'],
-            _active_turno(),
+            turno_atual,
             request.form.get('titulo'),
             request.form.get('data_inicio'),
             request.form.get('data_fim') or request.form.get('data_inicio'),
@@ -2204,15 +2198,11 @@ def deletar_temporario_grupo(escola_id):
         current_app.logger.exception('Erro ao remover grupo de horario temporario da escola %s.', escola['id'])
         flash('Não foi possível remover o horário alternativo agora.', 'error')
 
-    turma_id = request.form.get('turma_id', type=int)
-    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
-    view_mode = request.form.get('view') or request.args.get('view')
-    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
     if request.form.get('redirect_to') == 'relatorios':
         return redirect(_dashboard_url(
             'dashboard.relatorios',
             escola_id=escola_id,
-            turno=_active_turno(),
+            turno=turno_atual,
             mes=request.form.get('mes') or _mes_atual(),
         ))
     if turma_id:
