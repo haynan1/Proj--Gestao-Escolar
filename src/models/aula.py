@@ -1,3 +1,4 @@
+import logging
 import time
 
 import mysql.connector
@@ -5,6 +6,8 @@ import mysql.connector
 from database.connection import get_connection
 from models.turno import normalizar_turno
 from utils.conflitos import DIAS, PERIODOS
+
+_logger = logging.getLogger(__name__)
 
 
 MYSQL_RETRYABLE_LOCK_ERRORS = {1205, 1213}
@@ -93,6 +96,7 @@ def limpar_aulas(escola_id, turma_id=None, turno=None):
         conn.commit()
     except Exception:
         conn.rollback()
+        _logger.exception('Erro ao limpar aulas da escola %s turma %s.', escola_id, turma_id)
         raise
     finally:
         conn.close()
@@ -124,6 +128,7 @@ def deletar_aula(aula_id, escola_id, turno=None):
         return dict(aula) if cursor.rowcount > 0 else None
     except Exception:
         conn.rollback()
+        _logger.exception('Erro inesperado ao deletar aula %s da escola %s.', aula_id, escola_id)
         raise
     finally:
         conn.close()
@@ -269,8 +274,12 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
         )
         conn.commit()
         return cursor.lastrowid
+    except (ScheduleConflictError, ScheduleValidationError):
+        conn.rollback()
+        raise
     except Exception:
         conn.rollback()
+        _logger.exception('Erro inesperado ao criar aula manual na escola %s.', escola_id)
         raise
     finally:
         conn.close()
@@ -423,8 +432,12 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
         )
         conn.commit()
         return {'action': 'move'}
+    except (ScheduleConflictError, ScheduleValidationError):
+        conn.rollback()
+        raise
     except Exception:
         conn.rollback()
+        _logger.exception('Erro inesperado ao mover aula %s para %s/%s.', aula_id, novo_dia, novo_periodo)
         raise
     finally:
         conn.close()
@@ -432,6 +445,12 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
 
 def deletar_aulas_escola(escola_id):
     conn = get_connection()
-    conn.execute("DELETE FROM aulas WHERE escola_id = %s", (escola_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("DELETE FROM aulas WHERE escola_id = %s", (escola_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        _logger.exception('Erro ao deletar aulas da escola %s.', escola_id)
+        raise
+    finally:
+        conn.close()

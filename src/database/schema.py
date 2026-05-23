@@ -158,6 +158,7 @@ TABLE_STATEMENTS = [
         periodo INT NOT NULL,
         UNIQUE KEY uq_aulas_turma_slot (turma_id, dia, periodo),
         UNIQUE KEY uq_aulas_professor_slot (professor_id, dia, periodo),
+        KEY idx_aulas_escola_professor (escola_id, turno, professor_id),
         CONSTRAINT fk_aulas_escola
             FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
         CONSTRAINT fk_aulas_turma
@@ -734,6 +735,13 @@ def _sort_school_days(days):
     return sorted(days, key=lambda day: order.get(day, len(order)))
 
 
+def _ensure_aulas_escola_professor_index(cursor):
+    if not _index_exists(cursor, 'aulas', 'idx_aulas_escola_professor'):
+        cursor.execute(
+            "CREATE INDEX idx_aulas_escola_professor ON aulas (escola_id, turno, professor_id)"
+        )
+
+
 def _normalize_professor_days(conn):
     professores = conn.execute(
         "SELECT id, dias_disponiveis FROM professores"
@@ -917,6 +925,7 @@ def create_tables():
         _ensure_report_history_columns(conn)
         _ensure_disciplina_color_column(conn)
         _ensure_professor_color_column(conn)
+        _ensure_aulas_escola_professor_index(conn)
         _ensure_bootstrap_admin(conn)
         _ensure_system_test_user(conn)
         _backfill_professor_disciplina_links(conn)

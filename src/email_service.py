@@ -24,9 +24,10 @@ def send_email(recipient: str, subject: str, body_text: str):
 
     if not smtp_host or not sender_email:
         LOGGER.warning(
-            'SMTP nao configurado. E-mail nao enviado para %s (assunto: %s).',
+            'SMTP nao configurado. E-mail nao enviado para %s (assunto: %s).\n--- CONTEUDO ---\n%s\n--- FIM ---',
             recipient,
             subject,
+            body_text,
         )
         return 'debug'
 

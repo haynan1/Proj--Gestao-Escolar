@@ -416,6 +416,20 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
         if _professor_nome_existe(conn, escola_id, turno, nome, professor_id):
             raise ValueError("Já existe um professor com esse nome neste turno.")
         dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
+        dias_novos = {d.strip() for d in (dias_disponiveis if isinstance(dias_disponiveis, list) else str(dias_disponiveis).split(',')) if d.strip()}
+        if dias_novos:
+            placeholders = ', '.join(['%s'] * len(dias_novos))
+            conflitos = conn.execute(
+                f"""SELECT COUNT(*) AS total FROM aulas
+                    WHERE professor_id = %s AND escola_id = %s AND turno = %s
+                      AND dia NOT IN ({placeholders})""",
+                (professor_id, escola_id, turno, *sorted(dias_novos)),
+            ).fetchone()
+            if conflitos and int(conflitos['total'] or 0) > 0:
+                raise ValueError(
+                    f"Este professor possui {int(conflitos['total'])} aula(s) em dia(s) que seriam bloqueados. "
+                    "Limpe ou realoque essas aulas antes de alterar a disponibilidade."
+                )
         conn.execute(
             """UPDATE professores
                SET nome = %s,

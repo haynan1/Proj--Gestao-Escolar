@@ -163,7 +163,8 @@ def _pode_alocar_no_slot(grade, turma, aula, dia, periodo, professores_por_id, s
         return False
     if verificar_conflito_turma(grade, turma_id, dia, periodo):
         return False
-    if not ignorar_dias and dia not in (professor.get('dias_lista') or []):
+    _dias = professor.get('dias_lista') or []
+    if not ignorar_dias and _dias and dia not in _dias:
         return False
     if verificar_conflito_professor(grade, professor['id'], dia, periodo):
         return False
@@ -212,7 +213,7 @@ def _alocar_demanda(
         rng.shuffle(profs_shuffled)
 
         for prof in profs_shuffled:
-            if not ignorar_dias and dia not in prof['dias_lista']:
+            if not ignorar_dias and prof['dias_lista'] and dia not in prof['dias_lista']:
                 continue
 
             if verificar_conflito_professor(grade, prof['id'], dia, periodo):
@@ -314,7 +315,8 @@ def _tentar_reparar_pendencias(grade, pendencias, demandas, turmas, professores,
             }
 
             for dia, periodo in _slots_livres_turma(grade_reparada, turma, slots_bloqueados):
-                if dia not in (professor.get('dias_lista') or []):
+                _dias_prof = professor.get('dias_lista') or []
+                if _dias_prof and dia not in _dias_prof:
                     continue
                 if verificar_aulas_seguidas(grade_reparada, turma['id'], disciplina['id'], dia, periodo, max(_periodos_turma(turma))):
                     continue
@@ -397,7 +399,7 @@ def _aulas_fora_disponibilidade(aulas, professores):
         professor_id = aula.get('professor_id')
         dia = aula.get('dia')
         dias = dias_por_professor.get(professor_id, set())
-        if dia in dias:
+        if not dias or dia in dias:
             continue
         professor = professores_por_id.get(professor_id, {})
         invalidas.append({

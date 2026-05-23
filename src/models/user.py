@@ -106,6 +106,9 @@ def deletar_usuario(usuario_id: int):
             (usuario_id,),
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -122,6 +125,9 @@ def atualizar_role_usuario(usuario_id: int, role: str):
             (role, usuario_id),
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -178,6 +184,9 @@ def registrar_falha_login(usuario_id: int):
         )
         conn.commit()
         return bloqueado_ate
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -194,6 +203,9 @@ def limpar_estado_login(usuario_id: int):
             (usuario_id,),
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -209,6 +221,9 @@ def marcar_email_como_verificado(usuario_id: int):
             (usuario_id,),
         )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -240,6 +255,9 @@ def atualizar_senha(usuario_id: int, nova_senha: str, validar_email: bool = True
                 (senha_hash, usuario_id),
             )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
