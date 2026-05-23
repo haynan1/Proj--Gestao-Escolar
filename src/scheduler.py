@@ -16,6 +16,9 @@ from models.turno import normalizar_turno
 
 MAX_TENTATIVAS_GRADE = 100
 MAX_TENTATIVAS_AJUSTE_MINIMO = 300
+MAX_TENTATIVAS_GRADE_GERAL = 320
+MAX_TENTATIVAS_GRADE_SEQUENCIAL = 28
+MAX_TENTATIVAS_TURMA_A_TURMA = 16
 
 
 def _nova_semente_aleatoria():
@@ -143,6 +146,32 @@ def _slot_bloqueado(slots_bloqueados, turma_id, dia, periodo):
     )
 
 
+def _professor_ocupado_em(grade, professor_id, dia, periodo):
+    for turma_id, slots in grade.items():
+        aula = slots.get((dia, periodo))
+        if aula and aula.get('professor_id') == professor_id:
+            return turma_id, aula
+    return None, None
+
+
+def _pode_alocar_no_slot(grade, turma, aula, dia, periodo, professores_por_id, slots_bloqueados=None, ignorar_dias=False):
+    turma_id = turma['id']
+    professor = professores_por_id.get(aula.get('professor_id'))
+    if not professor:
+        return False
+    if _slot_bloqueado(slots_bloqueados, turma_id, dia, periodo):
+        return False
+    if verificar_conflito_turma(grade, turma_id, dia, periodo):
+        return False
+    if not ignorar_dias and dia not in (professor.get('dias_lista') or []):
+        return False
+    if verificar_conflito_professor(grade, professor['id'], dia, periodo):
+        return False
+    if verificar_aulas_seguidas(grade, turma_id, aula['disciplina_id'], dia, periodo, max(_periodos_turma(turma))):
+        return False
+    return True
+
+
 def _alocar_demanda(
     grade,
     turma,
@@ -206,6 +235,136 @@ def _alocar_demanda(
     return colocadas
 
 
+def _pendencias_da_grade(grade, demandas, turmas):
+    pendencias = []
+    for demanda in demandas:
+        turma_id = demanda['turma_id']
+        professor_id = demanda['professor']['id']
+        disciplina_id = demanda['disciplina']['id']
+        colocadas = sum(
+            1
+            for aula in (grade.get(turma_id) or {}).values()
+            if aula
+            and aula.get('professor_id') == professor_id
+            and aula.get('disciplina_id') == disciplina_id
+        )
+        faltantes = demanda['qtd'] - colocadas
+        if faltantes > 0:
+            pendencias.append({
+                'professor_id': professor_id,
+                'professor_nome': demanda['professor']['nome'],
+                'turma_id': turma_id,
+                'disciplina_nome': demanda['disciplina']['nome'],
+                'faltantes': faltantes,
+            })
+    return _enriquecer_pendencias(pendencias, turmas)
+
+
+def _slots_livres_turma(grade, turma, slots_bloqueados=None):
+    turma_id = turma['id']
+    return [
+        (dia, periodo)
+        for dia in DIAS
+        for periodo in _periodos_turma(turma)
+        if not _slot_bloqueado(slots_bloqueados, turma_id, dia, periodo)
+        and not verificar_conflito_turma(grade, turma_id, dia, periodo)
+    ]
+
+
+def _mover_aula_para_slot_livre(grade, turma, origem, aula, professores_por_id, slots_bloqueados=None):
+    turma_id = turma['id']
+    original = grade[turma_id].pop(origem, None)
+    movida = False
+    try:
+        for dia_dest, periodo_dest in _slots_livres_turma(grade, turma, slots_bloqueados):
+            if _pode_alocar_no_slot(grade, turma, aula, dia_dest, periodo_dest, professores_por_id, slots_bloqueados):
+                grade[turma_id][(dia_dest, periodo_dest)] = aula
+                movida = True
+                return True
+    finally:
+        if not movida and origem not in grade[turma_id] and original is not None:
+            grade[turma_id][origem] = original
+    return False
+
+
+def _tentar_reparar_pendencias(grade, pendencias, demandas, turmas, professores, disciplinas, slots_bloqueados=None):
+    if not pendencias:
+        return grade, pendencias
+
+    grade_reparada = _copiar_grade(grade)
+    turmas_por_id = {turma['id']: turma for turma in turmas}
+    professores_por_id = {professor['id']: professor for professor in professores}
+    disciplinas_por_nome = {disciplina['nome']: disciplina for disciplina in disciplinas}
+
+    for pendencia in list(pendencias):
+        turma = turmas_por_id.get(pendencia.get('turma_id'))
+        professor = professores_por_id.get(pendencia.get('professor_id'))
+        disciplina = disciplinas_por_nome.get(pendencia.get('disciplina_nome'))
+        if not turma or not professor or not disciplina:
+            continue
+
+        for _ in range(int(pendencia.get('faltantes') or 0)):
+            inserida = False
+            aula_pendente = {
+                'professor_id': professor['id'],
+                'disciplina_id': disciplina['id'],
+                'professor_nome': professor['nome'],
+                'disciplina_nome': disciplina['nome'],
+                'disciplina_cor': disciplina.get('cor'),
+            }
+
+            for dia, periodo in _slots_livres_turma(grade_reparada, turma, slots_bloqueados):
+                if dia not in (professor.get('dias_lista') or []):
+                    continue
+                if verificar_aulas_seguidas(grade_reparada, turma['id'], disciplina['id'], dia, periodo, max(_periodos_turma(turma))):
+                    continue
+
+                turma_ocupada_id, aula_ocupada = _professor_ocupado_em(grade_reparada, professor['id'], dia, periodo)
+                if aula_ocupada:
+                    turma_ocupada = turmas_por_id.get(turma_ocupada_id)
+                    if not turma_ocupada:
+                        continue
+                    if not _mover_aula_para_slot_livre(
+                        grade_reparada,
+                        turma_ocupada,
+                        (dia, periodo),
+                        aula_ocupada,
+                        professores_por_id,
+                        slots_bloqueados,
+                    ):
+                        continue
+
+                if _pode_alocar_no_slot(
+                    grade_reparada,
+                    turma,
+                    aula_pendente,
+                    dia,
+                    periodo,
+                    professores_por_id,
+                    slots_bloqueados,
+                ):
+                    grade_reparada[turma['id']][(dia, periodo)] = aula_pendente
+                    inserida = True
+                    break
+
+            if not inserida:
+                break
+
+    pendencias_reparadas = _pendencias_da_grade(grade_reparada, demandas, turmas)
+    if _score_grade(
+        sum(len(grade_reparada.get(t['id'], {})) for t in turmas),
+        sum(d['qtd'] for d in demandas),
+        pendencias_reparadas,
+    ) < _score_grade(
+        sum(len(grade.get(t['id'], {})) for t in turmas),
+        sum(d['qtd'] for d in demandas),
+        pendencias,
+    ):
+        return grade_reparada, pendencias_reparadas
+
+    return grade, pendencias
+
+
 def _copiar_grade(grade):
     return {turma_id: dict(slots) for turma_id, slots in grade.items()}
 
@@ -225,6 +384,28 @@ def _montar_aulas_geradas(grade, turma_ids=None):
                 'periodo': periodo,
             })
     return aulas_geradas
+
+
+def _aulas_fora_disponibilidade(aulas, professores):
+    dias_por_professor = {
+        professor['id']: set(professor.get('dias_lista') or [])
+        for professor in professores
+    }
+    professores_por_id = {professor['id']: professor for professor in professores}
+    invalidas = []
+    for aula in aulas:
+        professor_id = aula.get('professor_id')
+        dia = aula.get('dia')
+        dias = dias_por_professor.get(professor_id, set())
+        if dia in dias:
+            continue
+        professor = professores_por_id.get(professor_id, {})
+        invalidas.append({
+            'professor_id': professor_id,
+            'professor_nome': professor.get('nome') or str(professor_id),
+            'dia': dia,
+        })
+    return invalidas
 
 
 def _montar_grade_existente(aulas, turmas, turma_id_ignorada=None):
@@ -460,14 +641,16 @@ def _tentar_gerar(
     slots_bloqueados,
     slots_base,
     ignorar_dias=False,
+    tentativas_max=MAX_TENTATIVAS_GRADE,
 ):
-    """Executa as MAX_TENTATIVAS_GRADE tentativas e devolve a melhor grade encontrada."""
+    """Executa tentativas de geração e devolve a melhor grade encontrada."""
     total_esperado = sum(demanda['qtd'] for demanda in demandas_para_gerar)
     melhor_grade = None
     melhores_pendencias = []
     melhor_total = -1
+    melhor_score = None
     semente_base = _nova_semente_aleatoria()
-    for tentativa in range(MAX_TENTATIVAS_GRADE):
+    for tentativa in range(tentativas_max):
         grade_tentativa, pendencias = _gerar_grade_por_demandas(
             demandas_para_gerar,
             turmas,
@@ -477,12 +660,139 @@ def _tentar_gerar(
             ignorar_dias=ignorar_dias,
         )
         total_tentativa = sum(len(grade_tentativa.get(t['id'], {})) for t in turmas) - slots_base
-        if total_tentativa > melhor_total:
+        score = _score_grade(total_tentativa, total_esperado, pendencias)
+        if melhor_score is None or score < melhor_score:
             melhor_grade = grade_tentativa
             melhores_pendencias = pendencias
             melhor_total = total_tentativa
+            melhor_score = score
         if total_tentativa >= total_esperado:
             break
+    return melhor_grade, melhores_pendencias, melhor_total, total_esperado
+
+
+def _score_grade(melhor_total, total_esperado, pendencias):
+    return (
+        max(0, total_esperado - melhor_total),
+        sum(p.get('faltantes', 0) for p in pendencias or []),
+        len(pendencias or []),
+        -melhor_total,
+    )
+
+
+def _ordenar_turmas_para_geracao(turmas, demandas, rng, modo='restritas'):
+    demanda_por_turma = defaultdict(int)
+    professores_por_turma = defaultdict(set)
+    dias_professores_por_turma = defaultdict(list)
+
+    for demanda in demandas:
+        turma_id = demanda['turma_id']
+        demanda_por_turma[turma_id] += demanda['qtd']
+        professor = demanda['professor']
+        professores_por_turma[turma_id].add(professor['id'])
+        dias_professores_por_turma[turma_id].append(len(professor.get('dias_lista') or []))
+
+    ordenadas = list(turmas)
+    if str(modo).startswith('rotacao:'):
+        try:
+            indice = int(str(modo).split(':', 1)[1]) % len(ordenadas)
+        except (ValueError, ZeroDivisionError):
+            indice = 0
+        return ordenadas[indice:] + ordenadas[:indice]
+    if modo == 'cadastro':
+        return ordenadas
+    if modo == 'cadastro_reverso':
+        return list(reversed(ordenadas))
+    if modo == 'aleatoria':
+        rng.shuffle(ordenadas)
+        return ordenadas
+    if modo == 'maior_demanda':
+        ordenadas.sort(
+            key=lambda turma: (
+                -demanda_por_turma.get(turma['id'], 0),
+                _capacidade_turma(turma) - demanda_por_turma.get(turma['id'], 0),
+                turma.get('nome') or '',
+            )
+        )
+        return ordenadas
+
+    rng.shuffle(ordenadas)
+    ordenadas.sort(
+        key=lambda turma: (
+            _capacidade_turma(turma) - demanda_por_turma.get(turma['id'], 0),
+            min(dias_professores_por_turma.get(turma['id'], [len(DIAS)])),
+            -len(professores_por_turma.get(turma['id'], set())),
+            turma.get('nome') or '',
+        )
+    )
+    return ordenadas
+
+
+def _tentar_gerar_turma_a_turma(
+    professores,
+    turmas,
+    disciplinas,
+    demandas,
+    grade_base,
+    slots_bloqueados,
+    slots_base,
+):
+    """
+    Simula o fluxo que costuma funcionar melhor no uso manual: gera uma turma,
+    mantém a grade como bloqueio e passa para a próxima.
+    """
+    total_esperado = sum(demanda['qtd'] for demanda in demandas)
+    melhor_grade = None
+    melhores_pendencias = []
+    melhor_total = -1
+    melhor_score = None
+    semente_base = _nova_semente_aleatoria()
+    demandas_por_turma = defaultdict(list)
+    for demanda in demandas:
+        demandas_por_turma[demanda['turma_id']].append(demanda)
+
+    for tentativa in range(MAX_TENTATIVAS_TURMA_A_TURMA):
+        rng = random.Random(semente_base + tentativa)
+        grade = _copiar_grade(grade_base) if grade_base is not None else {t['id']: {} for t in turmas}
+        pendencias = []
+        modos = (
+            'cadastro',
+            'cadastro_reverso',
+            'restritas',
+            'maior_demanda',
+            'aleatoria',
+            *[f'rotacao:{indice}' for indice in range(len(turmas))],
+        )
+        modo = modos[tentativa % len(modos)]
+
+        for turma in _ordenar_turmas_para_geracao(turmas, demandas, rng, modo):
+            turma_id = turma['id']
+            demandas_turma = demandas_por_turma.get(turma_id, [])
+            if not demandas_turma:
+                continue
+            slots_turma_base = len((grade or {}).get(turma_id, {}))
+            grade, pendencias_turma, _total_turma, _total_esperado_turma = _tentar_gerar(
+                professores,
+                [turma],
+                disciplinas,
+                demandas_turma,
+                grade,
+                slots_bloqueados,
+                slots_turma_base,
+                tentativas_max=MAX_TENTATIVAS_GRADE_SEQUENCIAL,
+            )
+            pendencias.extend(pendencias_turma)
+
+        total = sum(len(grade.get(t['id'], {})) for t in turmas) - slots_base
+        score = _score_grade(total, total_esperado, pendencias)
+        if melhor_score is None or score < melhor_score:
+            melhor_grade = grade
+            melhores_pendencias = pendencias
+            melhor_total = total
+            melhor_score = score
+            if total >= total_esperado and not pendencias:
+                break
+
     return melhor_grade, melhores_pendencias, melhor_total, total_esperado
 
 
@@ -557,8 +867,54 @@ def montar_horario_gerado(
         )
 
         melhor_grade, melhores_pendencias, melhor_total, total_esperado = _tentar_gerar(
-            professores, turmas, disciplinas, demandas_para_gerar, grade_base, slots_bloqueados, slots_base,
+            professores,
+            turmas,
+            disciplinas,
+            demandas_para_gerar,
+            grade_base,
+            slots_bloqueados,
+            slots_base,
+            tentativas_max=MAX_TENTATIVAS_GRADE_GERAL if not turma_id_especifica and not completar_apenas else MAX_TENTATIVAS_GRADE,
         )
+        if not turma_id_especifica and not completar_apenas:
+            grade_seq, pendencias_seq, total_seq, total_esp_seq = _tentar_gerar_turma_a_turma(
+                professores,
+                turmas,
+                disciplinas,
+                demandas_para_gerar,
+                grade_base,
+                slots_bloqueados,
+                slots_base,
+            )
+            if _score_grade(total_seq, total_esp_seq, pendencias_seq) < _score_grade(
+                melhor_total,
+                total_esperado,
+                melhores_pendencias,
+            ):
+                melhor_grade = grade_seq
+                melhores_pendencias = pendencias_seq
+                melhor_total = total_seq
+                total_esperado = total_esp_seq
+
+            if melhor_total < total_esperado and melhores_pendencias:
+                grade_reparada, pendencias_reparadas = _tentar_reparar_pendencias(
+                    melhor_grade,
+                    melhores_pendencias,
+                    demandas_para_gerar,
+                    turmas,
+                    professores,
+                    disciplinas,
+                    slots_bloqueados,
+                )
+                total_reparado = sum(len(grade_reparada.get(t['id'], {})) for t in turmas) - slots_base
+                if _score_grade(total_reparado, total_esperado, pendencias_reparadas) < _score_grade(
+                    melhor_total,
+                    total_esperado,
+                    melhores_pendencias,
+                ):
+                    melhor_grade = grade_reparada
+                    melhores_pendencias = pendencias_reparadas
+                    melhor_total = total_reparado
 
         if melhor_total < total_esperado:
             if ajuste_minimo and melhores_pendencias:
@@ -594,6 +950,19 @@ def montar_horario_gerado(
                 if total_ajuste >= total_esp_ajuste:
                     ajustes = ajustes or []
                     aulas_geradas = _montar_aulas_geradas(melhor_grade_ajuste, [t['id'] for t in turmas])
+                    if ajustes:
+                        return (
+                            False,
+                            "A menor correção encontrada exige ajustar a disponibilidade dos professores antes de gerar a grade oficial.",
+                            [],
+                            {'ajustes_necessarios': ajustes},
+                        )
+                    if _aulas_fora_disponibilidade(aulas_geradas, professores):
+                        return (
+                            False,
+                            "A geração encontrou aula fora da disponibilidade cadastrada e não salvou a grade oficial.",
+                            [],
+                        )
                     if completar_apenas:
                         novas = len(aulas_geradas) - slots_base
                         msg = f"Horário completado com a menor correção encontrada! {novas} aula(s) adicionada(s)."
@@ -646,6 +1015,8 @@ def montar_horario_gerado(
     aulas_geradas = _montar_aulas_geradas(grade, [t['id'] for t in turmas])
     if not aulas_geradas:
         return False, "Não foi possível gerar nenhuma aula. Verifique os vínculos entre professores, turmas e disciplinas.", []
+    if _aulas_fora_disponibilidade(aulas_geradas, professores):
+        return False, "A geração encontrou aula fora da disponibilidade cadastrada e não salvou a grade oficial.", []
 
     if completar_apenas:
         novas = len(aulas_geradas) - slots_base
@@ -676,6 +1047,8 @@ def gerar_horario(escola_id, turma_id_especifica=None, turno=None, completar_ape
     sucesso, mensagem, aulas_geradas = result[0], result[1], result[2]
 
     if not sucesso:
+        if len(result) > 3 and isinstance(result[3], dict) and result[3].get('ajustes_necessarios') is not None:
+            return False, mensagem, 0, None, result[3].get('ajustes_necessarios') or []
         erros = (
             {'pendencias': result[3], 'melhor_total': result[4], 'total_esperado': result[5]}
             if len(result) > 3

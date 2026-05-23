@@ -1345,6 +1345,7 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
     display: flex;
     gap: 0.75rem;
     align-items: flex-start;
+    position: relative;
     padding: 0.85rem 1.1rem;
     margin-bottom: 1rem;
     border: 1px solid rgba(245, 158, 11, 0.35);
@@ -1401,6 +1402,36 @@ html[data-schedule-color-mode="none"] .schedule-color-mode-btn[data-schedule-col
 .schedule-ajustes-actions .btn:disabled {
     cursor: not-allowed;
     opacity: 0.55;
+}
+
+.schedule-ajustes-dismiss-form {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.6rem;
+    margin: 0;
+}
+
+.schedule-ajustes-dismiss {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.schedule-ajustes-dismiss:hover,
+.schedule-ajustes-dismiss:focus-visible {
+    background: rgba(248, 113, 113, 0.14);
+    color: #fca5a5;
+    outline: none;
 }
 
 .modal-confirm-adjustments {

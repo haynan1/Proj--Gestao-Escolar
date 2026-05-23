@@ -1698,14 +1698,14 @@ def gerar(escola_id):
             'total_esperado': erros['total_esperado'],
         }
 
-    if sucesso and ajustes:
+    if ajustes:
         session['grade_ajustes'] = {
             'escola_id': escola['id'],
             'turno': turno_atual,
             'ajustes': ajustes,
         }
 
-    flash(msg, 'success' if sucesso else 'error')
+    flash(msg, 'success' if sucesso else ('warning' if ajustes else 'error'))
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
@@ -1741,10 +1741,34 @@ def aplicar_ajustes_grade(escola_id):
 
     session.pop('grade_ajustes', None)
     if atualizados:
-        flash(f'Ajustes aplicados no Dashboard: {atualizados} professor(es) atualizado(s).', 'success')
+        flash(f'Ajustes aplicados no Dashboard: {atualizados} professor(es) atualizado(s). Gere a grade novamente.', 'success')
     else:
         flash('Os ajustes já estavam refletidos no Dashboard.', 'success')
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turno=turno_atual))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/ajustes/descartar', methods=['POST'])
+@login_required
+def descartar_ajustes_grade(escola_id):
+    escola, failure = _guard_school(escola_id, permission='view_school')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    ajustes_session = session.get('grade_ajustes')
+    if ajustes_session and ajustes_session.get('escola_id') == escola['id'] and ajustes_session.get('turno') == turno_atual:
+        session.pop('grade_ajustes', None)
+        flash('Ajustes descartados. Nenhum cadastro foi alterado.', 'success')
+
+    turma_id = request.form.get('turma_id', type=int)
+    data_visualizada = request.form.get('data_visualizada') or request.args.get('data')
+    visualizacao = request.form.get('visualizacao') or request.args.get('visualizacao') or 'alternativo'
+    view_mode = request.form.get('view') or request.args.get('view')
+    if turma_id:
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id, data=data_visualizada, visualizacao=visualizacao))
+    if view_mode == 'geral':
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral', data=data_visualizada, visualizacao=visualizacao))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, data=data_visualizada, visualizacao=visualizacao))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/erros/pdf')
