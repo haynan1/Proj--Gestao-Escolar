@@ -240,6 +240,7 @@ MAIL_FROM_NAME=Flowter
 - `src/routes/auth_routes.py`: login, cadastro, verificacao e recuperacao de senha
 - `src/routes/admin_routes.py`: gestao de usuarios e vinculos
 - `src/email_service.py`: envio de e-mails
+- `docs/documentacao-software.md`: TAP, visao arquitetural e diagrama de classes
 
 ## Favicon
 
