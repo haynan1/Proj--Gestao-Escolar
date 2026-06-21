@@ -23,6 +23,11 @@ def _is_retryable_lock_error(error):
     return 'deadlock' in message or 'lock wait timeout' in message
 
 
+def _is_duplicate_slot_error(error):
+    """Violação de UNIQUE de slot (turma/professor): errno 1062."""
+    return getattr(error, 'errno', None) == 1062
+
+
 class ScheduleValidationError(ValueError):
     """Raised when schedule move payload is invalid."""
 
@@ -46,15 +51,32 @@ def salvar_aulas(escola_id, aulas, turma_id=None, turno=None, max_retries=3):
             else:
                 conn.execute("DELETE FROM aulas WHERE escola_id = %s AND turno = %s", (escola_id, turno))
             for a in aulas:
+                eh_vaga = 1 if a.get('vaga') else 0
                 conn.execute(
-                    """INSERT INTO aulas (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                    (escola_id, turno, a['turma_id'], a['professor_id'], a['disciplina_id'], a['dia'], a['periodo'])
+                    """INSERT INTO aulas
+                           (escola_id, turno, turma_id, professor_id, disciplina_id, dia, periodo, vaga, motivo_vaga)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        escola_id,
+                        turno,
+                        a['turma_id'],
+                        a.get('professor_id') if not eh_vaga else None,
+                        a.get('disciplina_id') if not eh_vaga else None,
+                        a['dia'],
+                        a['periodo'],
+                        eh_vaga,
+                        a.get('motivo_vaga') if eh_vaga else None,
+                    ),
                 )
             conn.commit()
             return
         except Exception as error:
             conn.rollback()
+            if _is_duplicate_slot_error(error):
+                raise ScheduleConflictError(
+                    "Conflito de horário ao salvar a grade (slot já ocupado). "
+                    "Tente gerar novamente."
+                ) from error
             tentativa += 1
             if tentativa > max_retries or not _is_retryable_lock_error(error):
                 raise
@@ -72,8 +94,8 @@ def listar_aulas(escola_id, turno=None):
                   d.nome AS disciplina_nome, d.cor AS disciplina_cor
            FROM aulas a
            JOIN turmas t ON a.turma_id = t.id AND t.turno = a.turno
-           JOIN professores p ON a.professor_id = p.id AND p.turno = a.turno
-           JOIN disciplinas d ON a.disciplina_id = d.id AND d.turno = a.turno
+           LEFT JOIN professores p ON a.professor_id = p.id AND p.turno = a.turno
+           LEFT JOIN disciplinas d ON a.disciplina_id = d.id AND d.turno = a.turno
            WHERE a.escola_id = %s AND a.turno = %s
            ORDER BY a.turma_id, a.dia, a.periodo""",
         (escola_id, turno)
@@ -112,8 +134,8 @@ def deletar_aula(aula_id, escola_id, turno=None):
                       d.nome AS disciplina_nome, d.cor AS disciplina_cor
                FROM aulas a
                JOIN turmas t ON a.turma_id = t.id AND t.turno = a.turno
-               JOIN professores p ON a.professor_id = p.id AND p.turno = a.turno
-               JOIN disciplinas d ON a.disciplina_id = d.id AND d.turno = a.turno
+               LEFT JOIN professores p ON a.professor_id = p.id AND p.turno = a.turno
+               LEFT JOIN disciplinas d ON a.disciplina_id = d.id AND d.turno = a.turno
                WHERE a.id = %s AND a.escola_id = %s AND a.turno = %s""",
             (aula_id, escola_id, turno),
         ).fetchone()
@@ -240,12 +262,16 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
         _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id, dia, periodo)
 
         aula_turma = conn.execute(
-            """SELECT id FROM aulas
+            """SELECT id, vaga FROM aulas
                WHERE escola_id = %s AND turma_id = %s AND dia = %s AND periodo = %s""",
             (escola_id, turma_id, dia, periodo),
         ).fetchone()
         if aula_turma:
-            raise ScheduleConflictError("A turma já possui aula neste horário.")
+            if aula_turma.get('vaga'):
+                # Slot ocupado por uma VAGA: preenche substituindo-a.
+                conn.execute("DELETE FROM aulas WHERE id = %s", (aula_turma['id'],))
+            else:
+                raise ScheduleConflictError("A turma já possui aula neste horário.")
 
         aula_professor = conn.execute(
             """SELECT id FROM aulas
@@ -277,8 +303,10 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
     except (ScheduleConflictError, ScheduleValidationError):
         conn.rollback()
         raise
-    except Exception:
+    except Exception as error:
         conn.rollback()
+        if _is_duplicate_slot_error(error):
+            raise ScheduleConflictError("Este horário acabou de ser ocupado. Tente novamente.") from error
         _logger.exception('Erro inesperado ao criar aula manual na escola %s.', escola_id)
         raise
     finally:
@@ -299,6 +327,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                       a.disciplina_id,
                       a.dia,
                       a.periodo,
+                      a.vaga,
                       COALESCE(t.aulas_por_dia, 5) AS aulas_por_dia
                FROM aulas a
                JOIN turmas t ON t.id = a.turma_id
@@ -308,6 +337,8 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
 
         if not aula_atual:
             raise ScheduleValidationError("Aula não encontrada.")
+        if aula_atual.get('vaga'):
+            raise ScheduleValidationError("Não é possível mover uma vaga.")
         if escola_id is not None and aula_atual['escola_id'] != escola_id:
             raise ScheduleValidationError("A aula informada não pertence a esta escola.")
         if novo_periodo not in PERIODOS or novo_periodo > int(aula_atual.get('aulas_por_dia') or 5):
@@ -320,11 +351,17 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                       professor_id,
                       disciplina_id,
                       dia,
-                      periodo
+                      periodo,
+                      vaga
                FROM aulas
                WHERE turma_id = %s AND dia = %s AND periodo = %s AND id <> %s""",
             (aula_atual['turma_id'], novo_dia, novo_periodo, aula_id),
         ).fetchone()
+
+        # Soltar sobre uma VAGA: remove a vaga e faz um move simples para o slot livre.
+        if aula_destino and aula_destino.get('vaga'):
+            conn.execute("DELETE FROM aulas WHERE id = %s", (aula_destino['id'],))
+            aula_destino = None
 
         if aula_destino:
             _validar_aulas_seguidas_disciplina(
@@ -435,8 +472,10 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
     except (ScheduleConflictError, ScheduleValidationError):
         conn.rollback()
         raise
-    except Exception:
+    except Exception as error:
         conn.rollback()
+        if _is_duplicate_slot_error(error):
+            raise ScheduleConflictError("Este horário acabou de ser ocupado. Tente novamente.") from error
         _logger.exception('Erro inesperado ao mover aula %s para %s/%s.', aula_id, novo_dia, novo_periodo)
         raise
     finally:

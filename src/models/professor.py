@@ -315,8 +315,63 @@ def _anexar_disciplinas(professores):
     return professores
 
 
+def _anexar_regras(professores):
+    if not professores:
+        return professores
+
+    import json as _json
+
+    professor_ids = [p['id'] for p in professores]
+    placeholders = ', '.join(['%s'] * len(professor_ids))
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"""SELECT r.id, r.professor_id, r.escopo_disciplina_id,
+                       d.nome AS escopo_disciplina_nome,
+                       r.tipo, r.parametros, r.obrigatoria, r.peso
+                FROM professores_regras r
+                LEFT JOIN disciplinas d ON d.id = r.escopo_disciplina_id
+                WHERE r.professor_id IN ({placeholders}) AND r.ativa = 1
+                ORDER BY r.id""",
+            tuple(professor_ids),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    def _parse(valor):
+        if isinstance(valor, (dict, list)):
+            return valor
+        if isinstance(valor, (bytes, bytearray)):
+            valor = valor.decode('utf-8')
+        try:
+            return _json.loads(valor) if valor else {}
+        except (TypeError, ValueError):
+            return {}
+
+    from models import regra_professor as _regras
+
+    regras_por_professor = {prof_id: [] for prof_id in professor_ids}
+    for row in rows:
+        regra = {
+            'id': row['id'],
+            'escopo_disciplina_id': row['escopo_disciplina_id'],
+            'escopo_disciplina_nome': row['escopo_disciplina_nome'],
+            'tipo': row['tipo'],
+            'parametros': _parse(row['parametros']),
+            'obrigatoria': bool(row['obrigatoria']),
+            'peso': int(row['peso'] or 100),
+        }
+        regra['descricao'] = _regras.descrever_regra(regra)
+        regras_por_professor[row['professor_id']].append(regra)
+
+    for professor in professores:
+        professor['regras_lista'] = regras_por_professor.get(professor['id'], [])
+
+    return professores
+
+
 def _anexar_vinculos(professores):
-    return _anexar_cargas(_anexar_turmas(_anexar_disciplinas(professores)))
+    return _anexar_regras(_anexar_cargas(_anexar_turmas(_anexar_disciplinas(professores))))
 
 
 _LOGGER = logging.getLogger(__name__)

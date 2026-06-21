@@ -13,10 +13,10 @@ __pycache__/
 
 # Bancos e dumps locais
 *.db
-src/database/*.sql
+*.sql
 src/database/*.sql.gz
+flowter_dump_*.sql
 !src/database/schema_mysql.sql
-!src/database/backup_gestao_escolar.sql
 
 # Sistema / logs
 .DS_Store

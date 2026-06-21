@@ -168,7 +168,11 @@ def _write_schedule(ws, turma, idx, color_mode='disciplina'):
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             cell.border = _border()
 
-            if aula:
+            if aula and aula.get('vaga'):
+                cell.value = 'VAGA'
+                cell.fill = PatternFill('solid', fgColor='F1F5F9')
+                cell.font = Font(name='Aptos', bold=True, size=9, color='94A3B8')
+            elif aula:
                 cor = _aula_color(aula, color_mode)
                 cell.value = f"{aula['disciplina_nome']}\n{aula['professor_nome']}"
                 cell.fill = PatternFill('solid', fgColor=_tint(cor) if cor else WHITE)
@@ -202,7 +206,7 @@ def _write_legend(ws, turma, aulas):
     seen = set()
     items = []
     for aula in aulas:
-        if aula['turma_id'] != turma['id'] or aula['disciplina_id'] in seen:
+        if aula.get('vaga') or aula['turma_id'] != turma['id'] or aula['disciplina_id'] in seen:
             continue
         seen.add(aula['disciplina_id'])
         items.append(aula)
@@ -253,11 +257,13 @@ def _write_summary(wb, escola, turmas, aulas):
 
     for row_idx, turma in enumerate(turmas, 5):
         aulas_turma = [a for a in aulas if a['turma_id'] == turma['id']]
-        disciplinas = sorted({a['disciplina_nome'] for a in aulas_turma})
-        professores = sorted({a['professor_nome'] for a in aulas_turma})
+        aulas_reais = [a for a in aulas_turma if not a.get('vaga')]
+        vagas_turma = sum(1 for a in aulas_turma if a.get('vaga'))
+        disciplinas = sorted({a['disciplina_nome'] for a in aulas_reais})
+        professores = sorted({a['professor_nome'] for a in aulas_reais})
         values = [
             turma['nome'],
-            len(aulas_turma),
+            f"{len(aulas_reais)}" + (f" (+{vagas_turma} vaga)" if vagas_turma else ""),
             ', '.join(disciplinas) or '-',
             ', '.join(professores) or '-',
         ]

@@ -1,0 +1,45 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: flowter-mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=caching_sha2_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root_dev_pwd
+      MYSQL_DATABASE: gestao_escolar
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_dev_pwd
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_dev_pwd"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - flowter_mysql_data:/var/lib/mysql
+
+  app:
+    build: .
+    container_name: flowter-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Dentro da rede do compose o banco é acessível pelo nome do serviço "db"
+      DB_HOST: db
+      DB_PORT: "3306"
+    ports:
+      - "5001:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/login').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  flowter_mysql_data:

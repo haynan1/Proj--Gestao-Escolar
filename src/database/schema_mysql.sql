@@ -99,15 +99,55 @@ CREATE TABLE IF NOT EXISTS professores_turmas (
         FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS professores_cargas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    professor_id INT NOT NULL,
+    turma_id INT NOT NULL,
+    disciplina_id INT NOT NULL,
+    aulas_semana INT NOT NULL DEFAULT 1,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_professores_cargas (professor_id, turma_id, disciplina_id),
+    CONSTRAINT fk_professores_cargas_professor
+        FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_professores_cargas_turma
+        FOREIGN KEY (turma_id) REFERENCES turmas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_professores_cargas_disciplina
+        FOREIGN KEY (disciplina_id) REFERENCES disciplinas(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS professores_regras (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    escola_id INT NOT NULL,
+    turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
+    professor_id INT NOT NULL,
+    escopo_disciplina_id INT NULL,
+    tipo VARCHAR(40) NOT NULL,
+    parametros JSON NOT NULL,
+    obrigatoria TINYINT(1) NOT NULL DEFAULT 1,
+    peso INT NOT NULL DEFAULT 100,
+    ativa TINYINT(1) NOT NULL DEFAULT 1,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_regras_escola_turno (escola_id, turno),
+    KEY idx_regras_professor (professor_id),
+    CONSTRAINT fk_regras_escola
+        FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_regras_professor
+        FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE,
+    CONSTRAINT fk_regras_disciplina
+        FOREIGN KEY (escopo_disciplina_id) REFERENCES disciplinas(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS aulas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     escola_id INT NOT NULL,
     turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
     turma_id INT NOT NULL,
-    professor_id INT NOT NULL,
-    disciplina_id INT NOT NULL,
+    professor_id INT NULL,
+    disciplina_id INT NULL,
     dia VARCHAR(20) NOT NULL,
     periodo INT NOT NULL,
+    vaga TINYINT(1) NOT NULL DEFAULT 0,
+    motivo_vaga VARCHAR(255) NULL DEFAULT NULL,
     UNIQUE KEY uq_aulas_turma_slot (turma_id, dia, periodo),
     UNIQUE KEY uq_aulas_professor_slot (professor_id, dia, periodo),
     CONSTRAINT fk_aulas_escola
