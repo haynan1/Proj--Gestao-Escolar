@@ -137,7 +137,10 @@ def _construir_demandas(professores, turmas_por_id):
     return demandas
 
 
-def _resolver(demandas, turmas, permitir_vagas, max_seconds=None):
+def _resolver(demandas, turmas, permitir_vagas, max_seconds=None, relaxar_estruturais=False):
+    # relaxar_estruturais=True trata CONTAGEM_POR_DIA e AULA_GEMINADA obrigatórias como
+    # preferência (penalidade) em vez de restrição dura — usado no fallback quando a
+    # configuração hard é inviável, garantindo grade com vagas em vez de falha total.
     model = cp_model.CpModel()
     turmas_por_id = {t['id']: t for t in turmas}
     todos_periodos = sorted({p for t in turmas for p in _periodos_turma(t)})
@@ -196,21 +199,26 @@ def _resolver(demandas, turmas, permitir_vagas, max_seconds=None):
             if todas:
                 model.Add(sum(todas) <= max_semana)
 
-    # regras estruturais a nível de professor (DIA_LIVRE / DISTRIBUIR_EM_N_DIAS)
+    # regras estruturais a nível de professor (DIA_LIVRE / DISTRIBUIR_EM_N_DIAS).
+    # Obrigatória = limite rígido; preferência = penaliza usar mais dias que o permitido.
     for prof_id, idxs in dem_por_prof.items():
         prof = demandas[idxs[0]]['professor']
         usado_prof = [usado[(prof_id, dia)] for dia in DIAS]
         for regra in prof.get('regras_lista', []):
-            if not regra.get('obrigatoria'):
-                continue
             tipo = regra['tipo']
+            if tipo not in (R.DIA_LIVRE, R.DISTRIBUIR_EM_N_DIAS):
+                continue
             p = regra.get('parametros') or {}
             if tipo == R.DIA_LIVRE:
-                n = int(p.get('quantidade') or 1)
-                model.Add(sum(usado_prof) <= len(DIAS) - n)
-            elif tipo == R.DISTRIBUIR_EM_N_DIAS:
-                n = int(p.get('quantidade') or 2)
-                model.Add(sum(usado_prof) <= n)
+                limite = len(DIAS) - int(p.get('quantidade') or 1)
+            else:
+                limite = int(p.get('quantidade') or 2)
+            if regra.get('obrigatoria'):
+                model.Add(sum(usado_prof) <= limite)
+            else:
+                excesso = model.NewIntVar(0, len(DIAS), f'estrut_exc_{prof_id}_{tipo}')
+                model.Add(excesso >= sum(usado_prof) - limite)
+                objetivo.append(int(regra.get('peso') or 100) * excesso)
 
     # CONTAGEM_POR_DIA hard: contagem fixa por dia, AGREGADA por professor (no escopo).
     # "1ª aula na quinta, as outras na sexta" refere-se ao conjunto de aulas do professor,
@@ -218,18 +226,27 @@ def _resolver(demandas, turmas, permitir_vagas, max_seconds=None):
     for prof_id, idxs in dem_por_prof.items():
         prof = demandas[idxs[0]]['professor']
         for regra in prof.get('regras_lista', []):
-            if not regra.get('obrigatoria') or regra['tipo'] != R.CONTAGEM_POR_DIA:
+            if regra['tipo'] != R.CONTAGEM_POR_DIA:
                 continue
             esc = regra.get('escopo_disciplina_id')
             idxs_escopo = [i for i in idxs if esc is None or int(demandas[i]['disciplina_id']) == int(esc)]
             qtd_total = sum(demandas[i]['qtd'] for i in idxs_escopo)
             distribuicao = (regra.get('parametros') or {}).get('distribuicao') or {}
+            hard = regra.get('obrigatoria') and not relaxar_estruturais
+            peso = int(regra.get('peso') or 100)
             for dia, valor in distribuicao.items():
                 if valor == 'resto':
                     continue
+                alvo = min(int(valor), qtd_total)
                 vars_dia = [y[(i, dia, per)] for i in idxs_escopo
                             for per in demandas[i]['periodos_turma'] if (i, dia, per) in y]
-                model.Add(sum(vars_dia) == min(int(valor), qtd_total))
+                if hard:
+                    model.Add(sum(vars_dia) == alvo)
+                else:
+                    desvio = model.NewIntVar(0, len(vars_dia) + alvo, f'cont_dev_{prof_id}_{dia}')
+                    model.Add(desvio >= sum(vars_dia) - alvo)
+                    model.Add(desvio >= alvo - sum(vars_dia))
+                    objetivo.append(peso * desvio)
 
     # MAX_AULAS_DIA: limita aulas da demanda (turma+disciplina) por dia — espalha a matéria.
     for i, dem in enumerate(demandas):
@@ -269,7 +286,7 @@ def _resolver(demandas, turmas, permitir_vagas, max_seconds=None):
                         blocos.append(b)
             if not blocos:
                 continue
-            if regra.get('obrigatoria'):
+            if regra.get('obrigatoria') and not relaxar_estruturais:
                 model.Add(sum(blocos) >= k)
             else:
                 falta_g = model.NewIntVar(0, k, f'gem_falta_{i}')
@@ -332,6 +349,16 @@ def gerar_horario_cpsat(escola_id, turno=None, permitir_vagas=True, salvar=True,
                 'total': 0, 'total_vagas': 0, 'diagnostico': [], 'aulas_salvas': False, 'solver_status': '-'}
 
     solver, status, y, falta = _resolver(demandas, turmas, permitir_vagas, max_seconds=max_seconds)
+
+    estruturais_relaxadas = False
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE) and permitir_vagas:
+        # Fallback de robustez: uma regra estrutural obrigatória impossível (ex.: CONTAGEM_POR_DIA
+        # ou AULA_GEMINADA conflitante) deixaria o turno inteiro inviável. Aqui as tratamos como
+        # preferência e resolvemos de novo, garantindo uma grade (com vagas) + aviso.
+        solver, status, y, falta = _resolver(
+            demandas, turmas, permitir_vagas, max_seconds=max_seconds, relaxar_estruturais=True
+        )
+        estruturais_relaxadas = status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return {
@@ -421,13 +448,19 @@ def gerar_horario_cpsat(escola_id, turno=None, permitir_vagas=True, salvar=True,
             partes.append(f'{sobra} aula(s) sem espaço (demanda acima da capacidade da turma)')
         mensagem = 'Horário gerado: ' + ', '.join(partes) + '. Veja o diagnóstico.'
 
+    if estruturais_relaxadas:
+        status_txt = 'ok_com_vagas'
+        mensagem += (' Atenção: alguma regra estrutural obrigatória (contagem por dia / aula '
+                     'geminada) era impossível e foi tratada como preferência para viabilizar a grade.')
+
     return {
         'status': status_txt,
         'mensagem': mensagem,
         'total': total_reais,
         'total_vagas': total_vagas,
         'diagnostico': diagnostico,
-        'aulas_salvas': True,
+        'estruturais_relaxadas': estruturais_relaxadas,
+        'aulas_salvas': bool(salvar),
         'solver_status': solver.StatusName(status),
     }
 

@@ -146,6 +146,30 @@ def test_aula_geminada():
     assert tem_par, f'nenhum bloco geminado (2 seguidos) encontrado: {por_dia}'
 
 
+def test_fallback_relaxa_estrutural_inviavel():
+    # CONTAGEM exige Quinta, mas DIAS_PROIBIDOS bloqueia Quinta -> hard é inviável.
+    # Com relaxar_estruturais=True deve voltar a ser viável (degrada para preferência).
+    regras = [
+        _regra(R.CONTAGEM_POR_DIA, {'distribuicao': {'Quinta': 1, 'Sexta': 'resto'}}),
+        _regra(R.DIAS_PROIBIDOS, {'dias': ['Quinta']}),
+    ]
+    profs = [_prof(1, 'A', 2, 10, regras=regras), _prof(2, 'B', 13, 11), _prof(3, 'C', 10, 12)]
+    dem = H._construir_demandas(profs, {1: TURMAS[0]})
+    _, st_hard, _, _ = H._resolver(dem, TURMAS, permitir_vagas=True)
+    _, st_soft, _, _ = H._resolver(dem, TURMAS, permitir_vagas=True, relaxar_estruturais=True)
+    assert st_hard not in (cp_model.OPTIMAL, cp_model.FEASIBLE), 'esperava inviável no modo hard'
+    assert st_soft in (cp_model.OPTIMAL, cp_model.FEASIBLE), 'fallback deveria viabilizar'
+
+
+def test_contagem_soft_penaliza_sem_inviabilizar():
+    # CONTAGEM como preferência não deve travar nem ser ignorada (antes era ignorada).
+    regras = [_regra(R.CONTAGEM_POR_DIA, {'distribuicao': {'Quinta': 1, 'Sexta': 'resto'}}, obrigatoria=False)]
+    profs = [_prof(1, 'A', 3, 10, regras=regras), _prof(2, 'B', 12, 11), _prof(3, 'C', 10, 12)]
+    dem = H._construir_demandas(profs, {1: TURMAS[0]})
+    _, st, _, _ = H._resolver(dem, TURMAS, permitir_vagas=True)
+    assert st in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+
 def test_escopo_por_disciplina():
     # regra aplica só à disciplina 10; disciplina 99 do mesmo prof fica livre
     prof = {
