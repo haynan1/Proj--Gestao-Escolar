@@ -439,6 +439,79 @@
     </div>
     {% endif %}
 
+    {% if diagnostico_vagas and diagnostico_vagas.itens %}
+    <div class="schedule-diagnostico">
+        <div class="schedule-diagnostico-header">
+            <strong>⚠ Horário gerado com {{ diagnostico_vagas.total_vagas }} aula(s) vaga(s)</strong>
+            <span class="text-muted text-sm">Estas demandas não couberam respeitando as regras dos professores:</span>
+        </div>
+        <ul class="schedule-diagnostico-list">
+            {% for item in diagnostico_vagas.itens %}
+            <li>
+                <strong>{{ item.faltantes }}</strong> aula(s) de <strong>{{ item.disciplina_nome }}</strong>
+                ({{ item.professor_nome }}) na turma <strong>{{ item.turma_nome }}</strong>
+                {% if item.regras %}<br><span class="text-muted text-sm">Regras: {{ item.regras | join('; ') }}</span>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        <p class="text-muted text-sm">Ajuste as regras dos professores no Dashboard e gere novamente, ou preencha as vagas manualmente.</p>
+    </div>
+    {% endif %}
+
+    {% if can_manage_schedule %}
+    <div class="schedule-analise-bar">
+        <form method="POST" action="{{ url_for('dashboard.analise_encaixes', escola_id=escola.id, turno=turno_atual) }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-secondary btn-sm">🔧 Analisar encaixes / conflitos</button>
+        </form>
+        <span class="text-muted text-sm">Verifica conflitos e sugere quais regras afrouxar para encaixar mais aulas.</span>
+    </div>
+    {% endif %}
+
+    {% if analise_encaixes %}
+    <div class="schedule-analise">
+        <div class="schedule-analise-saude">
+            <span class="analise-badge {{ 'ok' if analise_encaixes.conflito_professor == 0 and analise_encaixes.conflito_turma == 0 else 'erro' }}">
+                {{ analise_encaixes.conflito_professor + analise_encaixes.conflito_turma }} conflito(s)
+            </span>
+            <span class="analise-badge {{ 'ok' if analise_encaixes.total_vagas == 0 else 'aviso' }}">
+                {{ analise_encaixes.total_vagas }} vaga(s)
+            </span>
+            <span class="analise-badge ok">{{ analise_encaixes.total_reais }} aula(s) alocada(s)</span>
+        </div>
+        {% set sugestoes = analise_encaixes.culpados | selectattr('recupera', 'greaterthan', 0) | list %}
+        {% if sugestoes %}
+        <p class="schedule-analise-titulo">Sugestões de encaixe — afrouxar uma regra para preferência libera mais aulas:</p>
+        <table class="schedule-analise-tabela">
+            <thead><tr><th>Professor</th><th>Vagas dele</th><th>Regra(s) obrigatória(s)</th><th>Ganho</th><th></th></tr></thead>
+            <tbody>
+            {% for c in sugestoes | sort(attribute='recupera', reverse=true) %}
+                <tr>
+                    <td><strong>{{ c.nome }}</strong></td>
+                    <td>{{ c.faltantes }}</td>
+                    <td class="text-muted text-sm">{{ c.regras | join('; ') }}</td>
+                    <td class="analise-ganho">+{{ c.recupera }} aula(s)</td>
+                    <td>
+                        {% if can_edit_official_schedule %}
+                        <form method="POST" action="{{ url_for('dashboard.afrouxar_regras_professor', escola_id=escola.id, prof_id=c.professor_id, turno=turno_atual) }}"
+                              onsubmit="return confirm('Tornar as regras de {{ c.nome }} preferência e regerar o horário?')">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-primary btn-sm">Afrouxar e regerar</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% elif analise_encaixes.total_vagas > 0 %}
+        <p class="text-muted text-sm">As vagas restantes são por <strong>capacidade da turma</strong> (demanda acima dos horários disponíveis), não por regras — não há regra a afrouxar. Considere abrir mais turmas ou reduzir cargas.</p>
+        {% else %}
+        <p class="text-muted text-sm">Nenhum conflito e nenhuma vaga: a grade está completa e conforme. ✅</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if session.get('grade_ajustes') and session.grade_ajustes.escola_id == escola.id and session.grade_ajustes.turno == turno_atual and has_permission('manage_school_resources') %}
     <div class="modal-overlay" id="modal-aplicar-ajustes-dashboard">
         <div class="modal modal-confirm-adjustments">
@@ -571,11 +644,17 @@
                                             <div class="prof-nome text-muted">{{ aula_temp_geral.professor_nome or 'Sem aula definida' }}</div>
                                             <div class="schedule-temporary-layer">Camada temporária</div>
                                         </div>
+                                        {% elif aula and aula.vaga %}
+                                        <div class="vaga-card" title="{{ aula.motivo_vaga or 'Horário vago' }}">
+                                            <div class="disc-nome">VAGA</div>
+                                            <div class="prof-nome text-muted">{{ aula.motivo_vaga or 'Sem aula' }}</div>
+                                        </div>
                                         {% elif aula %}
                                         <div class="aula-card aula-card-dynamic"
                                             data-aula-id="{{ aula.id }}"
                                             data-professor-id="{{ aula.professor_id }}"
                                             data-professor-nome="{{ aula.professor_nome }}"
+                                            data-disciplina-id="{{ aula.disciplina_id }}"
                                             data-color="{{ aula.disciplina_cor or '' }}"
                                             data-disciplina-color="{{ aula.disciplina_cor or '' }}"
                                             data-professor-color="{{ aula.professor_cor or '' }}"
@@ -627,6 +706,20 @@
                     </button>
                 </div>
             </div>
+        </div>
+
+        <div class="schedule-filtros" aria-label="Filtros da grade">
+            <span class="schedule-filtros-label">🔎 Filtrar:</span>
+            <select id="filtro-professor" class="schedule-filtro-select" aria-label="Filtrar por professor">
+                <option value="">Todos os professores</option>
+                {% for p in professores %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+            </select>
+            <select id="filtro-disciplina" class="schedule-filtro-select" aria-label="Filtrar por disciplina">
+                <option value="">Todas as disciplinas</option>
+                {% for d in disciplinas %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}
+            </select>
+            <button type="button" id="filtro-limpar" class="btn btn-secondary btn-sm">Limpar</button>
+            <span id="filtro-contagem" class="schedule-filtro-contagem" role="status"></span>
         </div>
 
         {% if can_edit_official_schedule %}
@@ -703,10 +796,24 @@
                                     {% endif %}
                                     <div class="schedule-temporary-layer">Camada temporária</div>
                                 </div>
+                                {% elif aula and aula.vaga %}
+                                <div class="vaga-card" title="{{ aula.motivo_vaga or 'Horário vago' }}">
+                                    <div class="disc-nome">VAGA</div>
+                                    <div class="prof-nome text-muted">{{ aula.motivo_vaga or 'Sem aula' }}</div>
+                                    {% if can_edit_official_schedule %}
+                                    <form method="POST"
+                                          action="{{ url_for('dashboard.limpar_vaga', escola_id=escola.id, aula_id=aula.id, turno=turno_atual) }}"
+                                          class="vaga-clear-form">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="vaga-clear-btn" title="Liberar este horário para edição manual">Limpar</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                                 {% elif aula %}
                                 <div class="aula-card aula-card-dynamic" data-aula-id="{{ aula.id }}"
                                     data-professor-id="{{ aula.professor_id }}"
                                     data-professor-nome="{{ aula.professor_nome }}"
+                                    data-disciplina-id="{{ aula.disciplina_id }}"
                                     data-color="{{ aula.disciplina_cor or '' }}"
                                     data-disciplina-color="{{ aula.disciplina_cor or '' }}"
                                     data-professor-color="{{ aula.professor_cor or '' }}"
@@ -729,7 +836,7 @@
         <div class="legenda schedule-legend-list" data-legend-mode="disciplina">
             {% set seen = [] %}
             {% for aula in aulas_turma %}
-            {% if aula.disciplina_id not in seen %}
+            {% if not aula.vaga and aula.disciplina_id not in seen %}
             {% set _ = seen.append(aula.disciplina_id) %}
             <div class="legenda-item">
                 {% if aula.disciplina_cor %}
@@ -748,7 +855,7 @@
         <div class="legenda schedule-legend-list hidden" data-legend-mode="professor">
             {% set seen_professores = [] %}
             {% for aula in aulas_turma %}
-            {% if aula.professor_id not in seen_professores %}
+            {% if not aula.vaga and aula.professor_id not in seen_professores %}
             {% set _ = seen_professores.append(aula.professor_id) %}
             <div class="legenda-item">
                 {% if aula.professor_cor %}
@@ -766,7 +873,7 @@
             {% set seen_neutral = [] %}
             {% for aula in aulas_turma %}
             {% set neutral_key = aula.disciplina_id ~ '-' ~ aula.professor_id %}
-            {% if neutral_key not in seen_neutral %}
+            {% if not aula.vaga and neutral_key not in seen_neutral %}
             {% set _ = seen_neutral.append(neutral_key) %}
             <div class="legenda-item">
                 <strong>{{ aula.disciplina_nome }}</strong>
@@ -1022,6 +1129,34 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+    // Filtro interativo da grade (professor / disciplina) — destaca e esmaece ao vivo, sem recarregar.
+    document.addEventListener('DOMContentLoaded', () => {
+        const selP = document.getElementById('filtro-professor');
+        const selD = document.getElementById('filtro-disciplina');
+        const btn = document.getElementById('filtro-limpar');
+        const cont = document.getElementById('filtro-contagem');
+        if (!selP) return;
+        function aplicar() {
+            const pid = selP.value, did = selD.value;
+            const ativo = pid || did;
+            let n = 0;
+            document.querySelectorAll('.aula-card[data-professor-id]').forEach((c) => {
+                const okP = !pid || c.dataset.professorId === pid;
+                const okD = !did || c.dataset.disciplinaId === did;
+                const match = okP && okD;
+                c.classList.toggle('filtro-oculto', !!ativo && !match);
+                c.classList.toggle('filtro-destaque', !!ativo && match);
+                if (match && ativo) n++;
+            });
+            document.querySelectorAll('.vaga-card').forEach((v) => v.classList.toggle('filtro-oculto', !!ativo));
+            cont.textContent = ativo ? `${n} aula(s) encontrada(s)` : '';
+        }
+        selP.addEventListener('change', aplicar);
+        selD.addEventListener('change', aplicar);
+        btn.addEventListener('click', () => { selP.value = ''; selD.value = ''; aplicar(); });
+    });
+</script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const storageKey = `flowter:schedule-color-mode:${document.body.dataset.escolaId || 'default'}:${document.body.dataset.turno || 'matutino'}`;

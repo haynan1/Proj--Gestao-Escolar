@@ -3094,3 +3094,74 @@ tr:hover td {
         transform: translateY(0);
     }
 }
+
+/* ===== Regras por professor (dashboard) ===== */
+/* Larguras fixas por <colgroup> para as colunas caberem sem colisão (desktop).
+   O modo mobile (mobile-dashboard.css, <=768px) sobrescreve para cartões. */
+.professores-table { table-layout: fixed; width: 100%; }
+.professores-table .col-prof-nome { width: 12%; }
+.professores-table .col-prof-disc { width: 14%; }
+.professores-table .col-prof-turmas { width: 8%; }
+.professores-table .col-prof-aulas { width: 22%; }
+.professores-table .col-prof-regras { width: 30%; }
+.professores-table .col-prof-acoes { width: 14%; }
+.professores-table td { white-space: normal; overflow-wrap: break-word; vertical-align: top; }
+.professores-actions { flex-wrap: wrap; }
+.regras-cell { display: flex; flex-direction: column; gap: 5px; align-items: stretch; width: 100%; }
+.regra-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 6px;
+    padding: 3px 6px;
+}
+.regra-desc {
+    font-size: 0.76rem;
+    color: inherit;
+    opacity: 0.92;
+    line-height: 1.25;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+}
+.regra-del-form { margin: 0; flex: 0 0 auto; }
+.regra-del-btn {
+    border: none; background: transparent; color: #f87171; cursor: pointer;
+    font-size: 0.95rem; line-height: 1; padding: 0 2px;
+}
+.regra-del-btn:hover { color: #ef4444; }
+.btn-add-regra { margin-top: 2px; }
+
+.modal-regra .regra-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; font-size: 0.85rem; color: var(--text); }
+.modal-regra select,
+.modal-regra input[type="number"],
+.modal-regra input[type="text"] {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+}
+.modal-regra .regra-grupo {
+    margin-bottom: 10px;
+    padding: 10px;
+    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.modal-regra .regra-grupo-label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
+.modal-regra .regra-hardsoft {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: var(--text);
+}
+.modal-regra .regra-hardsoft .regra-field { flex-direction: row; align-items: center; margin-bottom: 0; }
+.modal-regra .regra-hardsoft .regra-field input { width: 90px; }
+.modal-regra .regra-check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; color: var(--text); }
+.modal-regra .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-regra .regra-dist { flex-direction: row; align-items: center; gap: 6px; display: inline-flex; margin-right: 8px; margin-bottom: 6px; }
+.modal-regra .regra-dist input { width: 90px; }

@@ -98,6 +98,9 @@ def _schedule_cell(aula, styles, color_mode):
     if not aula:
         return Paragraph('—', styles['empty'])
 
+    if aula.get('vaga'):
+        return Paragraph("<font color='#94a3b8'><b>VAGA</b></font>", styles['cell'])
+
     cor = _aula_color(aula, color_mode)
     disciplina_cor = cor or '#0f172a'
     texto = (
@@ -359,7 +362,7 @@ def _legend(turma, aulas, styles):
     seen = set()
     items = []
     for aula in aulas:
-        if aula['turma_id'] != turma['id'] or aula['disciplina_id'] in seen:
+        if aula.get('vaga') or aula['turma_id'] != turma['id'] or aula['disciplina_id'] in seen:
             continue
         seen.add(aula['disciplina_id'])
         cor = _hex_color(aula.get('disciplina_cor', '#22c55e'))

@@ -75,8 +75,14 @@ from models.relatorio_professor import (
 )
 from models.turma import atualizar_turma, criar_turma, deletar_turma, listar_turmas
 from models.turno import TURNOS, normalizar_turno
+from models import regra_professor as regras_model
 from scheduler import gerar_horario, montar_horario_gerado
+from solver.horario_cpsat import analisar_encaixes, gerar_horario_cpsat
 from utils.conflitos import PERIODOS
+
+
+def _scheduler_engine():
+    return (os.getenv('SCHEDULER_ENGINE', 'cpsat') or 'cpsat').strip().lower()
 
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -1398,6 +1404,72 @@ def deletar_prof(escola_id, prof_id):
     return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
 
 
+def _parse_regra_parametros(tipo, form):
+    if tipo in (regras_model.DIAS_PERMITIDOS, regras_model.DIAS_PROIBIDOS):
+        return {'dias': form.getlist('dias')}
+    if tipo in (regras_model.DIA_LIVRE, regras_model.DISTRIBUIR_EM_N_DIAS,
+                regras_model.MAX_AULAS_DIA, regras_model.AULA_GEMINADA):
+        return {'quantidade': form.get('quantidade')}
+    if tipo == regras_model.PERIODO_FIXO:
+        return {'periodos': form.getlist('periodos')}
+    if tipo == regras_model.PERIODO_PROIBIDO:
+        return {'periodos': form.getlist('periodos'), 'dias': form.getlist('dias')}
+    if tipo == regras_model.SLOT_FIXO:
+        return {
+            'dia': form.get('dia'),
+            'posicao': form.get('posicao'),
+            'quantidade': form.get('quantidade'),
+            'periodos': form.getlist('periodos'),
+        }
+    if tipo == regras_model.CONTAGEM_POR_DIA:
+        distribuicao = {}
+        for dia in DIAS_SEMANA:
+            valor = (form.get(f'dist_{dia}') or '').strip()
+            if valor:
+                distribuicao[dia] = valor
+        return {'distribuicao': distribuicao}
+    return {}
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/regra/criar', methods=['POST'])
+@login_required
+def criar_regra_prof(escola_id, prof_id):
+    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
+    if failure:
+        return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'professores')
+
+    tipo = (request.form.get('tipo') or '').strip()
+    escopo = request.form.get('escopo_disciplina_id', type=int)
+    obrigatoria = request.form.get('obrigatoria', '1') != '0'
+    peso = request.form.get('peso', type=int) or 100
+    parametros = _parse_regra_parametros(tipo, request.form)
+
+    sucesso, msg = regras_model.criar_regra(
+        escola['id'], prof_id, tipo, parametros,
+        escopo_disciplina_id=escopo, obrigatoria=obrigatoria, peso=peso, turno=_active_turno(),
+    )
+    flash(msg, 'success' if sucesso else 'error')
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/regra/<int:regra_id>/deletar', methods=['POST'])
+@login_required
+def deletar_regra_prof(escola_id, regra_id):
+    escola, failure = _guard_school(escola_id, permission='manage_school_resources')
+    if failure:
+        return failure
+    if _dashboard_resource_locked(escola, _active_turno()):
+        return _redirect_dashboard_locked(escola_id, 'professores')
+
+    if regras_model.deletar_regra(regra_id, escola['id'], _active_turno()):
+        flash('Regra removida.', 'success')
+    else:
+        flash('Regra não encontrada.', 'error')
+    return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
+
+
 @dashboard_bp.route('/escola/<int:escola_id>/turma/criar', methods=['POST'])
 @login_required
 def criar_turm(escola_id):
@@ -1581,11 +1653,24 @@ def horarios(escola_id):
         chave_turma = f"{horario_temp['turma_id']}:{horario_temp['dia']}:{horario_temp['periodo']}"
         temporarios_por_turma_slot.setdefault(chave_turma, []).append(horario_temp)
 
+    diagnostico_vagas = session.get('grade_diagnostico')
+    if diagnostico_vagas and (
+        diagnostico_vagas.get('escola_id') != escola['id']
+        or diagnostico_vagas.get('turno') != turno_atual
+    ):
+        diagnostico_vagas = None
+
+    analise = session.get('analise_encaixes')
+    if analise and (analise.get('escola_id') != escola['id'] or analise.get('turno') != turno_atual):
+        analise = None
+
     return render_template(
         'horarios.html',
         escola=escola,
         turmas=turmas,
         grade=grade,
+        diagnostico_vagas=diagnostico_vagas,
+        analise_encaixes=analise,
         aulas=aulas,
         disciplinas=disciplinas,
         professores=professores,
@@ -1663,6 +1748,35 @@ def gerar(escola_id):
         if turma_id:
             return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral'))
+
+    # Motor CP-SAT (padrão): gera respeitando as regras dos professores e preenche
+    # com aulas vagas o que não couber, em vez de falhar.
+    if _scheduler_engine() == 'cpsat':
+        session.pop('grade_erros', None)
+        session.pop('grade_ajustes', None)
+        session.pop('grade_diagnostico', None)
+        try:
+            resultado = gerar_horario_cpsat(escola['id'], turno_atual, permitir_vagas=True)
+        except Exception:
+            current_app.logger.exception(
+                'Erro inesperado ao gerar horário (CP-SAT) da escola %s.', escola['id']
+            )
+            flash('Não foi possível gerar o horário agora. Tente novamente.', 'error')
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+        if resultado.get('diagnostico'):
+            session['grade_diagnostico'] = {
+                'escola_id': escola['id'],
+                'turno': turno_atual,
+                'itens': resultado['diagnostico'],
+                'total_vagas': resultado.get('total_vagas', 0),
+            }
+        categoria = {'ok': 'success', 'ok_com_vagas': 'warning'}.get(resultado.get('status'), 'error')
+        flash(resultado.get('mensagem', 'Geração concluída.'), categoria)
+        if turma_id:
+            return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
     try:
         sucesso, msg, total, erros, ajustes = gerar_horario(
             escola['id'],
@@ -1708,6 +1822,61 @@ def gerar(escola_id):
     flash(msg, 'success' if sucesso else ('warning' if ajustes else 'error'))
     if turma_id:
         return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/analise-encaixes', methods=['POST'])
+@login_required
+def analise_encaixes(escola_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+    turno_atual = _active_turno()
+    try:
+        resultado = analisar_encaixes(escola['id'], turno_atual)
+        resultado['escola_id'] = escola['id']
+        resultado['turno'] = turno_atual
+        session['analise_encaixes'] = resultado
+    except Exception:
+        current_app.logger.exception('Erro na análise de encaixes da escola %s.', escola['id'])
+        flash('Não foi possível analisar os encaixes agora. Tente novamente.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+    sug = [c for c in resultado['culpados'] if c.get('recupera', 0) > 0]
+    if resultado['total_vagas'] == 0:
+        flash('Análise concluída: 0 conflitos e 0 vagas — a grade está completa.', 'success')
+    elif sug:
+        flash(f"Análise concluída: {resultado['total_vagas']} vaga(s). Veja as sugestões de encaixe abaixo.", 'warning')
+    else:
+        flash(f"Análise concluída: {resultado['total_vagas']} vaga(s) por limite de capacidade (sem regra a relaxar).", 'warning')
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/regras/preferencia', methods=['POST'])
+@login_required
+def afrouxar_regras_professor(escola_id, prof_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+    turno_atual = _active_turno()
+    if horario_turno_travado(escola, turno_atual):
+        flash('Destrave este turno antes de alterar regras e regerar.', 'error')
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+    try:
+        regras_model.afrouxar_regras_professor(escola['id'], prof_id, turno_atual)
+        session.pop('analise_encaixes', None)
+        resultado = gerar_horario_cpsat(escola['id'], turno_atual, permitir_vagas=True)
+        if resultado.get('diagnostico'):
+            session['grade_diagnostico'] = {
+                'escola_id': escola['id'], 'turno': turno_atual,
+                'itens': resultado['diagnostico'], 'total_vagas': resultado.get('total_vagas', 0),
+            }
+        flash('Regras do professor marcadas como preferência e horário regerado. ' + resultado.get('mensagem', ''),
+              'success' if resultado.get('status') == 'ok' else 'warning')
+    except Exception:
+        current_app.logger.exception('Erro ao afrouxar regras do professor %s.', prof_id)
+        flash('Não foi possível aplicar a mudança agora.', 'error')
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id))
 
 
@@ -2115,6 +2284,28 @@ def deletar_aula_manual(escola_id, aula_id):
         return _json_error('Aula não encontrada.', status_code=404, code='not_found')
 
     return jsonify({'status': 'ok', 'aula': aula_removida})
+
+
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/vaga/<int:aula_id>/limpar', methods=['POST'])
+@login_required
+def limpar_vaga(escola_id, aula_id):
+    escola, failure = _guard_school(escola_id, permission='manage_schedule')
+    if failure:
+        return failure
+
+    turno_atual = _active_turno()
+    if horario_turno_travado(escola, turno_atual):
+        flash('Destrave este turno antes de editar a grade.', 'error')
+        return redirect(request.referrer or _dashboard_url('dashboard.horarios', escola_id=escola_id))
+
+    try:
+        deletar_aula(aula_id, escola_id=escola['id'], turno=turno_atual)
+        flash('Vaga liberada. O horário ficou em branco para edição manual.', 'success')
+    except Exception:
+        current_app.logger.exception('Erro ao limpar vaga %s da escola %s.', aula_id, escola['id'])
+        flash('Não foi possível limpar a vaga agora.', 'error')
+
+    return redirect(request.referrer or _dashboard_url('dashboard.horarios', escola_id=escola_id))
 
 
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/temporario', methods=['POST'])

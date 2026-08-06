@@ -147,15 +147,40 @@ TABLE_STATEMENTS = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
+    CREATE TABLE IF NOT EXISTS professores_regras (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        escola_id INT NOT NULL,
+        turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
+        professor_id INT NOT NULL,
+        escopo_disciplina_id INT NULL,
+        tipo VARCHAR(40) NOT NULL,
+        parametros JSON NOT NULL,
+        obrigatoria TINYINT(1) NOT NULL DEFAULT 1,
+        peso INT NOT NULL DEFAULT 100,
+        ativa TINYINT(1) NOT NULL DEFAULT 1,
+        criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_regras_escola_turno (escola_id, turno),
+        KEY idx_regras_professor (professor_id),
+        CONSTRAINT fk_regras_escola
+            FOREIGN KEY (escola_id) REFERENCES escolas(id) ON DELETE CASCADE,
+        CONSTRAINT fk_regras_professor
+            FOREIGN KEY (professor_id) REFERENCES professores(id) ON DELETE CASCADE,
+        CONSTRAINT fk_regras_disciplina
+            FOREIGN KEY (escopo_disciplina_id) REFERENCES disciplinas(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    """
     CREATE TABLE IF NOT EXISTS aulas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         escola_id INT NOT NULL,
         turno VARCHAR(20) NOT NULL DEFAULT 'matutino',
         turma_id INT NOT NULL,
-        professor_id INT NOT NULL,
-        disciplina_id INT NOT NULL,
+        professor_id INT NULL,
+        disciplina_id INT NULL,
         dia VARCHAR(20) NOT NULL,
         periodo INT NOT NULL,
+        vaga TINYINT(1) NOT NULL DEFAULT 0,
+        motivo_vaga VARCHAR(255) NULL DEFAULT NULL,
         UNIQUE KEY uq_aulas_turma_slot (turma_id, dia, periodo),
         UNIQUE KEY uq_aulas_professor_slot (professor_id, dia, periodo),
         KEY idx_aulas_escola_professor (escola_id, turno, professor_id),
@@ -742,6 +767,38 @@ def _ensure_aulas_escola_professor_index(cursor):
         )
 
 
+def _ensure_aulas_vaga_columns(cursor):
+    """Habilita a representação de aulas vagas: torna professor/disciplina opcionais
+    e adiciona as colunas vaga/motivo_vaga (idempotente)."""
+    _add_column_if_missing(
+        cursor,
+        'aulas',
+        'vaga',
+        "ALTER TABLE aulas ADD COLUMN vaga TINYINT(1) NOT NULL DEFAULT 0 AFTER periodo",
+    )
+    _add_column_if_missing(
+        cursor,
+        'aulas',
+        'motivo_vaga',
+        "ALTER TABLE aulas ADD COLUMN motivo_vaga VARCHAR(255) NULL DEFAULT NULL AFTER vaga",
+    )
+    # Relaxa NOT NULL de professor_id/disciplina_id para permitir linhas VAGA.
+    # MODIFY é idempotente (repetir não causa erro).
+    for coluna in ('professor_id', 'disciplina_id'):
+        nulavel = cursor.execute(
+            """SELECT is_nullable
+               FROM information_schema.columns
+               WHERE table_schema = DATABASE()
+                 AND table_name = 'aulas'
+                 AND column_name = %s""",
+            (coluna,),
+        ).fetchone()
+        valor = (nulavel or {}).get('is_nullable') or (nulavel or {}).get('IS_NULLABLE')
+        if valor == 'NO':
+            cursor.execute(f"ALTER TABLE aulas MODIFY {coluna} INT NULL")
+            LOGGER.info("Coluna aulas.%s agora aceita NULL (suporte a aulas vagas).", coluna)
+
+
 def _normalize_professor_days(conn):
     professores = conn.execute(
         "SELECT id, dias_disponiveis FROM professores"
@@ -926,6 +983,7 @@ def create_tables():
         _ensure_disciplina_color_column(conn)
         _ensure_professor_color_column(conn)
         _ensure_aulas_escola_professor_index(conn)
+        _ensure_aulas_vaga_columns(conn)
         _ensure_bootstrap_admin(conn)
         _ensure_system_test_user(conn)
         _backfill_professor_disciplina_links(conn)
