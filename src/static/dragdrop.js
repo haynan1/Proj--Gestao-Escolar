@@ -52,6 +52,7 @@ function removerMarcadores(cell, tipo) {
 function limparMarcadoresDeTroca() {
     document.querySelectorAll('.grade-cell.swap-conflict').forEach((cell) => {
         cell.classList.remove('swap-conflict');
+        delete cell.dataset.swapMotivo;
         removerMarcadores(cell, 'troca');
     });
 }
@@ -88,7 +89,8 @@ async function carregarOcupacoes() {
             const resp = await fetch(`/escola/${escolaId}/ocupacao?${getTurnoQuery()}`);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const dados = await resp.json();
-            if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
+            if (!dados || typeof dados !== 'object' || Array.isArray(dados)
+                || typeof dados.professores !== 'object') {
                 throw new Error('formato inesperado na ocupação dos professores');
             }
             ocupacaoCache = dados;
@@ -105,9 +107,37 @@ async function carregarOcupacoes() {
 }
 
 
+function registroDe(mapa, profId) {
+    const registro = mapa?.professores ? mapa.professores[String(profId)] : null;
+    return registro && typeof registro === 'object' ? registro : null;
+}
+
+
+/** Slots que as regras de posição do professor proíbem para esta aula. */
+function restricoesDe(mapa, aulaId) {
+    const indice = mapa?.restricoes?.aulas?.[String(aulaId)];
+    if (indice === undefined || indice === null) return [];
+    const conjunto = mapa.restricoes.conjuntos?.[indice];
+    return Array.isArray(conjunto) ? conjunto : [];
+}
+
+
 function ocupacaoDe(mapa, profId) {
-    const lista = mapa ? mapa[String(profId)] : null;
-    return Array.isArray(lista) ? lista : [];
+    const slots = registroDe(mapa, profId)?.slots;
+    return Array.isArray(slots) ? slots : [];
+}
+
+
+/** Dias em que o professor atende. Lista vazia = sem restrição de dia. */
+function diasDe(mapa, profId) {
+    const dias = registroDe(mapa, profId)?.dias;
+    return Array.isArray(dias) ? dias : [];
+}
+
+
+function professorAtendeNoDia(mapa, profId, dia) {
+    const dias = diasDe(mapa, profId);
+    return dias.length === 0 || dias.includes(dia);
 }
 
 
@@ -121,9 +151,10 @@ function professorTemAulaNoSlot(ocupacao, dia, periodo, ignorarAulaIds = []) {
 }
 
 
-function marcarConflitoTroca(cell, texto) {
+function marcarConflitoTroca(cell, texto, motivo) {
     if (cell.classList.contains('swap-conflict')) return;
     cell.classList.add('swap-conflict');
+    cell.dataset.swapMotivo = motivo;
     const label = criarMarcadorOcupacao(texto, 'troca');
     label.classList.add('swap-conflict-label');
     cell.appendChild(label);
@@ -145,15 +176,25 @@ async function destacarTrocasInvalidas() {
             if (!cell) return;
             if (draggedOrigin.turmaId && String(getCellTurmaId(cell)) !== String(draggedOrigin.turmaId)) return;
 
-            const trocaInvalida = professorTemAulaNoSlot(
-                ocupacaoDe(mapa, card.dataset.professorId),
+            // A troca leva a aula de destino para o slot de origem: o professor dela
+            // precisa estar livre naquele horário E atender naquele dia. O servidor
+            // valida as duas coisas (models.aula.mover_aula).
+            const profDestino = card.dataset.professorId;
+
+            if (!professorAtendeNoDia(mapa, profDestino, draggedOrigin.dia)) {
+                marcarConflitoTroca(cell, 'Não atende no dia de origem', 'indisponivel');
+                return;
+            }
+
+            const ocupadoNaOrigem = professorTemAulaNoSlot(
+                ocupacaoDe(mapa, profDestino),
                 draggedOrigin.dia,
                 draggedOrigin.periodo,
                 [draggedAulaId, card.dataset.aulaId],
             );
 
-            if (trocaInvalida) {
-                marcarConflitoTroca(cell, 'Troca bloqueada');
+            if (ocupadoNaOrigem) {
+                marcarConflitoTroca(cell, 'Troca bloqueada', 'ocupado');
             }
         });
     } catch (err) {
@@ -209,8 +250,10 @@ function limparDestaques() {
         cell.classList.remove('professor-busy');
         cell.classList.remove('professor-origin');
         cell.classList.remove('professor-unavailable');
+        cell.classList.remove('regra-bloqueada');
         cell.classList.remove('drag-over');
         cell.classList.remove('swap-target');
+        delete cell.dataset.regraMotivo;
         cell.querySelectorAll('.conflict-label').forEach((label) => label.remove());
     });
     limparMarcadoresDeTroca();
@@ -239,6 +282,28 @@ function destacarDiasIndisponiveis(diasDisponiveis) {
         if (dia && !diasDisponiveis.includes(dia)) {
             header.classList.add('day-unavailable');
         }
+    });
+}
+
+
+/**
+ * Marca os slots que uma regra de posição do professor proíbe para a aula arrastada
+ * (período proibido/fixo, slot fixo). O motivo fica na célula para o toast repetir
+ * exatamente o que o servidor diria.
+ */
+function destacarSlotsBloqueadosPorRegra(mapa, aulaId) {
+    restricoesDe(mapa, aulaId).forEach((restricao) => {
+        getVisibleCellsForSlot(restricao).forEach((cell) => {
+            if (draggedOrigin?.turmaId && String(getCellTurmaId(cell)) !== String(draggedOrigin.turmaId)) return;
+            cell.classList.add('regra-bloqueada');
+            cell.dataset.regraMotivo = restricao.motivo || '';
+            if (!cell.querySelector('.regra-label')) {
+                const label = criarMarcadorOcupacao('Regra do professor', 'regra');
+                label.classList.add('regra-label');
+                label.title = restricao.motivo || '';
+                cell.appendChild(label);
+            }
+        });
     });
 }
 
@@ -375,9 +440,13 @@ function initDragDrop() {
             e.dataTransfer.setData('text/plain', draggedAulaId);
 
             const profId = card.dataset.professorId;
-            const diasRaw = card.dataset.professorDias || '';
-            const diasDisponiveis = diasRaw.split(',').map((d) => d.trim()).filter(Boolean);
-            destacarDiasIndisponiveis(diasDisponiveis);
+            // Os dias vêm do servidor junto com a ocupação, não de um data-attribute
+            // do cartão: cartão criado em JS (botão "+") não carrega esse atributo, e
+            // o do HTML envelhece se as regras do professor mudarem em outra aba.
+            const mapa = await carregarOcupacoes();
+            if (dragToken !== activeDragToken || !draggedAulaId || !draggedOrigin) return;
+            destacarDiasIndisponiveis(diasDe(mapa, profId));
+            destacarSlotsBloqueadosPorRegra(mapa, draggedAulaId);
             if (profId) {
                 await destacarConflitos(profId, dragToken);
             } else {
@@ -458,9 +527,25 @@ function initDragDrop() {
                 return;
             }
 
+            if (cell.classList.contains('regra-bloqueada')) {
+                const motivo = cell.dataset.regraMotivo;
+                showToast(
+                    motivo
+                        ? `Uma regra do professor impede este horário: ${motivo}.`
+                        : 'Uma regra do professor impede este horário.',
+                    'error',
+                );
+                return;
+            }
+
             if (isSwap && cell.classList.contains('swap-conflict')) {
                 const professorNome = targetCard?.dataset.professorNome || 'O professor da aula de destino';
-                showToast(`${professorNome} já possui aula no horário de origem.`, 'error');
+                showToast(
+                    cell.dataset.swapMotivo === 'indisponivel'
+                        ? `${professorNome} não atende no dia de origem.`
+                        : `${professorNome} já possui aula no horário de origem.`,
+                    'error',
+                );
                 return;
             }
 

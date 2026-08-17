@@ -410,6 +410,27 @@ def criar_professor(escola_id, nome, disciplina_ids, max_aulas_semana, dias_disp
         conn.close()
 
 
+def mapa_dias_disponiveis(escola_id, turno=None):
+    """{professor_id: [dias]} do turno — leitura leve para a grade.
+
+    Lista vazia significa sem restrição de dia, igual à semântica usada na
+    validação de arrasto (models.aula._validar_disponibilidade_professor).
+    """
+    turno = normalizar_turno(turno)
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT id, dias_disponiveis FROM professores WHERE escola_id = %s AND turno = %s",
+            (escola_id, turno),
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        str(row['id']): [d.strip() for d in (row['dias_disponiveis'] or '').split(',') if d.strip()]
+        for row in rows
+    }
+
+
 def listar_professores(escola_id, turno=None):
     turno = normalizar_turno(turno)
     conn = get_connection()

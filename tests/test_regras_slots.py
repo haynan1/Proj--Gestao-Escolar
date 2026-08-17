@@ -168,3 +168,52 @@ def test_regra_de_disciplina_so_vale_para_ela():
 def test_regra_de_disciplina_nao_vale_quando_a_disciplina_e_desconhecida():
     r = [regra(R.DIAS_PERMITIDOS, {'dias': ['Segunda']}, escopo=7)]
     assert R.regras_aplicaveis(r, None) == []
+
+
+# ─── slots bloqueados enviados para a grade ─────────────────────────────────
+#
+# O front pinta a célula a partir desta lista; o servidor recusa o arrasto a
+# partir de regra_que_bloqueia_slot. As duas coisas precisam ser a mesma conta.
+
+from routes.dashboard_routes import _slots_bloqueados_por_regra  # noqa: E402
+
+
+def test_sem_regras_nada_e_bloqueado():
+    assert _slots_bloqueados_por_regra([], PERIODOS) == []
+
+
+def test_periodo_proibido_bloqueia_o_periodo_em_todos_os_dias():
+    bloqueados = _slots_bloqueados_por_regra(
+        [regra(R.PERIODO_PROIBIDO, {'periodos': [5]})], PERIODOS)
+    assert {(b['dia'], b['periodo']) for b in bloqueados} == {(d, 5) for d in DIAS}
+
+
+def test_cada_slot_bloqueado_carrega_o_motivo():
+    bloqueados = _slots_bloqueados_por_regra(
+        [regra(R.PERIODO_PROIBIDO, {'periodos': [5]})], PERIODOS)
+    assert all('período' in b['motivo'].lower() for b in bloqueados)
+
+
+def test_regra_de_preferencia_nao_gera_bloqueio_na_grade():
+    assert _slots_bloqueados_por_regra(
+        [regra(R.PERIODO_PROIBIDO, {'periodos': [5]}, obrigatoria=False)], PERIODOS) == []
+
+
+def test_bloqueios_respeitam_os_periodos_da_turma():
+    # turma de 4 períodos: nada é reportado no período 5, que nem existe nela
+    bloqueados = _slots_bloqueados_por_regra(
+        [regra(R.PERIODO_PROIBIDO, {'periodos': [5]})], [1, 2, 3, 4])
+    assert bloqueados == []
+
+
+def test_bloqueios_sao_o_complemento_exato_dos_slots_permitidos():
+    regras = [
+        regra(R.DIAS_PERMITIDOS, {'dias': ['Segunda', 'Terça']}),
+        regra(R.PERIODO_PROIBIDO, {'periodos': [1]}),
+    ]
+    permitidos = set(map(tuple, R.slots_permitidos(regras, PERIODOS)))
+    bloqueados = {(b['dia'], b['periodo']) for b in _slots_bloqueados_por_regra(regras, PERIODOS)}
+    todos = {(d, p) for d in DIAS for p in PERIODOS}
+
+    assert permitidos | bloqueados == todos
+    assert permitidos & bloqueados == set()

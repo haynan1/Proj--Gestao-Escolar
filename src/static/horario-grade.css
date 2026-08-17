@@ -2741,6 +2741,36 @@ th[data-day-header].day-unavailable {
     opacity: 0.45;
 }
 
+/* Slot proibido por uma regra de posição do professor (período proibido/fixo,
+   slot fixo). Mesma linguagem do dia indisponível, em âmbar: não é o professor
+   que falta, é a regra que fecha aquele horário. */
+.grade-cell.regra-bloqueada {
+    background-color: rgba(245, 158, 11, 0.08) !important;
+    border: 2px dashed rgba(245, 158, 11, 0.55) !important;
+    position: relative;
+    overflow: hidden;
+    cursor: not-allowed;
+}
+
+.grade-cell.regra-bloqueada .regra-label {
+    background: #b45309;
+}
+
+.grade-cell.regra-bloqueada::after {
+    content: '⚠';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.9rem;
+    pointer-events: none;
+    z-index: 20;
+    border-radius: 5px;
+    color: #fde68a;
+    background: rgba(180, 83, 9, 0.72);
+}
+
 .aula-card.dragging {
     opacity: 0.5;
     transform: scale(0.95);

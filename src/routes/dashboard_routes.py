@@ -56,6 +56,7 @@ from models.professor import (
     criar_professor,
     deletar_professor,
     listar_professores,
+    mapa_dias_disponiveis,
 )
 from models.prontuario import (
     PRIORIDADES_PRONTUARIO,
@@ -2494,28 +2495,106 @@ def mover(escola_id):
 @dashboard_bp.route('/escola/<int:escola_id>/ocupacao')
 @login_required
 def ocupacao_professores(escola_id):
-    """Ocupação de todos os professores do turno, em uma única leitura da grade.
+    """Tudo que a grade precisa para sinalizar um arrasto, numa só resposta.
 
-    Antes havia uma rota por professor; a grade chamava uma vez para cada professor
-    visível (dezenas no modo geral) e cada chamada relia a grade inteira da escola.
+    {
+      "professores": {id: {dias: [...], slots: [...]}},
+      "restricoes":  {"conjuntos": [[{dia, periodo, motivo}, ...], ...],
+                      "aulas": {aula_id: indice_do_conjunto}}
+    }
+
+    As restrições vão indexadas porque todas as aulas de um mesmo professor +
+    disciplina + turma compartilham o mesmo conjunto: repetir a lista por aula
+    inflava a resposta em ~10x sem acrescentar informação.
+
+    Antes havia uma rota por professor devolvendo só os slots: a grade chamava uma
+    vez para cada professor visível (dezenas no modo geral) e cada chamada relia a
+    grade inteira da escola.
+
+    Os dias vêm junto porque a troca precisa saber se o professor da aula de destino
+    atende no dia de origem — antes isso saía de um data-attribute do cartão, que
+    cartão criado em JS não tinha. As restrições cobrem as regras de posição
+    (período/slot fixo), que o servidor recusa em models.aula._validar_regras_professor;
+    sem elas a célula não avisava nada e o erro só aparecia depois do POST.
+
+    Regras de contagem (MAX_AULAS_DIA, DIA_LIVRE, 2 aulas seguidas) ficam de fora:
+    dependem do estado inteiro da grade e mudam a cada aula movida — replicá-las aqui
+    seria uma segunda implementação fadada a divergir da validação real.
     """
     escola, failure = _guard_school(escola_id, permission='view_school', json_response=True)
     if failure:
         return failure
 
-    ocupacao = {}
-    for aula in listar_aulas(escola['id'], _active_turno()):
+    turno_atual = _active_turno()
+    professores = {
+        professor_id: {'dias': dias, 'slots': []}
+        for professor_id, dias in mapa_dias_disponiveis(escola['id'], turno_atual).items()
+    }
+
+    regras_por_professor = {}
+    for regra in regras_model.listar_regras_escola(escola['id'], turno_atual):
+        regras_por_professor.setdefault(str(regra['professor_id']), []).append(regra)
+
+    periodos_por_turma = {
+        turma['id']: list(range(1, int(turma.get('aulas_por_dia') or 5) + 1))
+        for turma in listar_turmas(escola['id'], turno_atual)
+    }
+
+    conjuntos = []
+    indice_por_chave = {}
+    aulas_restritas = {}
+    for aula in listar_aulas(escola['id'], turno_atual):
         professor_id = aula.get('professor_id')
         if not professor_id:
             continue
-        ocupacao.setdefault(str(professor_id), []).append({
+
+        registro = professores.setdefault(str(professor_id), {'dias': [], 'slots': []})
+        registro['slots'].append({
             'aula_id': aula['id'],
             'dia': aula['dia'],
             'periodo': aula['periodo'],
             'turma_id': aula['turma_id'],
             'turma_nome': aula['turma_nome'],
         })
-    return jsonify(ocupacao)
+
+        regras = regras_por_professor.get(str(professor_id))
+        if not regras:
+            continue
+        chave = (professor_id, aula.get('disciplina_id'), aula['turma_id'])
+        if chave not in indice_por_chave:
+            bloqueados = _slots_bloqueados_por_regra(
+                regras_model.regras_aplicaveis(regras, aula.get('disciplina_id')),
+                periodos_por_turma.get(aula['turma_id'], list(range(1, 6))),
+            )
+            if bloqueados:
+                conjuntos.append(bloqueados)
+                indice_por_chave[chave] = len(conjuntos) - 1
+            else:
+                indice_por_chave[chave] = None
+        if indice_por_chave[chave] is not None:
+            aulas_restritas[str(aula['id'])] = indice_por_chave[chave]
+
+    return jsonify({
+        'professores': professores,
+        'restricoes': {'conjuntos': conjuntos, 'aulas': aulas_restritas},
+    })
+
+
+def _slots_bloqueados_por_regra(regras, periodos_turma):
+    """Slots que as regras de posição proíbem, com o motivo de cada um."""
+    if not regras:
+        return []
+    bloqueados = []
+    for dia in DIAS_SEMANA:
+        for periodo in periodos_turma:
+            regra = regras_model.regra_que_bloqueia_slot(regras, dia, periodo, periodos_turma)
+            if regra:
+                bloqueados.append({
+                    'dia': dia,
+                    'periodo': periodo,
+                    'motivo': regras_model.descrever_regra(regra),
+                })
+    return bloqueados
 
 
 def _export_color_mode():
