@@ -187,3 +187,34 @@ def test_escopo_por_disciplina():
     d10 = [(d, p) for (i, d, p), v in y.items() if i == 0 and solver.Value(v) == 1]
     for (d, p) in d10:
         assert d == 'Segunda'
+
+
+def test_ignorar_regras_de_libera_apenas_o_professor_alvo(monkeypatch):
+    """A simulação "e se" relaxa as regras em memória — sem escrever no banco."""
+    regras_a = [_regra(R.DIAS_PERMITIDOS, {'dias': ['Segunda']})]
+    profs = [
+        _prof(1, 'A', 10, 10, dias=['Segunda'], regras=regras_a),
+        _prof(2, 'B', 5, 11, regras=[_regra(R.DIAS_PERMITIDOS, {'dias': ['Terça']})]),
+    ]
+    monkeypatch.setattr(H, 'listar_professores', lambda *a, **k: profs)
+    monkeypatch.setattr(H, 'listar_turmas', lambda *a, **k: TURMAS)
+
+    # A tem 10 aulas mas só pode segunda (5 períodos) -> 5 não cabem
+    base = H.gerar_horario_cpsat(1, 'matutino', permitir_vagas=True, salvar=False)
+    assert base['total'] == 10  # 5 de A na segunda + 5 de B na terça
+
+    # relaxando A, as 10 aulas dele cabem; B continua preso à terça
+    relaxado = H.gerar_horario_cpsat(1, 'matutino', permitir_vagas=True, salvar=False,
+                                     ignorar_regras_de=[1])
+    assert relaxado['total'] == 15
+    assert profs[0]['regras_lista'] == regras_a, 'a lista original não pode ser mutada entre chamadas'
+
+
+def test_ignorar_regras_de_nao_altera_o_padrao(monkeypatch):
+    profs = [_prof(1, 'A', 4, 10, regras=[_regra(R.DIAS_PERMITIDOS, {'dias': ['Quarta']})])]
+    monkeypatch.setattr(H, 'listar_professores', lambda *a, **k: profs)
+    monkeypatch.setattr(H, 'listar_turmas', lambda *a, **k: TURMAS)
+
+    resultado = H.gerar_horario_cpsat(1, 'matutino', permitir_vagas=True, salvar=False)
+    assert resultado['total'] == 4
+    assert resultado['aulas_salvas'] is False
