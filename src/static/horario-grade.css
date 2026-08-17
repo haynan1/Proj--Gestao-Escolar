@@ -2837,16 +2837,96 @@ html[data-schedule-color-mode="none"] .aula-card.aula-card-dynamic .prof-nome {
 .vaga-clear-btn:hover { background: #e2e8f0; }
 
 /* ===== Painel de diagnóstico de vagas ===== */
+/* Mesmo vocabulário visual do .schedule-ajustes-banner: superfície de aviso
+   translúcida sobre o fundo do tema. O texto usa os tokens --text/--text-muted
+   para manter contraste tanto no dark quanto no light (antes o painel tinha
+   fundo claro fixo e ficava ilegível no tema escuro). */
 .schedule-diagnostico {
-    background: #fffbeb;
-    border: 1px solid #f59e0b;
-    border-radius: 8px;
-    padding: 12px 16px;
+    position: relative;
     margin: 12px 0;
+    padding: 0.9rem 1.15rem;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-left: 3px solid #f59e0b;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.07);
+    color: var(--text);
 }
-.schedule-diagnostico-header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
-.schedule-diagnostico-list { margin: 6px 0; padding-left: 18px; }
+
+/* Fechar o aviso manualmente — mesmo controle do .schedule-ajustes-dismiss. */
+.schedule-diagnostico-dismiss-form {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.6rem;
+    margin: 0;
+}
+
+.schedule-diagnostico-dismiss {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.schedule-diagnostico-dismiss:hover,
+.schedule-diagnostico-dismiss:focus-visible {
+    background: rgba(248, 113, 113, 0.14);
+    color: #fca5a5;
+    outline: none;
+}
+
+/* No tema claro o vermelho do dark (#fca5a5) dá 1.58:1 sobre o painel — o X some
+   justamente ao passar o mouse. Vale para os dois botões de fechar da página. */
+[data-theme="light"] .schedule-diagnostico-dismiss:hover,
+[data-theme="light"] .schedule-diagnostico-dismiss:focus-visible,
+[data-theme="light"] .schedule-ajustes-dismiss:hover,
+[data-theme="light"] .schedule-ajustes-dismiss:focus-visible {
+    background: rgba(220, 38, 38, 0.1);
+    color: #b91c1c;
+}
+
+.schedule-diagnostico-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 6px;
+    /* espaço para o X não encostar no título */
+    padding-right: 2rem;
+}
+
+.schedule-diagnostico-header strong {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.schedule-diagnostico-list {
+    margin: 6px 0;
+    padding-left: 18px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
 .schedule-diagnostico-list li { margin-bottom: 6px; }
+
+.schedule-diagnostico-list strong {
+    font-weight: 600;
+    color: var(--text);
+}
+
+[data-theme="light"] .schedule-diagnostico {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    border-left-color: #f59e0b;
+}
 
 /* ===== Filtros interativos da grade ===== */
 .schedule-filtros {

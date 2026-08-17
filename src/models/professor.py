@@ -460,7 +460,13 @@ def buscar_professor(professor_id, escola_id=None):
     return None
 
 
-def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis, turma_ids=None, cargas=None, cor=None, turno=None):
+def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas_semana, dias_disponiveis=None, turma_ids=None, cargas=None, cor=None, turno=None):
+    """Atualiza o cadastro do professor.
+
+    dias_disponiveis=None mantém a disponibilidade semanal como está: ela é derivada
+    das regras do professor (models.regra_professor.sincronizar_dias_disponiveis) e
+    não faz mais parte do formulário de cadastro.
+    """
     turno = normalizar_turno(turno)
     disciplina_ids = _normalizar_ids(disciplina_ids)
     if not disciplina_ids:
@@ -470,30 +476,36 @@ def atualizar_professor(professor_id, escola_id, nome, disciplina_ids, max_aulas
     try:
         if _professor_nome_existe(conn, escola_id, turno, nome, professor_id):
             raise ValueError("Já existe um professor com esse nome neste turno.")
-        dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
-        dias_novos = {d.strip() for d in (dias_disponiveis if isinstance(dias_disponiveis, list) else str(dias_disponiveis).split(',')) if d.strip()}
-        if dias_novos:
-            placeholders = ', '.join(['%s'] * len(dias_novos))
-            conflitos = conn.execute(
-                f"""SELECT COUNT(*) AS total FROM aulas
-                    WHERE professor_id = %s AND escola_id = %s AND turno = %s
-                      AND dia NOT IN ({placeholders})""",
-                (professor_id, escola_id, turno, *sorted(dias_novos)),
-            ).fetchone()
-            if conflitos and int(conflitos['total'] or 0) > 0:
-                raise ValueError(
-                    f"Este professor possui {int(conflitos['total'])} aula(s) em dia(s) que seriam bloqueados. "
-                    "Limpe ou realoque essas aulas antes de alterar a disponibilidade."
-                )
+
+        colunas = ['nome = %s', 'cor = %s', 'disciplina_id = %s', 'max_aulas_semana = %s']
+        valores = [nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana]
+
+        if dias_disponiveis is not None:
+            dias_str = ','.join(dias_disponiveis) if isinstance(dias_disponiveis, list) else dias_disponiveis
+            dias_novos = {d.strip() for d in (dias_disponiveis if isinstance(dias_disponiveis, list) else str(dias_disponiveis).split(',')) if d.strip()}
+            if dias_novos:
+                placeholders = ', '.join(['%s'] * len(dias_novos))
+                conflitos = conn.execute(
+                    f"""SELECT COUNT(*) AS total FROM aulas
+                        WHERE professor_id = %s AND escola_id = %s AND turno = %s
+                          AND dia NOT IN ({placeholders})""",
+                    (professor_id, escola_id, turno, *sorted(dias_novos)),
+                ).fetchone()
+                if conflitos and int(conflitos['total'] or 0) > 0:
+                    raise ValueError(
+                        f"Este professor possui {int(conflitos['total'])} aula(s) em dia(s) que seriam bloqueados. "
+                        "Limpe ou realoque essas aulas antes de alterar a disponibilidade."
+                    )
+            colunas.append('dias_disponiveis = %s')
+            valores.append(dias_str)
+
+        # A interpolação monta apenas nomes de coluna vindos da lista literal acima;
+        # todo valor continua parametrizado.
         conn.execute(
-            """UPDATE professores
-               SET nome = %s,
-                   cor = %s,
-                   disciplina_id = %s,
-                   max_aulas_semana = %s,
-                   dias_disponiveis = %s
-               WHERE id = %s AND escola_id = %s AND turno = %s""",
-            (nome, _normalizar_cor(cor), disciplina_ids[0], max_aulas_semana, dias_str, professor_id, escola_id, turno),
+            f"""UPDATE professores
+                SET {', '.join(colunas)}
+                WHERE id = %s AND escola_id = %s AND turno = %s""",
+            (*valores, professor_id, escola_id, turno),
         )
         _sincronizar_disciplinas_professor(conn, professor_id, escola_id, disciplina_ids, turno)
         _sincronizar_turmas_professor(conn, professor_id, escola_id, turma_ids, turno)

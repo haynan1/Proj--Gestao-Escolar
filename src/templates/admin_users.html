@@ -63,7 +63,10 @@
                                     {% if current_user.id != usuario.id %}
                                     <form method="POST"
                                         action="{{ url_for('admin.deletar_usuario_route', usuario_id=usuario.id) }}"
-                                        onsubmit="return confirm('Excluir o usuario {{ usuario.nome }}? Essa acao nao pode ser desfeita.')">
+                                        data-confirm-title="Excluir usuário"
+                                        data-confirm="Excluir o usuário {{ usuario.nome }}? Essa ação não pode ser desfeita."
+                                        data-confirm-label="Excluir"
+                                        data-confirm-tone="danger">
                                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
                                     </form>
@@ -133,7 +136,10 @@
                                 {% else %}
                                 <form method="POST"
                                     action="{{ url_for('admin.deletar_vinculo_route', vinculo_id=vinculo.id) }}"
-                                    onsubmit="return confirm('Remover o vinculo deste usuario com a escola?')">
+                                    data-confirm-title="Remover vínculo"
+                                    data-confirm="Remover o vínculo deste usuário com a escola? Ele perde o acesso imediatamente."
+                                    data-confirm-label="Remover"
+                                    data-confirm-tone="danger">
                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-danger btn-sm">Remover</button>
                                 </form>

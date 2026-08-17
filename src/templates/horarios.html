@@ -70,7 +70,10 @@
                     {% endif %}
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('Gerar novo horário para esta turma do turno {{ turno_atual_label }}? O horário atual desta turma será substituído.')">
+                        data-confirm-title="Gerar horário da turma"
+                        data-confirm="Gerar um novo horário para esta turma do turno {{ turno_atual_label }}? O horário atual dela será substituído."
+                        data-confirm-label="Gerar"
+                        data-confirm-tone="warning">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
                         <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
@@ -79,7 +82,10 @@
                     </form>
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('Gerar novo horário para todas as turmas do turno {{ turno_atual_label }}? Todos os horários atuais deste turno serão substituídos.')">
+                        data-confirm-title="Gerar horário do turno"
+                        data-confirm="Gerar um novo horário para todas as turmas do turno {{ turno_atual_label }}? Todos os horários atuais deste turno serão substituídos."
+                        data-confirm-label="Gerar tudo"
+                        data-confirm-tone="warning">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-secondary schedule-menu-action" {% if horario_oficial_travado %}disabled{% endif %}>
                             Gerar todas as turmas
@@ -93,7 +99,10 @@
                     </a>
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('Procurar a menor correção possível? Se algum professor precisar de outro dia, o sistema vai pedir confirmação antes de alterar o Dashboard e não salvará grade oficial inválida.')">
+                        data-confirm-title="Gerar com menor correção"
+                        data-confirm="Procurar a menor correção possível? Se algum professor precisar de outro dia, o sistema pedirá confirmação antes de alterar o Dashboard e não salvará grade oficial inválida."
+                        data-confirm-label="Procurar correção"
+                        data-confirm-tone="warning">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         {% if session.grade_erros.turma_id %}
                         <input type="hidden" name="turma_id" value="{{ session.grade_erros.turma_id }}">
@@ -106,7 +115,10 @@
                     {% if session.grade_erros.turma_id %}
                     <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('Completar com ajuste mínimo de regras? As aulas existentes são mantidas e os espaços vazios preenchidos relaxando só os professores bloqueantes.')">
+                        data-confirm-title="Completar com ajuste mínimo"
+                        data-confirm="Completar com ajuste mínimo de regras? As aulas existentes são mantidas e os espaços vazios preenchidos relaxando só os professores bloqueantes."
+                        data-confirm-label="Completar"
+                        data-confirm-tone="warning">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="turma_id" value="{{ session.grade_erros.turma_id }}">
                         <input type="hidden" name="completar_apenas" value="1">
@@ -124,7 +136,10 @@
                     <span class="schedule-alt-menu-title schedule-alt-menu-section">Proteção</span>
                     <form method="POST" action="{{ url_for('dashboard.alternar_trava_horario', escola_id=escola.id, turno=turno_atual) }}"
                         class="schedule-menu-form"
-                        onsubmit="return confirm('{{ 'Destravar alterações deste turno?' if horario_oficial_travado else 'Travar alterações deste turno?' }}')">
+                        data-confirm-title="{{ 'Destravar alterações' if horario_oficial_travado else 'Travar alterações' }}"
+                        data-confirm="{{ 'Destravar as alterações do turno ' ~ turno_atual_label ~ '? A grade oficial volta a ser editável.' if horario_oficial_travado else 'Travar as alterações do turno ' ~ turno_atual_label ~ '? A grade oficial fica protegida contra edição e geração.' }}"
+                        data-confirm-label="{{ 'Destravar' if horario_oficial_travado else 'Travar' }}"
+                        data-confirm-tone="warning">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="turno" value="{{ turno_atual }}">
                         <input type="hidden" name="data_visualizada" value="{{ data_visualizada }}">
@@ -214,7 +229,10 @@
                                 </button>
                                 <form method="POST"
                                     action="{{ url_for('dashboard.deletar_temporario_grupo', escola_id=escola.id, turno=turno_atual) }}"
-                                    onsubmit="return confirm('Excluir esta camada temporária? O horário oficial será preservado.')">
+                                    data-confirm-title="Excluir camada temporária"
+                                    data-confirm="Excluir a camada temporária {{ grupo.titulo }}? O horário oficial será preservado."
+                                    data-confirm-label="Excluir"
+                                    data-confirm-tone="danger">
                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                     {% if view_mode != 'geral' %}
                                     <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
@@ -410,7 +428,10 @@
             </div>
             <form method="POST" action="{{ url_for('dashboard.descartar_ajustes_grade', escola_id=escola.id, turno=turno_atual) }}"
                 class="schedule-ajustes-dismiss-form"
-                onsubmit="return confirm('Descartar estes ajustes sugeridos? Nenhum cadastro será alterado.')">
+                data-confirm-title="Descartar ajustes"
+                data-confirm="Descartar estes ajustes sugeridos? Nenhum cadastro será alterado."
+                data-confirm-label="Descartar"
+                data-confirm-tone="warning">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="turno" value="{{ turno_atual }}">
                 <input type="hidden" name="data_visualizada" value="{{ data_visualizada }}">
@@ -441,6 +462,20 @@
 
     {% if diagnostico_vagas and diagnostico_vagas.itens %}
     <div class="schedule-diagnostico">
+        <form method="POST" action="{{ url_for('dashboard.descartar_diagnostico_grade', escola_id=escola.id, turno=turno_atual) }}"
+            class="schedule-diagnostico-dismiss-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="turno" value="{{ turno_atual }}">
+            <input type="hidden" name="data_visualizada" value="{{ data_visualizada }}">
+            <input type="hidden" name="visualizacao" value="{{ visualizacao_horario }}">
+            {% if view_mode == 'geral' %}
+            <input type="hidden" name="view" value="geral">
+            {% elif turma_selecionada_id %}
+            <input type="hidden" name="turma_id" value="{{ turma_selecionada_id }}">
+            {% endif %}
+            <button type="submit" class="schedule-diagnostico-dismiss"
+                title="Fechar aviso" aria-label="Fechar o aviso de aulas vagas">×</button>
+        </form>
         <div class="schedule-diagnostico-header">
             <strong>⚠ Horário gerado com {{ diagnostico_vagas.total_vagas }} aula(s) vaga(s)</strong>
             <span class="text-muted text-sm">Estas demandas não couberam respeitando as regras dos professores:</span>
@@ -494,7 +529,10 @@
                     <td>
                         {% if can_edit_official_schedule %}
                         <form method="POST" action="{{ url_for('dashboard.afrouxar_regras_professor', escola_id=escola.id, prof_id=c.professor_id, turno=turno_atual) }}"
-                              onsubmit="return confirm('Tornar as regras de {{ c.nome }} preferência e regerar o horário?')">
+                              data-confirm-title="Afrouxar regras e regerar"
+                              data-confirm="Tornar as regras obrigatórias de {{ c.nome }} preferência e regerar o horário do turno?"
+                              data-confirm-label="Afrouxar e regerar"
+                              data-confirm-tone="warning">
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-primary btn-sm">Afrouxar e regerar</button>
                         </form>
@@ -547,7 +585,10 @@
                 {% if can_edit_official_schedule %}
                 <form method="POST" action="{{ url_for('dashboard.limpar_horarios', escola_id=escola.id, turno=turno_atual) }}"
                     class="schedule-clear-form schedule-clear-form-inline"
-                    onsubmit="return confirm(this.limpar_alvo.value === 'todas' ? 'Limpar os horários de todas as turmas do turno {{ turno_atual_label }}?' : 'Limpar os horários da turma selecionada no turno {{ turno_atual_label }}?')">
+                    data-confirm-title="Limpar horários"
+                    data-confirm="Limpar os horários de {limpar_alvo} no turno {{ turno_atual_label }}? As aulas posicionadas serão removidas da grade oficial."
+                    data-confirm-label="Limpar"
+                    data-confirm-tone="danger">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <select class="schedule-clear-select" name="limpar_alvo" aria-label="Escolha o que limpar">
                         <option value="todas">Todas as turmas</option>
@@ -583,7 +624,10 @@
                         {% if can_edit_official_schedule and not horario_oficial_travado %}
                         <form method="POST" action="{{ url_for('dashboard.gerar', escola_id=escola.id, turno=turno_atual) }}"
                             class="schedule-completar-form"
-                            onsubmit="return confirm('Completar horário de {{ turma.nome }}? Os espaços vazios serão preenchidos automaticamente, mantendo as aulas já posicionadas.')">
+                            data-confirm-title="Completar horário"
+                            data-confirm="Completar o horário de {{ turma.nome }}? Os espaços vazios serão preenchidos automaticamente, mantendo as aulas já posicionadas."
+                            data-confirm-label="Completar"
+                            data-confirm-tone="warning">
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="turma_id" value="{{ turma.id }}">
                             <input type="hidden" name="completar_apenas" value="1">
@@ -908,7 +952,10 @@
             class="schedule-alternative-form schedule-alt-mode-panel"
             id="schedule-alternative-auto-form"
             data-alt-mode-panel="auto"
-            onsubmit="return confirm('Gerar camada temporária apenas para os períodos afetados? Camadas sobrepostas nesses períodos serão substituídas, sem apagar o horário oficial.')">
+            data-confirm-title="Gerar camada temporária"
+            data-confirm="Gerar a camada temporária apenas para os períodos afetados? Camadas sobrepostas nesses períodos serão substituídas, sem apagar o horário oficial."
+            data-confirm-label="Gerar camada"
+            data-confirm-tone="warning">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="turma_contexto_id" value="{{ turma_selecionada_id }}">
             <section class="schedule-alt-section">

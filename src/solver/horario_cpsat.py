@@ -45,69 +45,15 @@ def _periodos_turma(turma):
     return list(range(1, int(turma.get('aulas_por_dia') or 5) + 1))
 
 
-def _regras_aplicaveis(prof, disciplina_id):
-    """Regras do professor que se aplicam à demanda da disciplina informada."""
-    aplicaveis = []
-    for regra in prof.get('regras_lista', []):
-        escopo = regra.get('escopo_disciplina_id')
-        if escopo is None or int(escopo) == int(disciplina_id):
-            aplicaveis.append(regra)
-    return aplicaveis
-
-
-def _slots_alvo_slot_fixo(parametros, periodos_turma):
-    posicao = parametros.get('posicao')
-    if posicao == 'periodos':
-        return [p for p in parametros.get('periodos', []) if p in periodos_turma]
-    qtd = int(parametros.get('quantidade') or 0)
-    if posicao == 'primeiras':
-        return [p for p in periodos_turma[:qtd]]
-    if posicao == 'ultimas':
-        return [p for p in periodos_turma[-qtd:]] if qtd else []
-    return []
-
-
 def _slots_permitidos(dem):
-    """Conjunto de slots (dia, periodo) permitidos para a demanda sob as regras HARD."""
-    prof = dem['professor']
-    periodos = dem['periodos_turma']
-    dias_base = set(prof.get('dias_lista') or DIAS)
-    dias_ok = set(dias_base) & set(DIAS)
-    periodos_ok = set(periodos)
-    slots_proibidos = set()
+    """Slots (dia, periodo) permitidos para a demanda sob as regras HARD.
 
-    for regra in dem['regras']:
-        if not regra.get('obrigatoria'):
-            continue  # soft tratado fora (penalidade)
-        tipo = regra['tipo']
-        p = regra.get('parametros') or {}
-        if tipo == R.DIAS_PERMITIDOS:
-            dias_ok &= set(p.get('dias', []))
-        elif tipo == R.DIAS_PROIBIDOS:
-            dias_ok -= set(p.get('dias', []))
-        elif tipo == R.PERIODO_FIXO:
-            periodos_ok &= set(p.get('periodos', []))
-        elif tipo == R.PERIODO_PROIBIDO:
-            dias_alvo = p.get('dias')
-            if dias_alvo:
-                for d in dias_alvo:
-                    for per in p.get('periodos', []):
-                        slots_proibidos.add((d, per))
-            else:
-                periodos_ok -= set(p.get('periodos', []))
-        elif tipo == R.SLOT_FIXO:
-            dia_alvo = p.get('dia')
-            if dia_alvo:
-                dias_ok &= {dia_alvo}
-            periodos_ok &= set(_slots_alvo_slot_fixo(p, periodos))
-        elif tipo == R.CONTAGEM_POR_DIA:
-            dias_ok &= set((p.get('distribuicao') or {}).keys())
-
-    return [
-        (d, per)
-        for d in DIAS if d in dias_ok
-        for per in periodos if per in periodos_ok and (d, per) not in slots_proibidos
-    ]
+    A tradução das regras em slots mora em models.regra_professor e é compartilhada
+    com a edição manual da grade — gerar e arrastar precisam obedecer ao mesmo
+    conjunto de regras, senão o primeiro arrasto desfaz o que o solver garantiu.
+    """
+    dias_base = set(dem['professor'].get('dias_lista') or DIAS)
+    return R.slots_permitidos(dem['regras'], dem['periodos_turma'], dias_base)
 
 
 def _construir_demandas(professores, turmas_por_id):
@@ -130,7 +76,7 @@ def _construir_demandas(professores, turmas_por_id):
                 'disciplina_nome': carga.get('disciplina_nome'),
                 'qtd': qtd,
                 'periodos_turma': _periodos_turma(turma),
-                'regras': _regras_aplicaveis(prof, disciplina_id),
+                'regras': R.regras_aplicaveis(prof.get('regras_lista'), disciplina_id),
             }
             dem['slots'] = _slots_permitidos(dem)
             demandas.append(dem)
@@ -293,29 +239,17 @@ def _resolver(demandas, turmas, permitir_vagas, max_seconds=None, relaxar_estrut
                 model.Add(falta_g >= k - sum(blocos))
                 objetivo.append(int(regra.get('peso') or 100) * falta_g)
 
-    # penalidades de regras SOFT de pertinência (dias/períodos)
+    # Penalidades de regras SOFT de pertinência (dia/período/slot fixo). Usa o mesmo
+    # predicado das regras hard, para preferência e obrigação não divergirem.
+    # CONTAGEM_POR_DIA fica de fora: já tem penalidade própria (desvio do alvo) acima,
+    # e as demais (DIA_LIVRE, MAX_AULAS_DIA, AULA_GEMINADA...) também.
     for i, dem in enumerate(demandas):
         for regra in dem['regras']:
-            if regra.get('obrigatoria'):
+            if regra.get('obrigatoria') or regra['tipo'] == R.CONTAGEM_POR_DIA:
                 continue
-            tipo = regra['tipo']
-            p = regra.get('parametros') or {}
             peso = int(regra.get('peso') or 100)
             for (dia, per) in dem['slots']:
-                viola = False
-                if tipo == R.DIAS_PERMITIDOS:
-                    viola = dia not in set(p.get('dias', []))
-                elif tipo == R.DIAS_PROIBIDOS:
-                    viola = dia in set(p.get('dias', []))
-                elif tipo == R.PERIODO_FIXO:
-                    viola = per not in set(p.get('periodos', []))
-                elif tipo == R.PERIODO_PROIBIDO:
-                    dias_alvo = p.get('dias')
-                    if dias_alvo:
-                        viola = (dia in dias_alvo) and (per in set(p.get('periodos', [])))
-                    else:
-                        viola = per in set(p.get('periodos', []))
-                if viola:
+                if not R.regra_permite_slot(regra, dia, per, dem['periodos_turma']):
                     objetivo.append(peso * y[(i, dia, per)])
 
     if objetivo:
@@ -329,13 +263,26 @@ def _resolver(demandas, turmas, permitir_vagas, max_seconds=None, relaxar_estrut
     return solver, status, y, falta
 
 
-def gerar_horario_cpsat(escola_id, turno=None, permitir_vagas=True, salvar=True, max_seconds=None):
+def gerar_horario_cpsat(escola_id, turno=None, permitir_vagas=True, salvar=True, max_seconds=None,
+                        ignorar_regras_de=None):
     """Gera a grade da escola/turno via CP-SAT e retorna o resultado estruturado.
 
     salvar=True persiste a grade (com lock). salvar=False apenas resolve e devolve o
-    resultado, sem tocar no banco — usado pela análise de encaixes ("e se")."""
+    resultado, sem tocar no banco — usado pela análise de encaixes ("e se").
+
+    ignorar_regras_de: ids de professores cujas regras devem ser desconsideradas
+    nesta resolução. Vale só para esta chamada, em memória — a simulação "e se"
+    não escreve nada no banco."""
     turno = normalizar_turno(turno)
     professores = listar_professores(escola_id, turno)
+    if ignorar_regras_de:
+        # Cópia rasa: relaxar não pode alterar os dicts recebidos de listar_professores.
+        alvos = {int(pid) for pid in ignorar_regras_de}
+        professores = [
+            # dias_lista vazio = semana inteira liberada (ver _slots_permitidos)
+            {**prof, 'regras_lista': [], 'dias_lista': []} if int(prof['id']) in alvos else prof
+            for prof in professores
+        ]
     turmas = listar_turmas(escola_id, turno)
     turmas_por_id = {t['id']: t for t in turmas}
 
@@ -546,17 +493,18 @@ def analisar_encaixes(escola_id, turno=None, max_culpados=6, max_seconds=10):
             culpados.append({'professor_id': pid, 'nome': nome_prof[pid], 'faltantes': f,
                              'regras': desc, 'tem_obrigatoria': tem_obrig, 'recupera': 0})
 
-        # simulação "e se" — relaxa as regras do professor e re-resolve (sem salvar)
+        # Simulação "e se" — relaxa as regras do professor e re-resolve, tudo em
+        # memória. Antes isso era feito com UPDATE ativa=0 / ativa=1 no banco: se o
+        # processo morresse no meio da resolução, as regras ficavam desativadas de
+        # forma permanente e silenciosa. Nenhuma escrita aqui, nenhuma janela de risco.
         for c in culpados:
             if not c['tem_obrigatoria']:
                 continue
-            pid = c['professor_id']
-            conn.execute("UPDATE professores_regras SET ativa=0 WHERE professor_id=%s", (pid,)); conn.commit()
-            try:
-                r = gerar_horario_cpsat(escola_id, turno, permitir_vagas=True, salvar=False, max_seconds=max_seconds)
-                c['recupera'] = max(0, total_vagas - r['total_vagas'])
-            finally:
-                conn.execute("UPDATE professores_regras SET ativa=1 WHERE professor_id=%s", (pid,)); conn.commit()
+            r = gerar_horario_cpsat(
+                escola_id, turno, permitir_vagas=True, salvar=False,
+                max_seconds=max_seconds, ignorar_regras_de=[c['professor_id']],
+            )
+            c['recupera'] = max(0, total_vagas - r['total_vagas'])
 
         return {
             'conflito_professor': conflito_prof,

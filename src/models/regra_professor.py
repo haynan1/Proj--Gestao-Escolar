@@ -167,6 +167,180 @@ def normalizar_parametros(tipo, parametros):
     raise RegraValidationError("Tipo de regra desconhecido.")
 
 
+def regras_aplicaveis(regras, disciplina_id):
+    """Regras que valem para uma demanda: as globais mais as da própria disciplina."""
+    aplicaveis = []
+    for regra in regras or []:
+        escopo = regra.get('escopo_disciplina_id')
+        if escopo is None or (disciplina_id is not None and int(escopo) == int(disciplina_id)):
+            aplicaveis.append(regra)
+    return aplicaveis
+
+
+def _periodos_slot_fixo(parametros, periodos_turma):
+    posicao = parametros.get('posicao')
+    if posicao == 'periodos':
+        return [p for p in parametros.get('periodos', []) if p in periodos_turma]
+    qtd = int(parametros.get('quantidade') or 0)
+    if posicao == 'primeiras':
+        return list(periodos_turma[:qtd])
+    if posicao == 'ultimas':
+        return list(periodos_turma[-qtd:]) if qtd else []
+    return []
+
+
+def regra_permite_slot(regra, dia, periodo, periodos_turma):
+    """A regra aceita este (dia, período)? Só olha pertinência, não cardinalidade."""
+    tipo = regra.get('tipo')
+    p = regra.get('parametros') or {}
+
+    if tipo == DIAS_PERMITIDOS:
+        return dia in set(p.get('dias') or [])
+    if tipo == DIAS_PROIBIDOS:
+        return dia not in set(p.get('dias') or [])
+    if tipo == PERIODO_FIXO:
+        return periodo in set(p.get('periodos') or [])
+    if tipo == PERIODO_PROIBIDO:
+        periodos = set(p.get('periodos') or [])
+        dias_alvo = p.get('dias')
+        if dias_alvo:
+            return not (dia in set(dias_alvo) and periodo in periodos)
+        return periodo not in periodos
+    if tipo == SLOT_FIXO:
+        if p.get('dia') and dia != p.get('dia'):
+            return False
+        return periodo in set(_periodos_slot_fixo(p, periodos_turma))
+    if tipo == CONTAGEM_POR_DIA:
+        return dia in set((p.get('distribuicao') or {}).keys())
+
+    # MAX_AULAS_DIA, AULA_GEMINADA, DIA_LIVRE e DISTRIBUIR_EM_N_DIAS limitam
+    # quantidade, não posição: não dá para decidi-las olhando um slot isolado.
+    return True
+
+
+def regra_que_bloqueia_slot(regras, dia, periodo, periodos_turma):
+    """Primeira regra obrigatória que proíbe este (dia, período) — ou None.
+
+    Devolver a regra (e não um booleano) deixa a mensagem de erro dizer o motivo.
+    Regras de preferência nunca bloqueiam: elas viram penalidade no solver.
+    """
+    for regra in regras or []:
+        if not regra.get('obrigatoria'):
+            continue
+        if not regra_permite_slot(regra, dia, periodo, periodos_turma):
+            return regra
+    return None
+
+
+def slots_permitidos(regras, periodos_turma, dias_base=None):
+    """Slots (dia, período) liberados pelas regras obrigatórias de pertinência.
+
+    Fonte única usada tanto pelo solver (solver.horario_cpsat) quanto pela edição
+    manual da grade (models.aula), para que gerar e arrastar sigam a mesma regra.
+    """
+    disponiveis = set(DIAS if dias_base is None else dias_base)
+    return [
+        (dia, periodo)
+        for dia in DIAS if dia in disponiveis
+        for periodo in periodos_turma
+        if regra_que_bloqueia_slot(regras, dia, periodo, periodos_turma) is None
+    ]
+
+
+def carregar_regras_professor(conn, professor_id):
+    """Regras ativas do professor na conexão informada (para validar dentro de uma transação)."""
+    rows = conn.execute(
+        """SELECT r.tipo, r.parametros, r.obrigatoria, r.peso, r.escopo_disciplina_id,
+                  d.nome AS escopo_disciplina_nome
+           FROM professores_regras r
+           LEFT JOIN disciplinas d ON d.id = r.escopo_disciplina_id
+           WHERE r.professor_id = %s AND r.ativa = 1
+           ORDER BY r.id""",
+        (professor_id,),
+    ).fetchall()
+    return [
+        {
+            'tipo': row['tipo'],
+            'parametros': _parse_parametros(row['parametros']),
+            'obrigatoria': bool(row['obrigatoria']),
+            'peso': int(row['peso'] or 100),
+            'escopo_disciplina_id': row['escopo_disciplina_id'],
+            'escopo_disciplina_nome': row.get('escopo_disciplina_nome'),
+        }
+        for row in rows
+    ]
+
+
+def dias_efetivos(regras):
+    """Dias em que o professor pode dar aula segundo as regras de dia vinculantes.
+
+    Só entram regras obrigatórias (hard) e de escopo global — regras de preferência
+    e regras restritas a uma disciplina não limitam a disponibilidade do professor
+    como um todo, apenas a demanda daquela disciplina.
+    """
+    dias = set(DIAS)
+    for regra in regras or []:
+        if not regra.get('obrigatoria'):
+            continue
+        if regra.get('escopo_disciplina_id') is not None:
+            continue
+        tipo = regra.get('tipo')
+        parametros = regra.get('parametros') or {}
+        if tipo == DIAS_PERMITIDOS:
+            dias &= set(parametros.get('dias') or [])
+        elif tipo == DIAS_PROIBIDOS:
+            dias -= set(parametros.get('dias') or [])
+    return [d for d in DIAS if d in dias]
+
+
+def dias_efetivos_de_linhas(rows):
+    """dias_efetivos() a partir de linhas cruas de professores_regras."""
+    return dias_efetivos([
+        {
+            'tipo': row['tipo'],
+            'parametros': _parse_parametros(row['parametros']),
+            'obrigatoria': bool(row['obrigatoria']),
+            'escopo_disciplina_id': row['escopo_disciplina_id'],
+        }
+        for row in rows
+    ])
+
+
+def sincronizar_dias_disponiveis(conn, professor_id, escola_id=None, turno=None):
+    """Reescreve professores.dias_disponiveis a partir das regras de dia do professor.
+
+    As regras são a única fonte de verdade da disponibilidade semanal. A coluna
+    continua existindo como cache derivado, lido pelo solver, pela validação de
+    arrasto (models.aula) e pelas camadas temporárias. Retorna os dias aplicados.
+
+    escola_id/turno restringem a escrita ao tenant informado: professor_id chega de
+    parâmetro de rota em alguns fluxos, e sem esse escopo a atualização alcançaria
+    professor de outra escola. Sempre passe os dois quando estiverem disponíveis.
+    """
+    rows = conn.execute(
+        """SELECT tipo, parametros, obrigatoria, escopo_disciplina_id
+           FROM professores_regras
+           WHERE professor_id = %s AND ativa = 1""",
+        (professor_id,),
+    ).fetchall()
+    dias = dias_efetivos_de_linhas(rows)
+
+    filtros = ['id = %s']
+    valores = [','.join(dias), professor_id]
+    if escola_id is not None:
+        filtros.append('escola_id = %s')
+        valores.append(escola_id)
+    if turno is not None:
+        filtros.append('turno = %s')
+        valores.append(turno)
+
+    conn.execute(
+        f"UPDATE professores SET dias_disponiveis = %s WHERE {' AND '.join(filtros)}",
+        tuple(valores),
+    )
+    return dias
+
+
 def _serialize_regra(row):
     item = dict(row)
     item['parametros'] = _parse_parametros(item.get('parametros'))
@@ -265,6 +439,7 @@ def criar_regra(escola_id, professor_id, tipo, parametros, escopo_disciplina_id=
                 peso,
             ),
         )
+        sincronizar_dias_disponiveis(conn, professor_id, escola_id, turno)
         conn.commit()
         return True, "Regra adicionada com sucesso."
     except mysql.connector.Error as exc:
@@ -283,12 +458,19 @@ def deletar_regra(regra_id, escola_id, turno=None):
     turno = normalizar_turno(turno)
     conn = get_connection()
     try:
+        alvo = conn.execute(
+            "SELECT professor_id FROM professores_regras WHERE id = %s AND escola_id = %s AND turno = %s",
+            (regra_id, escola_id, turno),
+        ).fetchone()
         cursor = conn.execute(
             "DELETE FROM professores_regras WHERE id = %s AND escola_id = %s AND turno = %s",
             (regra_id, escola_id, turno),
         )
+        removida = cursor.rowcount > 0
+        if removida and alvo:
+            sincronizar_dias_disponiveis(conn, alvo['professor_id'], escola_id, turno)
         conn.commit()
-        return cursor.rowcount > 0
+        return removida
     except Exception:
         conn.rollback()
         _LOGGER.exception('Erro ao deletar regra %s.', regra_id)
@@ -307,6 +489,8 @@ def afrouxar_regras_professor(escola_id, professor_id, turno=None):
                WHERE escola_id = %s AND turno = %s AND professor_id = %s""",
             (escola_id, turno, professor_id),
         )
+        # Sem regras de dia obrigatórias, o professor volta a estar livre na semana.
+        sincronizar_dias_disponiveis(conn, professor_id, escola_id, turno)
         conn.commit()
         return cursor.rowcount
     except Exception:

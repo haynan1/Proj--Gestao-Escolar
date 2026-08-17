@@ -233,7 +233,11 @@
 
                 {% if can_manage_reports %}
                 <form method="POST" action="{{ url_for('dashboard.arquivar_prontuario_route', escola_id=escola.id, prontuario_id=registro.id) }}"
-                    class="prontuario-archive-form" onsubmit="return confirm('Arquivar este acompanhamento?')">
+                    class="prontuario-archive-form"
+                    data-confirm-title="Arquivar acompanhamento"
+                    data-confirm="Arquivar este acompanhamento? Ele deixa de aparecer no prontuário ativo."
+                    data-confirm-label="Arquivar"
+                    data-confirm-tone="danger">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="turno" value="{{ turno_atual }}">
                     <button type="submit" class="btn-icon-danger" title="Arquivar acompanhamento" aria-label="Arquivar acompanhamento">×</button>

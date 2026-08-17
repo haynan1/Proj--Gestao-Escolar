@@ -222,7 +222,10 @@
                     </a>
                     <form method="POST"
                         action="{{ url_for('dashboard.deletar_temporario_grupo', escola_id=escola.id, turno=turno_atual) }}"
-                        onsubmit="return confirm('Excluir esta camada temporária de horário? O horário oficial será preservado.')">
+                        data-confirm-title="Excluir camada temporária"
+                        data-confirm="Excluir a camada temporária {{ camada.titulo }}? O horário oficial será preservado."
+                        data-confirm-label="Excluir"
+                        data-confirm-tone="danger">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="redirect_to" value="relatorios">
                         <input type="hidden" name="mes" value="{{ mes }}">
@@ -297,7 +300,10 @@
                         <td class="reports-actions-cell">
                             <form method="POST"
                                 action="{{ url_for('dashboard.deletar_relatorio_professor_route', escola_id=escola.id, relatorio_id=registro.id) }}"
-                                onsubmit="return confirm('Arquivar este registro do relatório?')">
+                                data-confirm-title="Arquivar registro"
+                                data-confirm="Arquivar este registro do relatório? Ele deixa de aparecer na listagem do mês."
+                                data-confirm-label="Arquivar"
+                                data-confirm-tone="danger">
                                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="turno" value="{{ turno_atual }}">
                                 <input type="hidden" name="mes" value="{{ mes }}">

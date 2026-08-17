@@ -1338,7 +1338,6 @@ def criar_prof(escola_id):
 
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '').strip()
-    dias = request.form.getlist('dias_disponiveis')
     cargas = _parse_cargas_professor(request.form)
     max_aulas = _calcular_max_aulas_professor(cargas)
     disciplina_ids = sorted(set(request.form.getlist('disciplina_ids') + [
@@ -1347,10 +1346,11 @@ def criar_prof(escola_id):
     turma_ids = sorted(set(request.form.getlist('turma_ids') + [
         str(carga['turma_id']) for carga in cargas
     ]))
+    # Professor nasce sem restrição de dia: a disponibilidade semanal é expressa
+    # pelas regras (Dias permitidos / Dias proibidos), fonte única dessa informação.
+    dias = list(DIAS_SEMANA)
     if not nome or not disciplina_ids:
         flash('Nome e pelo menos uma disciplina são obrigatórios.', 'error')
-    elif not dias:
-        flash('Selecione pelo menos um dia disponível.', 'error')
     elif not turma_ids:
         flash('Selecione pelo menos uma turma para vincular ao professor.', 'error')
     else:
@@ -1370,7 +1370,6 @@ def editar_prof(escola_id, prof_id):
 
     nome = request.form.get('nome', '').strip()
     cor = request.form.get('cor', '').strip()
-    dias = request.form.getlist('dias_disponiveis')
     cargas = _parse_cargas_professor(request.form)
     max_aulas = _calcular_max_aulas_professor(cargas)
     disciplina_ids = sorted(set(request.form.getlist('disciplina_ids') + [
@@ -1379,14 +1378,16 @@ def editar_prof(escola_id, prof_id):
     turma_ids = sorted(set(request.form.getlist('turma_ids') + [
         str(carga['turma_id']) for carga in cargas
     ]))
-    if nome and disciplina_ids and dias and turma_ids:
+    if nome and disciplina_ids and turma_ids:
         try:
-            atualizar_professor(prof_id, escola['id'], nome, disciplina_ids, max_aulas, dias, turma_ids, cargas, cor, _active_turno())
+            # dias_disponiveis=None: a disponibilidade semanal vem das regras do
+            # professor e não é editada por este formulário.
+            atualizar_professor(prof_id, escola['id'], nome, disciplina_ids, max_aulas, None, turma_ids, cargas, cor, _active_turno())
             flash('Professor atualizado.', 'success')
         except ValueError as exc:
             flash(str(exc), 'error')
     else:
-        flash('Preencha nome, disciplinas, dias disponíveis e pelo menos uma turma.', 'error')
+        flash('Preencha nome, disciplinas e pelo menos uma turma.', 'error')
     return redirect(_dashboard_url('dashboard.dashboard', escola_id=escola_id, _anchor='professores'))
 
 
@@ -1940,6 +1941,35 @@ def descartar_ajustes_grade(escola_id):
     return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, data=data_visualizada, visualizacao=visualizacao))
 
 
+@dashboard_bp.route('/escola/<int:escola_id>/horarios/diagnostico/descartar', methods=['POST'])
+@login_required
+def descartar_diagnostico_grade(escola_id):
+    """Fecha o painel de aulas vagas. Nada é alterado na grade — gerar de novo o traz de volta."""
+    escola, failure = _guard_school(escola_id, permission='view_school')
+    if failure:
+        return failure
+
+    turno_atual = normalizar_turno(request.form.get('turno') or _active_turno())
+    diagnostico = session.get('grade_diagnostico')
+    if (diagnostico
+            and diagnostico.get('escola_id') == escola['id']
+            and diagnostico.get('turno') == turno_atual):
+        session.pop('grade_diagnostico', None)
+
+    turma_id = request.form.get('turma_id', type=int)
+    data_visualizada = request.form.get('data_visualizada') or None
+    visualizacao = request.form.get('visualizacao') or 'oficial'
+    view_mode = request.form.get('view')
+    if turma_id:
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, turma_id=turma_id,
+                                       data=data_visualizada, visualizacao=visualizacao))
+    if view_mode == 'geral':
+        return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id, view='geral',
+                                       data=data_visualizada, visualizacao=visualizacao))
+    return redirect(_dashboard_url('dashboard.horarios', escola_id=escola_id,
+                                   data=data_visualizada, visualizacao=visualizacao))
+
+
 @dashboard_bp.route('/escola/<int:escola_id>/horarios/erros/pdf')
 @login_required
 def download_erros_grade(escola_id):
@@ -2461,24 +2491,30 @@ def mover(escola_id):
     return jsonify({'status': 'ok', **(resultado or {})})
 
 
-@dashboard_bp.route('/escola/<int:escola_id>/professor/<int:prof_id>/ocupacao')
+@dashboard_bp.route('/escola/<int:escola_id>/ocupacao')
 @login_required
-def ocupacao_professor(escola_id, prof_id):
+def ocupacao_professores(escola_id):
+    """Ocupação de todos os professores do turno, em uma única leitura da grade.
+
+    Antes havia uma rota por professor; a grade chamava uma vez para cada professor
+    visível (dezenas no modo geral) e cada chamada relia a grade inteira da escola.
+    """
     escola, failure = _guard_school(escola_id, permission='view_school', json_response=True)
     if failure:
         return failure
 
-    aulas = listar_aulas(escola['id'], _active_turno())
-    ocupacao = []
-    for aula in aulas:
-        if aula['professor_id'] == prof_id:
-            ocupacao.append({
-                'aula_id': aula['id'],
-                'dia': aula['dia'],
-                'periodo': aula['periodo'],
-                'turma_id': aula['turma_id'],
-                'turma_nome': aula['turma_nome'],
-            })
+    ocupacao = {}
+    for aula in listar_aulas(escola['id'], _active_turno()):
+        professor_id = aula.get('professor_id')
+        if not professor_id:
+            continue
+        ocupacao.setdefault(str(professor_id), []).append({
+            'aula_id': aula['id'],
+            'dia': aula['dia'],
+            'periodo': aula['periodo'],
+            'turma_id': aula['turma_id'],
+            'turma_nome': aula['turma_nome'],
+        })
     return jsonify(ocupacao)
 
 

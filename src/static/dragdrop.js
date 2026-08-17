@@ -2,7 +2,9 @@ let draggedCard = null;
 let draggedAulaId = null;
 let draggedOrigin = null;
 let activeDragToken = 0;
-const ocupacaoProfessorCache = new Map();
+// Mapa { professorId: slots[] } de toda a grade do turno, buscado de uma vez só.
+let ocupacaoCache = null;
+let ocupacaoEmVoo = null;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
 
@@ -28,18 +30,29 @@ function getVisibleCellsForSlot(slot) {
 }
 
 
-function criarMarcadorOcupacao(texto) {
+/**
+ * Marcadores da grade. Cada rotina de destaque só limpa os marcadores que ela
+ * mesma criou — daí o data-marcador. Antes a limpeza dos conflitos levava junto
+ * o rótulo "Indisponível", deixando a célula pintada sem explicar o motivo.
+ */
+function criarMarcadorOcupacao(texto, tipo = 'conflito') {
     const label = document.createElement('div');
     label.className = 'conflict-label';
+    label.dataset.marcador = tipo;
     label.textContent = texto;
     return label;
+}
+
+
+function removerMarcadores(cell, tipo) {
+    cell.querySelectorAll(`[data-marcador="${tipo}"]`).forEach((label) => label.remove());
 }
 
 
 function limparMarcadoresDeTroca() {
     document.querySelectorAll('.grade-cell.swap-conflict').forEach((cell) => {
         cell.classList.remove('swap-conflict');
-        cell.querySelectorAll('.swap-conflict-label').forEach((label) => label.remove());
+        removerMarcadores(cell, 'troca');
     });
 }
 
@@ -49,22 +62,52 @@ function limparMarcadoresDeConflito() {
         cell.classList.remove('conflict-busy');
         cell.classList.remove('professor-busy');
         cell.classList.remove('professor-origin');
-        cell.querySelectorAll('.conflict-label:not(.swap-conflict-label)').forEach((label) => label.remove());
+        removerMarcadores(cell, 'conflito');
     });
 }
 
 
-async function buscarOcupacaoProfessor(profId) {
-    if (!profId) return [];
-    if (ocupacaoProfessorCache.has(String(profId))) {
-        return ocupacaoProfessorCache.get(String(profId));
-    }
+function invalidarOcupacao() {
+    ocupacaoCache = null;
+    ocupacaoEmVoo = null;
+}
+
+
+/**
+ * Ocupação de todos os professores do turno em uma requisição.
+ * Resposta inválida devolve mapa vazio e NÃO entra em cache — senão um 403 ou uma
+ * sessão expirada apagaria a sinalização de conflito pelo resto da sessão.
+ */
+async function carregarOcupacoes() {
+    if (ocupacaoCache) return ocupacaoCache;
+    if (ocupacaoEmVoo) return ocupacaoEmVoo;
 
     const escolaId = document.body.dataset.escolaId;
-    const resp = await fetch(`/escola/${escolaId}/professor/${profId}/ocupacao?${getTurnoQuery()}`);
-    const ocupacao = await resp.json();
-    ocupacaoProfessorCache.set(String(profId), ocupacao);
-    return ocupacao;
+    ocupacaoEmVoo = (async () => {
+        try {
+            const resp = await fetch(`/escola/${escolaId}/ocupacao?${getTurnoQuery()}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const dados = await resp.json();
+            if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
+                throw new Error('formato inesperado na ocupação dos professores');
+            }
+            ocupacaoCache = dados;
+            return dados;
+        } catch (err) {
+            console.error('Erro ao buscar ocupacao:', err);
+            return {};
+        } finally {
+            ocupacaoEmVoo = null;
+        }
+    })();
+
+    return ocupacaoEmVoo;
+}
+
+
+function ocupacaoDe(mapa, profId) {
+    const lista = mapa ? mapa[String(profId)] : null;
+    return Array.isArray(lista) ? lista : [];
 }
 
 
@@ -81,7 +124,7 @@ function professorTemAulaNoSlot(ocupacao, dia, periodo, ignorarAulaIds = []) {
 function marcarConflitoTroca(cell, texto) {
     if (cell.classList.contains('swap-conflict')) return;
     cell.classList.add('swap-conflict');
-    const label = criarMarcadorOcupacao(texto);
+    const label = criarMarcadorOcupacao(texto, 'troca');
     label.classList.add('swap-conflict-label');
     cell.appendChild(label);
 }
@@ -90,30 +133,32 @@ function marcarConflitoTroca(cell, texto) {
 async function destacarTrocasInvalidas() {
     if (!draggedOrigin || !draggedAulaId) return;
 
-    limparMarcadoresDeTroca();
-    const cards = Array.from(document.querySelectorAll('.aula-card[data-aula-id]'));
-    const professorIds = [...new Set(cards.map((card) => card.dataset.professorId).filter(Boolean))];
-    await Promise.all(professorIds.map((profId) => buscarOcupacaoProfessor(profId).catch(() => [])));
+    try {
+        limparMarcadoresDeTroca();
+        const mapa = await carregarOcupacoes();
+        if (!draggedOrigin || !draggedAulaId) return;
 
-    cards.forEach((card) => {
-        if (card.dataset.aulaId === draggedAulaId) return;
+        document.querySelectorAll('.aula-card[data-aula-id]').forEach((card) => {
+            if (card.dataset.aulaId === draggedAulaId) return;
 
-        const cell = card.closest('.grade-cell');
-        if (!cell) return;
-        if (draggedOrigin?.turmaId && String(getCellTurmaId(cell)) !== String(draggedOrigin.turmaId)) return;
+            const cell = card.closest('.grade-cell');
+            if (!cell) return;
+            if (draggedOrigin.turmaId && String(getCellTurmaId(cell)) !== String(draggedOrigin.turmaId)) return;
 
-        const ocupacaoDestino = ocupacaoProfessorCache.get(String(card.dataset.professorId)) || [];
-        const trocaInvalida = professorTemAulaNoSlot(
-            ocupacaoDestino,
-            draggedOrigin.dia,
-            draggedOrigin.periodo,
-            [draggedAulaId, card.dataset.aulaId],
-        );
+            const trocaInvalida = professorTemAulaNoSlot(
+                ocupacaoDe(mapa, card.dataset.professorId),
+                draggedOrigin.dia,
+                draggedOrigin.periodo,
+                [draggedAulaId, card.dataset.aulaId],
+            );
 
-        if (trocaInvalida) {
-            marcarConflitoTroca(cell, 'Troca bloqueada');
-        }
-    });
+            if (trocaInvalida) {
+                marcarConflitoTroca(cell, 'Troca bloqueada');
+            }
+        });
+    } catch (err) {
+        console.error('Erro ao avaliar trocas invalidas:', err);
+    }
 }
 
 
@@ -121,12 +166,12 @@ async function destacarConflitos(profId, dragToken = activeDragToken) {
     if (!profId) return;
 
     try {
-        const ocupacao = await buscarOcupacaoProfessor(profId);
+        const mapa = await carregarOcupacoes();
         if (dragToken !== activeDragToken || !draggedAulaId || !draggedOrigin) return;
 
         limparMarcadoresDeConflito();
 
-        ocupacao.forEach((slot) => {
+        ocupacaoDe(mapa, profId).forEach((slot) => {
             const cells = getVisibleCellsForSlot(slot);
             if (!cells.length) return;
 
@@ -183,7 +228,7 @@ function destacarDiasIndisponiveis(diasDisponiveis) {
         if (!dia || diasDisponiveis.includes(dia)) return;
         cell.classList.add('professor-unavailable');
         if (!cell.querySelector('.unavailable-label')) {
-            const label = criarMarcadorOcupacao('Indisponível');
+            const label = criarMarcadorOcupacao('Indisponível', 'indisponivel');
             label.classList.add('unavailable-label');
             cell.appendChild(label);
         }
@@ -205,7 +250,7 @@ function destacarOutrasTurmasBloqueadas() {
         if (String(getCellTurmaId(cell)) === String(draggedOrigin.turmaId)) return;
         cell.classList.add('conflict-busy');
         if (!cell.querySelector('.cross-class-label')) {
-            const label = criarMarcadorOcupacao('Outra turma');
+            const label = criarMarcadorOcupacao('Outra turma', 'outra-turma');
             label.classList.add('cross-class-label');
             cell.appendChild(label);
         }
@@ -281,7 +326,7 @@ function initTrashDrop() {
                     oldCell.classList.add('empty');
                     garantirBotaoManual(oldCell);
                 }
-                ocupacaoProfessorCache.clear();
+                invalidarOcupacao();
                 showToast('Aula removida com sucesso!', 'success');
                 return;
             }
@@ -365,7 +410,7 @@ function initDragDrop() {
             e.dataTransfer.dropEffect = sameTurma ? 'move' : 'none';
             cell.classList.add('drag-over');
             if (!sameTurma && !cell.querySelector('.cross-class-label')) {
-                const label = criarMarcadorOcupacao('Outra turma');
+                const label = criarMarcadorOcupacao('Outra turma', 'outra-turma');
                 label.classList.add('cross-class-label');
                 cell.appendChild(label);
             }
@@ -406,6 +451,13 @@ function initDragDrop() {
                 return;
             }
 
+            // A célula já está pintada como indisponível: barrar aqui evita uma ida
+            // ao servidor só para receber de volta o erro que o cliente já conhece.
+            if (cell.classList.contains('professor-unavailable')) {
+                showToast('Esse professor não está disponível neste dia.', 'error');
+                return;
+            }
+
             if (isSwap && cell.classList.contains('swap-conflict')) {
                 const professorNome = targetCard?.dataset.professorNome || 'O professor da aula de destino';
                 showToast(`${professorNome} já possui aula no horário de origem.`, 'error');
@@ -431,6 +483,9 @@ function initDragDrop() {
                 if (resp.ok && data.status === 'ok') {
                     if (cardToMove) {
                         removerBotaoManual(cell);
+                        // O servidor apaga a VAGA ao receber a aula (models.aula.mover_aula);
+                        // sem isto o cartão VAGA ficava na célula junto com a aula movida.
+                        cell.querySelector('.vaga-card')?.remove();
                         if (data.action === 'swap' && isSwap && targetCard && oldCell) {
                             oldCell.appendChild(targetCard);
                             oldCell.classList.remove('empty');
@@ -443,7 +498,7 @@ function initDragDrop() {
                         }
                         cardToMove.classList.remove('dragging');
                     }
-                    ocupacaoProfessorCache.clear();
+                    invalidarOcupacao();
                     showToast(data.action === 'swap' ? 'Aulas trocadas com sucesso!' : 'Aula movida com sucesso!', 'success');
                 } else {
                     const message = data?.error?.message || data.msg || 'Tente novamente';
@@ -462,7 +517,7 @@ function initDragDrop() {
 
 window.FlowterSchedule = window.FlowterSchedule || {};
 window.FlowterSchedule.initDragDrop = initDragDrop;
-window.FlowterSchedule.clearProfessorOccupationCache = () => ocupacaoProfessorCache.clear();
+window.FlowterSchedule.clearProfessorOccupationCache = invalidarOcupacao;
 
 
 

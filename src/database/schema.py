@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -800,15 +801,72 @@ def _ensure_aulas_vaga_columns(cursor):
 
 
 def _normalize_professor_days(conn):
+    """Consolida a disponibilidade semanal do professor nas regras.
+
+    Antes, `professores.dias_disponiveis` era editável no modal do professor e o
+    solver a combinava com as regras DIAS_PERMITIDOS/DIAS_PROIBIDOS — duas fontes
+    para a mesma informação, sendo que a do modal era silenciosamente anulada
+    sempre que existia uma regra de dia. Agora as regras são a única fonte e a
+    coluna é apenas um cache derivado.
+
+    Esta rotina é idempotente: qualquer restrição que existisse só na coluna vira
+    uma regra DIAS_PERMITIDOS obrigatória (visível e editável no Dashboard) e a
+    coluna é reescrita a partir das regras. Rodando de novo, nada muda.
+    """
+    # Import local: a derivação é lógica de domínio e mora em models. Reusá-la aqui
+    # evita ter duas implementações da mesma regra — justamente o que esta migração
+    # existe para acabar. Local para não pendurar models no import da camada de schema.
+    from models.regra_professor import DIAS_PERMITIDOS, dias_efetivos_de_linhas
+
     professores = conn.execute(
-        "SELECT id, dias_disponiveis FROM professores"
+        "SELECT id, escola_id, turno, dias_disponiveis FROM professores"
     ).fetchall()
+    if not professores:
+        return
+
+    regras_por_professor = {}
+    for regra in conn.execute(
+        """SELECT professor_id, tipo, parametros, obrigatoria, escopo_disciplina_id
+           FROM professores_regras
+           WHERE ativa = 1"""
+    ).fetchall():
+        regras_por_professor.setdefault(regra['professor_id'], []).append(regra)
+
     for professor in professores:
-        days = set(filter(None, (professor.get('dias_disponiveis') or '').split(',')))
-        conn.execute(
-            "UPDATE professores SET dias_disponiveis = %s WHERE id = %s",
-            (','.join(_sort_school_days(days)), professor['id']),
-        )
+        derivados = set(dias_efetivos_de_linhas(regras_por_professor.get(professor['id'], [])))
+        armazenados = set(filter(None, (professor.get('dias_disponiveis') or '').split(',')))
+        # Disponibilidade real antes desta migração: a coluna E as regras valiam
+        # ao mesmo tempo (o solver intersectava as duas). Coluna vazia = sem limite.
+        efetivos = (armazenados or set(DEFAULT_SCHOOL_DAYS)) & derivados
+
+        if efetivos and efetivos != derivados:
+            conn.execute(
+                """INSERT INTO professores_regras
+                       (escola_id, turno, professor_id, escopo_disciplina_id,
+                        tipo, parametros, obrigatoria, peso)
+                   VALUES (%s, %s, %s, NULL, %s, %s, 1, 100)""",
+                (
+                    professor['escola_id'],
+                    professor.get('turno') or 'matutino',
+                    professor['id'],
+                    DIAS_PERMITIDOS,
+                    json.dumps({'dias': _sort_school_days(efetivos)}),
+                ),
+            )
+            LOGGER.info(
+                'Disponibilidade do professor %s migrada para uma regra DIAS_PERMITIDOS (%s).',
+                professor['id'],
+                ', '.join(_sort_school_days(efetivos)),
+            )
+            derivados = efetivos
+
+        # Roda a cada boot: só escreve quando o valor realmente muda.
+        novo = ','.join(_sort_school_days(derivados))
+        if novo != (professor.get('dias_disponiveis') or ''):
+            conn.execute(
+                "UPDATE professores SET dias_disponiveis = %s WHERE id = %s",
+                (novo, professor['id']),
+            )
 
 
 def _ensure_bootstrap_admin(cursor):

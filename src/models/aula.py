@@ -4,6 +4,7 @@ import time
 import mysql.connector
 
 from database.connection import get_connection
+from models import regra_professor as _regras
 from models.turno import normalizar_turno
 from utils.conflitos import DIAS, PERIODOS
 
@@ -193,6 +194,95 @@ def _validar_limite_professor(conn, escola_id, professor_id):
         raise ScheduleConflictError("O professor já atingiu o limite semanal de aulas.")
 
 
+def _validar_regras_professor(conn, professor_id, turma_id, disciplina_id, dia, periodo,
+                              aulas_por_dia, ignorar_aula_ids=None):
+    """Aplica à edição manual as mesmas regras obrigatórias que o solver respeita.
+
+    Sem isto, a grade sai da geração respeitando as regras e o primeiro arrasto as
+    desfaz em silêncio. A tradução regra -> slot é a de models.regra_professor, a
+    mesma consumida por solver.horario_cpsat.
+
+    Ficam de fora, por não serem decidíveis num movimento isolado:
+    - AULA_GEMINADA, que exige um mínimo de blocos (mover uma aula não viola mínimo);
+    - o alvo exato de CONTAGEM_POR_DIA, cujo estado intermediário é legítimo enquanto
+      o usuário reorganiza a grade (a restrição de DIA dessa regra é aplicada).
+    """
+    if not professor_id:
+        return
+
+    regras = _regras.regras_aplicaveis(
+        _regras.carregar_regras_professor(conn, professor_id), disciplina_id
+    )
+    if not regras:
+        return
+
+    periodo = int(periodo)
+    periodos_turma = list(range(1, int(aulas_por_dia or 5) + 1))
+
+    bloqueio = _regras.regra_que_bloqueia_slot(regras, dia, periodo, periodos_turma)
+    if bloqueio:
+        raise ScheduleConflictError(
+            f"Uma regra do professor impede este horário: {_regras.descrever_regra(bloqueio)}."
+        )
+
+    ignorar = {int(item) for item in (ignorar_aula_ids or []) if item is not None}
+    _validar_max_aulas_dia(conn, regras, turma_id, disciplina_id, dia, ignorar)
+    _validar_dias_ocupados(conn, regras, professor_id, dia, ignorar)
+
+
+def _validar_max_aulas_dia(conn, regras, turma_id, disciplina_id, dia, ignorar):
+    """MAX_AULAS_DIA: limita aulas da mesma turma+disciplina no dia (espalha a matéria)."""
+    limites = [
+        int((r.get('parametros') or {}).get('quantidade') or 0)
+        for r in regras
+        if r.get('tipo') == _regras.MAX_AULAS_DIA and r.get('obrigatoria')
+    ]
+    limites = [n for n in limites if n > 0]
+    if not limites:
+        return
+
+    rows = conn.execute(
+        """SELECT id FROM aulas
+           WHERE turma_id = %s AND disciplina_id = %s AND dia = %s""",
+        (turma_id, disciplina_id, dia),
+    ).fetchall()
+    no_dia = sum(1 for row in rows if int(row['id']) not in ignorar) + 1
+
+    menor = min(limites)
+    if no_dia > menor:
+        raise ScheduleConflictError(
+            f"Uma regra do professor permite no máximo {menor} aula(s) desta disciplina por dia."
+        )
+
+
+def _validar_dias_ocupados(conn, regras, professor_id, dia, ignorar):
+    """DIA_LIVRE / DISTRIBUIR_EM_N_DIAS: limitam em quantos dias o professor trabalha."""
+    limites = []
+    for regra in regras:
+        if not regra.get('obrigatoria'):
+            continue
+        quantidade = int((regra.get('parametros') or {}).get('quantidade') or 0)
+        if regra.get('tipo') == _regras.DIA_LIVRE and quantidade > 0:
+            limites.append((len(DIAS) - quantidade, regra))
+        elif regra.get('tipo') == _regras.DISTRIBUIR_EM_N_DIAS and quantidade > 0:
+            limites.append((quantidade, regra))
+    if not limites:
+        return
+
+    rows = conn.execute(
+        "SELECT id, dia FROM aulas WHERE professor_id = %s",
+        (professor_id,),
+    ).fetchall()
+    dias_usados = {row['dia'] for row in rows if int(row['id']) not in ignorar}
+    dias_usados.add(dia)
+
+    for limite, regra in limites:
+        if len(dias_usados) > limite:
+            raise ScheduleConflictError(
+                f"Uma regra do professor seria quebrada: {_regras.descrever_regra(regra)}."
+            )
+
+
 def _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id, dia, periodo, ignorar_aula_ids=None):
     ignorar = {int(aula_id) for aula_id in (ignorar_aula_ids or []) if aula_id is not None}
     rows = conn.execute(
@@ -259,6 +349,8 @@ def criar_aula_manual(escola_id, turma_id, professor_id, disciplina_id, dia, per
 
         _validar_disponibilidade_professor(conn, escola_id, professor_id, dia)
         _validar_limite_professor(conn, escola_id, professor_id)
+        _validar_regras_professor(conn, professor_id, turma_id, disciplina_id, dia, periodo,
+                                  turma.get('aulas_por_dia'))
         _validar_aulas_seguidas_disciplina(conn, escola_id, turma_id, disciplina_id, dia, periodo)
 
         aula_turma = conn.execute(
@@ -364,6 +456,14 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
             aula_destino = None
 
         if aula_destino:
+            # Na troca as duas aulas mudam de lugar: cada uma é validada no slot que
+            # vai ocupar, ignorando o par para não conflitarem consigo mesmas.
+            par = [aula_atual['id'], aula_destino['id']]
+            _validar_regras_professor(
+                conn, aula_atual['professor_id'], aula_atual['turma_id'],
+                aula_atual['disciplina_id'], novo_dia, novo_periodo,
+                aula_atual.get('aulas_por_dia'), ignorar_aula_ids=par,
+            )
             _validar_aulas_seguidas_disciplina(
                 conn,
                 aula_atual['escola_id'],
@@ -371,7 +471,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 aula_atual['disciplina_id'],
                 novo_dia,
                 novo_periodo,
-                ignorar_aula_ids=[aula_atual['id'], aula_destino['id']],
+                ignorar_aula_ids=par,
             )
 
             conflito_professor_atual = conn.execute(
@@ -416,6 +516,11 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 aula_destino['professor_id'],
                 aula_atual['dia'],
             )
+            _validar_regras_professor(
+                conn, aula_destino['professor_id'], aula_atual['turma_id'],
+                aula_destino['disciplina_id'], aula_atual['dia'], aula_atual['periodo'],
+                aula_atual.get('aulas_por_dia'), ignorar_aula_ids=par,
+            )
             _validar_aulas_seguidas_disciplina(
                 conn,
                 aula_atual['escola_id'],
@@ -423,7 +528,7 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
                 aula_destino['disciplina_id'],
                 aula_atual['dia'],
                 aula_atual['periodo'],
-                ignorar_aula_ids=[aula_atual['id'], aula_destino['id']],
+                ignorar_aula_ids=par,
             )
 
             conn.execute(
@@ -453,6 +558,11 @@ def mover_aula(aula_id, novo_dia, novo_periodo, escola_id=None):
         if conflito_professor:
             raise ScheduleConflictError("O professor já possui uma aula nesse dia e período.")
 
+        _validar_regras_professor(
+            conn, aula_atual['professor_id'], aula_atual['turma_id'],
+            aula_atual['disciplina_id'], novo_dia, novo_periodo,
+            aula_atual.get('aulas_por_dia'), ignorar_aula_ids=[aula_atual['id']],
+        )
         _validar_aulas_seguidas_disciplina(
             conn,
             aula_atual['escola_id'],

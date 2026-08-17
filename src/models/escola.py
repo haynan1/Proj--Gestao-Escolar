@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import logging
 import re
 
@@ -9,6 +10,21 @@ from models.turno import normalizar_turno
 from models.user_link import usuario_tem_vinculo
 
 BACKUP_NAME_RE = re.compile(r'\s+\(backup \d{4}-\d{2}-\d{2} \d{6}\)(?: \d+)?$')
+
+
+def _parametros_regra_json(valor):
+    """Normaliza a coluna JSON de professores_regras para reinserção.
+
+    O driver pode devolver dict/list já desserializado, bytes ou str conforme a
+    versão; a coluna é NOT NULL, então valor irrecuperável vira objeto vazio.
+    """
+    if isinstance(valor, (dict, list)):
+        return json.dumps(valor)
+    if isinstance(valor, (bytes, bytearray)):
+        valor = valor.decode('utf-8')
+    if isinstance(valor, str) and valor.strip():
+        return valor
+    return '{}'
 
 
 def _serialize_escola(row):
@@ -442,6 +458,60 @@ def duplicar_escola_oculta(escola_id):
                        ) VALUES (%s, %s, %s, %s)""",
                     (professor_id, turma_id, disciplina_id, row.get('aulas_semana') or 1),
                 )
+
+        # Regras dos professores: sem elas a cópia geraria uma grade diferente da
+        # original, e a disponibilidade semanal (derivada das regras de dia) se perderia.
+        for row in conn.execute(
+            """SELECT r.professor_id,
+                      r.escopo_disciplina_id,
+                      r.tipo,
+                      r.parametros,
+                      r.obrigatoria,
+                      r.peso,
+                      r.ativa
+               FROM professores_regras r
+               JOIN professores p ON p.id = r.professor_id
+               WHERE p.escola_id = %s
+               ORDER BY r.id""",
+            (escola_id,),
+        ).fetchall():
+            professor_id = professor_map.get(row['professor_id'])
+            if not professor_id:
+                continue
+
+            escopo_original = row.get('escopo_disciplina_id')
+            escopo_id = None
+            if escopo_original is not None:
+                escopo_id = disciplina_map.get(escopo_original)
+                # Regra presa a uma disciplina que não veio junto perderia o sentido;
+                # copiar sem o escopo a aplicaria a todas as disciplinas do professor.
+                if not escopo_id:
+                    continue
+
+            conn.execute(
+                """INSERT INTO professores_regras (
+                       escola_id,
+                       turno,
+                       professor_id,
+                       escopo_disciplina_id,
+                       tipo,
+                       parametros,
+                       obrigatoria,
+                       peso,
+                       ativa
+                   ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    backup_id,
+                    professor_turnos[row['professor_id']],
+                    professor_id,
+                    escopo_id,
+                    row['tipo'],
+                    _parametros_regra_json(row.get('parametros')),
+                    1 if row.get('obrigatoria') else 0,
+                    int(row.get('peso') or 100),
+                    1 if row.get('ativa') else 0,
+                ),
+            )
 
         for aula in conn.execute(
             "SELECT * FROM aulas WHERE escola_id = %s ORDER BY id",

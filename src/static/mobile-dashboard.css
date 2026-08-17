@@ -323,11 +323,9 @@
 
     body[data-escola-id] #modal-prof .professor-disciplines-group,
     body[data-escola-id] #modal-prof .professor-classes-group,
-    body[data-escola-id] #modal-prof .professor-days-group,
     body[data-escola-id] #modal-prof .professor-load-panel,
     body[data-escola-id] #modal-prof-edit .professor-disciplines-group,
     body[data-escola-id] #modal-prof-edit .professor-classes-group,
-    body[data-escola-id] #modal-prof-edit .professor-days-group,
     body[data-escola-id] #modal-prof-edit .professor-load-panel {
         display: block !important;
         width: 100% !important;
@@ -425,10 +423,8 @@
 
     body[data-escola-id] #modal-prof .professor-chip-grid,
     body[data-escola-id] #modal-prof .professor-chip-grid-lg,
-    body[data-escola-id] #modal-prof .professor-chip-grid-compact,
     body[data-escola-id] #modal-prof-edit .professor-chip-grid,
-    body[data-escola-id] #modal-prof-edit .professor-chip-grid-lg,
-    body[data-escola-id] #modal-prof-edit .professor-chip-grid-compact {
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid-lg {
         display: grid !important;
         grid-template-columns: 1fr !important;
         gap: 0.55rem !important;
@@ -640,10 +636,8 @@
 @media (max-width: 380px) {
     body[data-escola-id] #modal-prof .professor-chip-grid,
     body[data-escola-id] #modal-prof .professor-chip-grid-lg,
-    body[data-escola-id] #modal-prof .professor-chip-grid-compact,
     body[data-escola-id] #modal-prof-edit .professor-chip-grid,
-    body[data-escola-id] #modal-prof-edit .professor-chip-grid-lg,
-    body[data-escola-id] #modal-prof-edit .professor-chip-grid-compact {
+    body[data-escola-id] #modal-prof-edit .professor-chip-grid-lg {
         grid-template-columns: 1fr !important;
     }
 
